@@ -1,0 +1,8 @@
+/* Import handwritten fonts from Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;500;600;700&family=Patrick+Hand&display=swap');
+
+@import 'tailwindcss' source(none);
+@source '../../**/*.{js,ts,jsx,tsx}';
+@import 'tw-animate-css';
+@import './default_theme.css';
+@import './globals.css';
