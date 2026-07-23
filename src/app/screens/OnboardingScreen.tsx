@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users } from 'lucide-react';
+import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -576,7 +576,7 @@ const A3_NOTES: Record<string, { id: string; name: string; type: 'internal' | 'e
 function A3Screen({ hasPreset, onNext, onBack }: {
   hasPreset: boolean; onNext: (source: 'REAL_UPLOAD' | 'SAMPLE') => void; onBack: () => void;
 }) {
-  const [selected, setSelected]         = useState<'REAL_UPLOAD' | 'SAMPLE' | null>(null);
+  const [selected, setSelected]         = useState<'REAL_UPLOAD' | 'SAMPLE'>('REAL_UPLOAD');
   const [uploadTab, setUploadTab]        = useState<'internal' | 'external'>('internal');
   const [activeFolder, setActiveFolder]  = useState('criminal');
   const [checked, setChecked]            = useState<Set<string>>(new Set(['n1', 'n2', 'n3']));
@@ -593,66 +593,22 @@ function A3Screen({ hasPreset, onNext, onBack }: {
 
   return (
     <div className="flex flex-col h-full px-5">
-      <div className="pt-3 pb-1">
-        <h1 className="text-[19px] font-bold leading-tight mb-0.5" style={{ color: T1 }}>添加你的学习资料</h1>
-        <p className="text-[12px] font-medium" style={{ color: BLUE }}>
-          {hasPreset ? '用你自己的资料，或先用示例快速体验' : '添加你的学习资料，提取后生成知识点'}
-        </p>
-      </div>
-      <div className="mb-2"><StepBar active={1} /></div>
-
-      {/* ── Two source cards (compact when REAL_UPLOAD selected) ── */}
-      <div className={`flex gap-2.5 ${selected === 'REAL_UPLOAD' ? 'mb-2' : 'mb-0'}`}>
-        {/* Card A */}
-        <button onClick={() => setSelected('REAL_UPLOAD')}
-          className={`transition-all text-left rounded-xl border-2 ${selected === 'REAL_UPLOAD' ? 'flex-[2] px-3 py-2' : 'flex-1 px-4 py-4'}`}
-          style={{
-            background: CARD,
-            borderColor: selected === 'REAL_UPLOAD' ? PRIMARY : selected === 'SAMPLE' ? BORDER : PRIMARY,
-            boxShadow: selected === 'REAL_UPLOAD' ? '0 2px 8px rgba(253,199,0,.18)' : 'none',
-          }}>
-          {selected === 'REAL_UPLOAD' ? (
-            <div className="flex items-center gap-2">
-              <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: PRIMARY }} />
-              <p className="text-[13px] font-bold" style={{ color: T1 }}>上传我自己的资料</p>
-              <span className="text-[11px] ml-auto" style={{ color: GREEN }}>已选 {checked.size} 项</span>
-            </div>
-          ) : (
-            <>
-              <p className="text-[14px] font-bold mb-1" style={{ color: T1 }}>上传我自己的资料</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {['笔记', 'PDF', '图片', '录音'].map(t => (
-                  <span key={t} className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: '#F3F4F6', color: T4 }}>{t}</span>
-                ))}
-              </div>
-            </>
-          )}
-        </button>
-
-        {/* Card B — only when hasPreset */}
+      <div className="pt-3 pb-1 flex items-start justify-between">
+        <div>
+          <h1 className="text-[19px] font-bold leading-tight mb-0.5" style={{ color: T1 }}>添加你的学习资料</h1>
+          <p className="text-[12px] font-medium" style={{ color: BLUE }}>
+            {selected === 'SAMPLE' ? '正在使用与你目标匹配的示例包' : '默认使用你的资料，AI 会提取并组织知识点'}
+          </p>
+        </div>
         {hasPreset && (
-          <button onClick={() => setSelected('SAMPLE')}
-            className={`transition-all text-left rounded-xl border-2 ${selected === 'SAMPLE' ? 'flex-[2] px-3 py-2' : 'flex-1 px-4 py-4'}`}
-            style={{
-              background: CARD,
-              borderColor: selected === 'SAMPLE' ? PRIMARY : BORDER,
-              boxShadow: selected === 'SAMPLE' ? '0 2px 8px rgba(253,199,0,.18)' : 'none',
-            }}>
-            {selected === 'SAMPLE' ? (
-              <div className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background: PRIMARY }} />
-                <p className="text-[13px] font-bold" style={{ color: T1 }}>先用示例探索</p>
-                <span className="text-[11px] ml-auto" style={{ color: T4 }}>刑法分论·贿赂渎职.pdf</span>
-              </div>
-            ) : (
-              <>
-                <p className="text-[14px] font-bold mb-1" style={{ color: T1 }}>先用示例探索</p>
-                <p className="text-[12px]" style={{ color: T4 }}>内容已备好，立即可用</p>
-              </>
-            )}
+          <button onClick={() => setSelected(selected === 'SAMPLE' ? 'REAL_UPLOAD' : 'SAMPLE')}
+            className="px-3 py-1.5 rounded-full text-[11px] font-semibold"
+            style={{ background: selected === 'SAMPLE' ? '#F3F4F6' : '#EAF3FF', color: selected === 'SAMPLE' ? T3 : BLUE }}>
+            {selected === 'SAMPLE' ? '改回我的资料' : '改用示例快速体验'}
           </button>
         )}
       </div>
+      <div className="mb-2"><StepBar active={1} /></div>
 
       {/* ── Expanded file browser (Card A selected) ── */}
       {selected === 'REAL_UPLOAD' && (
@@ -764,19 +720,19 @@ function A3Screen({ hasPreset, onNext, onBack }: {
         </div>
       )}
 
-      {/* ── No card selected: fill vertical space ── */}
-      {selected !== 'REAL_UPLOAD' && <div className="flex-1" />}
-
-      {/* "暂时用示例" link — always visible */}
-      {hasPreset && selected !== 'SAMPLE' && (
-        <button onClick={() => setSelected('SAMPLE')}
-          className="w-full py-2 text-center text-[13px]" style={{ color: BLUE }}>
-          暂时用示例，稍后再传我的资料
-        </button>
+      {selected === 'SAMPLE' && (
+        <div className="flex-1 rounded-2xl p-5 flex items-center gap-4" style={{ background: '#FFFBDE', border: `1.5px solid ${PRIMARY}` }}>
+          <div className="w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: CARD }}><FileText color={BLUE} /></div>
+          <div className="flex-1">
+            <p className="text-[15px] font-bold" style={{ color: T1 }}>刑法分论 · 贿赂渎职示例包</p>
+            <p className="text-[12px] mt-1" style={{ color: T3 }}>3 份资料已准备好，可直接确认优先级并体验完整学习流程。</p>
+          </div>
+          <Check size={20} color={GREEN} />
+        </div>
       )}
 
       <div className="pb-4 pt-1.5">
-        <CTAButton onClick={() => onNext(selected || 'SAMPLE')} disabled={!selected && !hasPreset}>
+        <CTAButton onClick={() => onNext(selected)} disabled={selected === 'REAL_UPLOAD' && checked.size === 0}>
           下一步：确认优先级 →
         </CTAButton>
       </div>
@@ -786,57 +742,84 @@ function A3Screen({ hasPreset, onNext, onBack }: {
 
 // ── A4: Prioritize ────────────────────────────────────────────────────────────
 
-const RESOURCES_DATA = [
-  { id: 1, name: '刑法分论·贿赂渎职.pdf',  type: 'pdf',  priority: '高' },
-  { id: 2, name: '刑法总论讲义.pptx',       type: 'pptx', priority: '中' },
-  { id: 3, name: '司法考试真题 2024.docx', type: 'docx', priority: '高' },
+type PriorityId = 'exam' | 'high' | 'past' | 'routine';
+type PriorityResource = { id: number; name: string; type: string; priority: PriorityId };
+const PRIORITIES: { id: PriorityId; name: string; en: string; hint: string; color: string; bg: string }[] = [
+  { id: 'exam', name: '冲刺必看', en: 'Exam Leak', hint: '考前最终复习与最新资料', color: '#E5484D', bg: '#FFF5F5' },
+  { id: 'high', name: '高频重点', en: 'High Yield', hint: '核心概念与高频考点', color: '#E98B12', bg: '#FFF8EF' },
+  { id: 'past', name: '历年真题', en: 'Past Papers', hint: '历年试题与模拟题', color: '#D2A400', bg: '#FFFBE8' },
+  { id: 'routine', name: '常规资料', en: 'Routine', hint: '补充阅读与参考资料', color: '#A8ADB4', bg: '#F7F8FA' },
+];
+const RESOURCES_DATA: PriorityResource[] = [
+  { id: 1, name: '刑法分论·贿赂渎职.pdf', type: 'pdf', priority: 'exam' },
+  { id: 2, name: '考前重点公式与法条.pdf', type: 'pdf', priority: 'exam' },
+  { id: 3, name: '刑法总论讲义.pptx', type: 'pptx', priority: 'high' },
+  { id: 4, name: '斡旋受贿专题笔记', type: 'note', priority: 'high' },
+  { id: 5, name: '司法考试真题 2024.docx', type: 'docx', priority: 'past' },
+  { id: 6, name: '补充案例阅读.pdf', type: 'pdf', priority: 'routine' },
 ];
 
 function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }) {
   const [resources, setResources] = useState(RESOURCES_DATA);
-
-  const setPriority = (id: number, priority: string) =>
-    setResources(prev => prev.map(r => r.id === id ? { ...r, priority } : r));
+  const [draggedId, setDraggedId] = useState<number | null>(null);
+  const [removed, setRemoved] = useState<PriorityResource | null>(null);
+  const moveResource = (id: number, priority: PriorityId, beforeId?: number) => {
+    setResources(prev => {
+      const moving = prev.find(r => r.id === id);
+      if (!moving) return prev;
+      const rest = prev.filter(r => r.id !== id);
+      const next = { ...moving, priority };
+      if (!beforeId) return [...rest, next];
+      const at = rest.findIndex(r => r.id === beforeId);
+      return at < 0 ? [...rest, next] : [...rest.slice(0, at), next, ...rest.slice(at)];
+    });
+  };
+  const removeResource = (resource: PriorityResource) => {
+    setResources(prev => prev.filter(r => r.id !== resource.id));
+    setRemoved(resource);
+  };
 
   return (
-    <div className="flex flex-col h-full px-6">
-      <ScreenTitle title="确认资料优先级" sub="系统已预排，你可以调整" />
+    <div className="flex flex-col h-full px-5">
+      <div className="pt-3 pb-1"><h1 className="text-[19px] font-bold" style={{ color: T1 }}>确认资料优先级</h1><p className="text-[12px]" style={{ color: BLUE }}>拖拽可调整级别，也可在级别内重新排序</p></div>
       <StepBar active={2} />
-
-      <div className="flex-1 overflow-y-auto pb-4 space-y-2">
-        <div className="rounded-xl p-3 mb-2" style={{ background: '#EAF3FF' }}>
-          <p className="text-[12px]" style={{ color: BLUE }}>
-            资料优先级越高，其知识点重要度星级越高；再叠加多份来源命中，共同决定知识点星级。
-          </p>
-        </div>
-        {resources.map(r => (
-          <div key={r.id} className="flex items-center gap-3 px-4 py-3 rounded-xl"
-            style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-            <GripVertical size={16} color="#CCC" />
-            <FileText size={16} color="#888" />
-            <span className="flex-1 text-[13px]" style={{ color: T2 }}>{r.name}</span>
-            <div className="flex gap-1">
-              {['高', '中', '低'].map(p => (
-                <button key={p} onClick={() => setPriority(r.id, p)}
-                  className="px-2.5 py-1 rounded-full text-[12px] font-medium transition-all"
-                  style={{
-                    background: r.priority === p
-                      ? (p === '高' ? '#FFE562' : p === '中' ? '#EAF3FF' : '#F3F4F6')
-                      : '#F3F4F6',
-                    color: r.priority === p
-                      ? (p === '高' ? '#7A6400' : p === '中' ? BLUE : T3)
-                      : '#CCC',
-                  }}>
-                  {p}
-                </button>
+      <div className="rounded-lg px-3 py-2 mb-2 text-[11px]" style={{ background: '#EAF3FF', color: BLUE }}>优先级与多来源命中次数共同决定知识点星级。每份资料已自动归入一个级别。</div>
+      <div className="flex-1 overflow-y-auto pb-3 space-y-2" style={{ scrollbarWidth: 'none' }}>
+        {PRIORITIES.map(group => {
+          const items = resources.filter(r => r.priority === group.id);
+          return (
+            <div key={group.id} className="rounded-xl overflow-hidden"
+              onDragOver={e => e.preventDefault()}
+              onDrop={() => { if (draggedId !== null) moveResource(draggedId, group.id); setDraggedId(null); }}
+              style={{ border: `1.5px solid ${group.color}55`, background: CARD, minHeight: 66 }}>
+              <div className="flex items-center gap-2 px-3 py-2" style={{ background: group.bg }}>
+                <span className="w-3 h-3 rounded-full" style={{ background: group.color }} />
+                <span className="text-[12px] font-bold" style={{ color: T2 }}>{group.name}</span>
+                <span className="text-[10px]" style={{ color: T4 }}>{group.en} · {group.hint}</span>
+                <span className="ml-auto text-[10px]" style={{ color: T4 }}>{items.length} 项</span>
+              </div>
+              {items.map((r, index) => (
+                <div key={r.id} draggable onDragStart={() => setDraggedId(r.id)}
+                  onDragOver={e => e.preventDefault()}
+                  onDrop={e => { e.stopPropagation(); if (draggedId !== null) moveResource(draggedId, group.id, r.id); setDraggedId(null); }}
+                  className="flex items-center gap-2.5 px-3 py-2 cursor-grab"
+                  style={{ borderTop: index >= 0 ? `1px solid ${BORDER}` : undefined, opacity: draggedId === r.id ? .45 : 1 }}>
+                  <GripVertical size={15} color="#B6BBC2" /><FileText size={14} color={group.color} />
+                  <span className="flex-1 text-[12px]" style={{ color: T2 }}>{r.name}</span>
+                  <select value={r.priority} onChange={e => moveResource(r.id, e.target.value as PriorityId)}
+                    className="text-[10px] rounded-lg px-1.5 py-1" style={{ border: `1px solid ${BORDER}`, color: T3 }}>
+                    {PRIORITIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                  <button title="移除资源" onClick={() => removeResource(r)} className="p-1"><Trash2 size={13} color="#BBB" /></button>
+                </div>
               ))}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-
-      <div className="pb-6 pt-2">
-        <CTAButton onClick={onNext}>Analyze and Create →</CTAButton>
+      {removed && <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg text-[11px]" style={{ background: '#252525', color: '#fff' }}><span className="flex-1">已从学习空间移除「{removed.name}」</span><button onClick={() => { setResources(prev => [...prev, removed]); setRemoved(null); }} className="flex items-center gap-1" style={{ color: PRIMARY }}><RotateCcw size={12} />撤销</button></div>}
+      <div className="pb-4 pt-1">
+        <CTAButton onClick={onNext} disabled={resources.length === 0}>Analyze and Create →</CTAButton>
       </div>
     </div>
   );
@@ -844,8 +827,8 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
 
 // ── A5: Extraction Loading + Demo Chain (B3→B7→C1→C2) ────────────────────────
 
-type A5SubPhase = 'loading' | 'B2' | 'B3' | 'B4' | 'B5' | 'B6' | 'B7' | 'C1' | 'C2' | 'done';
-const DEMO_PHASES: A5SubPhase[] = ['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'C1', 'C2'];
+type A5SubPhase = 'loading' | 'B2' | 'B3' | 'B4' | 'B5' | 'B5S' | 'B6' | 'B65' | 'B7' | 'C1' | 'C2' | 'done';
+const DEMO_PHASES: A5SubPhase[] = ['B2', 'B3', 'B4', 'B5', 'B5S', 'B6', 'B65', 'B7', 'C1', 'C2'];
 
 function A5DemoBar({ phase }: { phase: A5SubPhase }) {
   const idx = DEMO_PHASES.indexOf(phase);
@@ -860,7 +843,7 @@ function A5DemoBar({ phase }: { phase: A5SubPhase }) {
   );
 }
 
-function A5Screen({ hasPreset, onNext }: { hasPreset: boolean; onNext: () => void }) {
+function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: boolean; onNext: () => void }) {
   const [subPhase, setSubPhase]   = useState<A5SubPhase>('loading');
   const [progress, setProgress]   = useState(0);
   const [dotCount, setDotCount]   = useState(0);
@@ -904,7 +887,8 @@ function A5Screen({ hasPreset, onNext }: { hasPreset: boolean; onNext: () => voi
   const advanceDemo = () => {
     const idx = DEMO_PHASES.indexOf(subPhase);
     if (idx >= 0 && idx < DEMO_PHASES.length - 1) {
-      setSubPhase(DEMO_PHASES[idx + 1]);
+      const nextPhase = DEMO_PHASES[idx + 1];
+      setSubPhase(nextPhase === 'B5S' && !isStem ? 'B6' : nextPhase);
     } else {
       // After C2 — simulate extraction check: assume done for demo
       onNext();
@@ -961,6 +945,18 @@ function A5Screen({ hasPreset, onNext }: { hasPreset: boolean; onNext: () => voi
     );
   }
 
+  if (subPhase === 'B5S') {
+    return (
+      <div className="flex flex-col h-full">
+        <A5DemoBar phase="B5S" />
+        <div className="flex flex-col flex-1 px-6 overflow-hidden">
+          <ScreenTitle title="计算题，也能随手打草稿" sub="草稿本跟着练习走，不遮挡题目" />
+          <ScratchpadDemo onNext={advanceDemo} />
+        </div>
+      </div>
+    );
+  }
+
   // ── B6: AI tutoring ───────────────────────────────────────────────────────
   if (subPhase === 'B6') {
     return (
@@ -969,6 +965,18 @@ function A5Screen({ hasPreset, onNext }: { hasPreset: boolean; onNext: () => voi
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="不只给答案，自动带你学会" sub="识别错因 · 继续追问 · 自动进入强化学习" />
           <B6Inner onNext={advanceDemo} />
+        </div>
+      </div>
+    );
+  }
+
+  if (subPhase === 'B65') {
+    return (
+      <div className="flex flex-col h-full">
+        <A5DemoBar phase="B65" />
+        <div className="flex flex-col flex-1 px-6 overflow-hidden">
+          <ScreenTitle title="每个答案，都能找到出处" sub="直接标记来源，也能打开最新原笔记继续补记" />
+          <TracebackDemo onNext={advanceDemo} />
         </div>
       </div>
     );
@@ -1170,10 +1178,7 @@ function B2Inner({ onNext }: { onNext: () => void }) {
   ];
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex justify-end gap-1.5 mb-2">
-        <span className="px-3 py-1 rounded-full text-[11px] font-semibold" style={{ background: '#EAF3FF', color: BLUE }}>思维导图</span>
-        <button onClick={onNext} className="px-3 py-1 rounded-full text-[11px]" style={{ background: '#F3F4F6', color: T4 }}>知识星图</button>
-      </div>
+      <div className="flex justify-end mb-2"><span className="px-3 py-1 rounded-full text-[11px] font-semibold" style={{ background: '#EAF3FF', color: BLUE }}>当前：思维导图</span></div>
       <div className="flex-1 relative rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-3 rounded-xl text-[14px] font-bold z-10" style={{ background: PRIMARY, color: '#6B5900' }}>贿赂犯罪</div>
         <div className="grid grid-cols-3 gap-20 w-[88%]">
@@ -1188,8 +1193,8 @@ function B2Inner({ onNext }: { onNext: () => void }) {
           <path d="M400 150 C300 150 250 70 130 70 M400 150 C400 210 400 225 400 245 M400 150 C500 150 560 90 680 90" fill="none" stroke="#B9CEE8" strokeWidth="2" />
         </svg>
       </div>
-      <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>下一步，同一批知识点会切换为掌握状态星图</p>
-      <div className="pb-5 pt-2"><CTAButton onClick={onNext}>切换为知识星图 →</CTAButton></div>
+      <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>下一步，用同一批知识点查看掌握状态</p>
+      <div className="pb-5 pt-2"><CTAButton onClick={onNext}>下一步：看看掌握状态 →</CTAButton></div>
     </div>
   );
 }
@@ -1339,8 +1344,8 @@ function B4Inner({ onNext }: { onNext: () => void }) {
               style={{ background: BLUE, color: '#fff' }}>继续练习</button>
             <button onClick={onNext} className="flex-1 py-2.5 rounded-xl text-[13px]"
               style={{ background: '#F3F4F6', color: T2 }}>我已经会了，跳过</button>
-            <button onClick={onNext} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
-              style={{ background: PRIMARY, color: '#7A6400' }}>深度学习</button>
+            <button onClick={onNext} className="flex-1 py-2 rounded-xl font-semibold"
+              style={{ background: PRIMARY, color: '#7A6400' }}><span className="block text-[13px]">先讲给我听</span><span className="block text-[9px] font-normal">进入 AI 引导学习</span></button>
           </div>
         )}
       </div>
@@ -1355,6 +1360,8 @@ function B4Inner({ onNext }: { onNext: () => void }) {
 
 function B5Inner({ onNext }: { onNext: () => void }) {
   const [tab, setTab] = useState<'填空' | '判断' | '多选' | '简答'>('填空');
+  const [draft, setDraft] = useState('');
+  const [solved, setSolved] = useState(false);
   const contents = {
     填空: { question: '斡旋受贿罪的行为主体必须是 ______。', user: '公职人员', answer: '国家工作人员', analysis: '“公职人员”范围过宽，法条要求行为人具有国家工作人员身份。' },
     判断: { question: '斡旋受贿要求行为人亲自利用本人职务为请托人谋利。', user: '正确', answer: '错误', analysis: '其核心是利用职权或地位形成的影响，通过其他国家工作人员为请托人谋利。' },
@@ -1365,15 +1372,22 @@ function B5Inner({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <div className="flex gap-2 mb-3">
-        {(Object.keys(contents) as Array<keyof typeof contents>).map(type => <button key={type} onClick={() => setTab(type)} className="flex-1 py-2 rounded-lg text-[12px] font-semibold" style={{ background: tab === type ? BLUE : '#F3F4F6', color: tab === type ? '#fff' : T3 }}>{type}</button>)}
+        {(Object.keys(contents) as Array<keyof typeof contents>).map(type => <button key={type} onClick={() => { setTab(type); setDraft(''); setSolved(false); }} className="flex-1 py-2 rounded-lg text-[12px] font-semibold" style={{ background: tab === type ? BLUE : '#F3F4F6', color: tab === type ? '#fff' : T3 }}>{type}</button>)}
       </div>
       <div className="flex-1 rounded-2xl p-4 overflow-y-auto" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
         <p className="text-[14px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="rounded-xl p-3" style={{ background: '#FFF0EE' }}><p className="text-[10px] font-semibold mb-1" style={{ color: RED }}>你的答案</p><p className="text-[12px]" style={{ color: T2 }}>{current.user}</p></div>
-          <div className="rounded-xl p-3" style={{ background: '#F6FEF9' }}><p className="text-[10px] font-semibold mb-1" style={{ color: GREEN }}>正确 / 参考答案</p><p className="text-[12px]" style={{ color: T2 }}>{current.answer}</p></div>
-        </div>
-        <div className="rounded-xl p-3" style={{ background: '#F3F4F6' }}><p className="text-[11px] font-semibold mb-1" style={{ color: T3 }}>解析</p><p className="text-[12px] leading-relaxed" style={{ color: T3 }}>{current.analysis}</p></div>
+        {!solved ? <>
+          {tab === '判断' ? <div className="grid grid-cols-2 gap-2 mb-3">{['正确','错误'].map(v => <button key={v} onClick={() => setDraft(v)} className="py-3 rounded-xl text-[12px]" style={{ background: draft === v ? '#FFFBDE' : '#F6F6F6', border: `1.5px solid ${draft === v ? PRIMARY : BORDER}` }}>{v}</button>)}</div>
+          : tab === '多选' ? <div className="space-y-2 mb-3">{['国家工作人员身份','地位影响','收受财物'].map(v => <button key={v} onClick={() => setDraft(draft.includes(v) ? draft.replace(v, '') : `${draft} ${v}`)} className="w-full text-left px-3 py-2 rounded-lg text-[12px]" style={{ background: draft.includes(v) ? '#FFFBDE' : '#F6F6F6' }}>□ {v}</button>)}</div>
+          : <textarea value={draft} onChange={e => setDraft(e.target.value)} placeholder={tab === '填空' ? '输入答案' : '写下你的回答'} className="w-full rounded-xl p-3 text-[12px] mb-3 resize-none" style={{ border: `1.5px solid ${BORDER}`, minHeight: 72 }} />}
+          <button onClick={() => { if (!draft) setDraft(current.user); setSolved(true); }} className="px-5 py-2 rounded-full text-[12px] font-semibold" style={{ background: BLUE, color: '#fff' }}>提交答案</button>
+        </> : <>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="rounded-xl p-3" style={{ background: '#FFF0EE' }}><p className="text-[10px] font-semibold mb-1" style={{ color: RED }}>你的答案</p><p className="text-[12px]" style={{ color: T2 }}>{draft || current.user}</p></div>
+            <div className="rounded-xl p-3" style={{ background: '#F6FEF9' }}><p className="text-[10px] font-semibold mb-1" style={{ color: GREEN }}>正确 / 参考答案</p><p className="text-[12px]" style={{ color: T2 }}>{current.answer}</p></div>
+          </div>
+          <div className="rounded-xl p-3" style={{ background: '#F3F4F6' }}><p className="text-[11px] font-semibold mb-1" style={{ color: T3 }}>解析</p><p className="text-[12px] leading-relaxed" style={{ color: T3 }}>{current.analysis}</p></div>
+        </>}
       </div>
       <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>下一步，AI 会根据你的答案继续追问和讲解</p>
       <div className="pb-5 pt-1">
@@ -1383,13 +1397,66 @@ function B5Inner({ onNext }: { onNext: () => void }) {
   );
 }
 
+function ScratchpadDemo({ onNext }: { onNext: () => void }) {
+  const [cleared, setCleared] = useState(false);
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex-1 grid grid-cols-2 gap-4 min-h-0">
+        <div className="rounded-2xl p-5" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+          <p className="text-[11px] mb-2" style={{ color: BLUE }}>计算题</p>
+          <p className="text-[15px] font-semibold" style={{ color: T1 }}>若 f(x)=x²−4x+3，求其最小值。</p>
+          <div className="mt-5 rounded-xl px-3 py-2 text-[13px]" style={{ border: `1px solid ${BORDER}`, color: T4 }}>最终答案：−1</div>
+        </div>
+        <div className="rounded-2xl overflow-hidden shadow-lg" style={{ background: '#FFFDF1', border: `1.5px solid ${PRIMARY}` }}>
+          <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid #EEE5B8` }}>
+            <GripVertical size={14} color="#AA9B62" /><span className="text-[12px] font-bold flex-1" style={{ color: '#6B5900' }}>草稿本</span>
+            <PenLine size={14} color={BLUE} /><Eraser size={14} color={T4} /><button onClick={() => setCleared(true)} className="text-[10px]" style={{ color: RED }}>清空</button>
+          </div>
+          <div className="p-5 text-[18px] leading-loose" style={{ color: cleared ? '#D8D1AE' : '#31456A', fontFamily: 'cursive' }}>
+            {cleared ? '在这里随手计算…' : <>f(x)=(x−2)²−1<br />x=2 时，min=−1 ✓</>}
+          </div>
+        </div>
+      </div>
+      <p className="text-[11px] text-center py-2" style={{ color: T4 }}>草稿不会被识别或判分，只帮你保留解题过程</p>
+      <div className="pb-5"><CTAButton onClick={onNext}>继续：看看 AI 如何讲解 →</CTAButton></div>
+    </div>
+  );
+}
+
+function TracebackDemo({ onNext }: { onNext: () => void }) {
+  const [marked, setMarked] = useState(false);
+  const [openNote, setOpenNote] = useState(false);
+  return (
+    <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex-1 grid grid-cols-[42%_58%] rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+        <div className="p-4" style={{ background: CARD }}>
+          <p className="text-[11px] mb-2" style={{ color: T4 }}>练习已暂停</p>
+          <p className="text-[14px] font-semibold mb-3" style={{ color: T1 }}>斡旋受贿的影响力来自哪里？</p>
+          <div className="rounded-xl p-3 text-[12px]" style={{ background: '#F6FEF9', color: T2 }}>职权或地位形成的影响 ✓</div>
+        </div>
+        <div className="flex flex-col" style={{ background: '#FAFAFA', borderLeft: `1px solid ${BORDER}` }}>
+          <div className="flex px-3 pt-2 gap-4" style={{ borderBottom: `1px solid ${BORDER}` }}><span className="pb-2 text-[11px]" style={{ color: T4 }}>AI 对话</span><span className="pb-2 text-[11px] font-bold" style={{ color: BLUE, borderBottom: `2px solid ${BLUE}` }}>溯源</span></div>
+          {!openNote ? <div className="p-4 flex-1 overflow-y-auto">
+            <div className="flex items-center gap-2 mb-3"><FileText size={14} color={BLUE} /><span className="text-[11px]" style={{ color: T3 }}>刑法分论讲义.pdf · 第 42 页</span></div>
+            <p className="text-[12px] leading-7" style={{ color: T2 }}>斡旋受贿是指国家工作人员利用本人职权或者地位形成的便利条件，<mark style={{ background: '#FFF09A' }}>通过其他国家工作人员职务上的行为</mark>，为请托人谋取不正当利益。</p>
+            <div className="flex gap-2 mt-4"><button onClick={() => setMarked(true)} className="px-3 py-1.5 rounded-lg text-[11px]" style={{ background: PRIMARY, color: '#6B5900' }}>{marked ? '已同步标记 ✓' : '标记这段原文'}</button><button onClick={() => setOpenNote(true)} className="px-3 py-1.5 rounded-lg text-[11px]" style={{ background: '#EAF3FF', color: BLUE }}>打开原笔记（最新）</button></div>
+          </div> : <div className="p-4 flex-1"><div className="flex items-center gap-2 mb-3"><button onClick={() => setOpenNote(false)}><ArrowLeft size={14} /></button><BookOpen size={14} color={BLUE} /><span className="text-[12px] font-bold">斡旋受贿专题笔记 · 最新</span></div><div contentEditable suppressContentEditableWarning className="rounded-xl p-3 text-[12px] leading-6 h-32" style={{ background: CARD, border: `1px solid ${BORDER}` }}>核心区别：借助职权或地位形成的影响，通过其他国家工作人员为请托人谋利。</div></div>}
+        </div>
+      </div>
+      <div className="pb-5 pt-3"><CTAButton onClick={onNext}>继续看学习结果 →</CTAButton></div>
+    </div>
+  );
+}
+
 // ── B6 inner ──────────────────────────────────────────────────────────────────
 
 function B6Inner({ onNext }: { onNext: () => void }) {
   const [answer, setAnswer] = useState('');
+  const [round, setRound] = useState(1);
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <div className="flex-1 overflow-y-auto pb-2 space-y-2.5">
+        <div className="rounded-lg px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: '#FFFBDE', color: '#7A6400' }}><span>✨</span><span>AI 会根据你的回答继续追问，不是直接把答案念给你。</span><button onClick={() => { setAnswer('职权或地位形成的影响'); setRound(3); }} className="ml-auto underline">跳过动画</button></div>
         <div className="rounded-xl p-3 ml-auto max-w-[72%]" style={{ background: '#F3F4F6' }}>
           <p className="text-[10px] mb-1" style={{ color: T4 }}>你刚才的简答</p>
           <p className="text-[12px]" style={{ color: T2 }}>“通过别人办事并收钱。”</p>
@@ -1406,10 +1473,15 @@ function B6Inner({ onNext }: { onNext: () => void }) {
             <p className="text-[12px] leading-relaxed" style={{ color: T2 }}>{answer === '职权或地位形成的影响' ? '对。核心不是普通人情，而是职权或地位带来的影响力。你已完成一次强化引导。' : '这个因素可能存在，但不是法条核心。再看看“影响力”来自哪里。'}</p>
           </div>
         )}
-        {answer === '职权或地位形成的影响' && <div className="flex items-center gap-2 text-[11px]" style={{ color: GREEN }}><Check size={13} />该知识点已加入强化练习</div>}
+        {answer === '职权或地位形成的影响' && <>
+          <div className="rounded-xl p-3 ml-auto max-w-[72%]" style={{ background: '#F3F4F6' }}><p className="text-[12px]" style={{ color: T2 }}>因为他的职权或地位能影响其他国家工作人员。</p></div>
+          <div className="rounded-xl p-3 max-w-[86%]" style={{ background: '#EAF3FF', border: '1px solid #C9E0FF' }}><p className="text-[12px] leading-relaxed" style={{ color: T2 }}>{round < 3 ? '很好。最后判断一下：如果只是普通私人交情，没有这种影响力，是否成立斡旋受贿？' : '总结：关键不是“找别人办事”，而是影响力必须来自职权或地位。这个遗漏点已加入强化练习。'}</p></div>
+          {round < 3 && <div className="grid grid-cols-2 gap-2"><button onClick={() => setRound(3)} className="py-2 rounded-xl text-[11px]" style={{ background: '#F3F4F6' }}>成立</button><button onClick={() => setRound(3)} className="py-2 rounded-xl text-[11px]" style={{ background: '#FFFBDE', border: `1px solid ${PRIMARY}` }}>不成立</button></div>}
+          {round === 3 && <div className="flex items-center gap-2 text-[11px]" style={{ color: GREEN }}><Check size={13} />该知识点已加入强化练习</div>}
+        </>}
       </div>
       <div className="pb-5 pt-1">
-        <CTAButton onClick={onNext} disabled={answer !== '职权或地位形成的影响'}>继续 →</CTAButton>
+        <CTAButton onClick={onNext} disabled={round !== 3}>继续：查看答案出处 →</CTAButton>
       </div>
     </div>
   );
@@ -1543,6 +1615,9 @@ const PLAN_DATA_NOFIT = [
 function A6Screen({ onNext }: { onNext: () => void }) {
   const [mode, setMode] = useState<'fit' | 'nofit'>('fit');
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [planDays, setPlanDays] = useState(PLAN_DATA_FIT);
+  const [draggedChapter, setDraggedChapter] = useState<{ day: string; name: string } | null>(null);
+  const [removedChapter, setRemovedChapter] = useState<{ day: string; chapter: { name: string; kps: number } } | null>(null);
   const [noFitKeep, setNoFitKeep] = useState<Record<string, boolean>>(
     Object.fromEntries(PLAN_DATA_NOFIT.map(r => [r.name, r.keep]))
   );
@@ -1550,6 +1625,20 @@ function A6Screen({ onNext }: { onNext: () => void }) {
   const totalKps     = PLAN_DATA_NOFIT.filter(r => noFitKeep[r.name]).reduce((a, r) => a + r.kps, 0);
   const canConfirmNoFit = totalKps <= 36;
   const toggleWeekday = (day: number) => setWeekdays(current => current.includes(day) ? (current.length > 1 ? current.filter(item => item !== day) : current) : [...current, day].sort());
+  const moveChapter = (targetDay: string) => {
+    if (!draggedChapter) return;
+    let moving: { name: string; kps: number } | undefined;
+    const without = planDays.map(day => ({ ...day, chapters: day.chapters.filter(ch => {
+      if (day.day === draggedChapter.day && ch.name === draggedChapter.name) { moving = ch; return false; }
+      return true;
+    }) }));
+    if (moving) setPlanDays(without.map(day => day.day === targetDay ? { ...day, chapters: [...day.chapters, moving!] } : day));
+    setDraggedChapter(null);
+  };
+  const removeFromPlan = (dayName: string, chapter: { name: string; kps: number }) => {
+    setPlanDays(prev => prev.map(day => day.day === dayName ? { ...day, chapters: day.chapters.filter(ch => ch.name !== chapter.name) } : day));
+    setRemovedChapter({ day: dayName, chapter });
+  };
 
   return (
     <div className="flex flex-col h-full px-6">
@@ -1590,8 +1679,8 @@ function A6Screen({ onNext }: { onNext: () => void }) {
             <Check size={14} strokeWidth={2.5} />
             按当前考试日期，可覆盖全部 46 个知识点，无需筛减。
           </div>
-          {PLAN_DATA_FIT.map(day => (
-            <div key={day.day} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
+          {planDays.map(day => (
+            <div key={day.day} className="rounded-xl overflow-hidden" onDragOver={e => e.preventDefault()} onDrop={() => moveChapter(day.day)} style={{ border: `1px solid ${BORDER}` }}>
               <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: '#F3F4F6' }}>
                 <span className="text-[13px] font-semibold" style={{ color: T2 }}>{day.day}</span>
                 <span className="text-[12px]" style={{ color: T4 }}>
@@ -1599,16 +1688,19 @@ function A6Screen({ onNext }: { onNext: () => void }) {
                 </span>
               </div>
               {day.chapters.map((ch, ci) => (
-                <div key={ci} className="flex items-center gap-3 px-4 py-3"
+                <div key={ch.name} draggable onDragStart={() => setDraggedChapter({ day: day.day, name: ch.name })} className="group flex items-center gap-3 px-4 py-3 cursor-grab"
                   style={{ borderTop: ci > 0 ? `1px solid ${BORDER}` : undefined, background: CARD }}>
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: BLUE }} />
+                  <GripVertical size={14} color="#BBB" />
                   <span className="flex-1 text-[13px]" style={{ color: T2 }}>{ch.name}</span>
                   <span className="text-[12px]" style={{ color: T4 }}>{ch.kps} 个</span>
+                  <button onClick={() => removeFromPlan(day.day, ch)} className="px-2 py-1 rounded-lg text-[10px]" style={{ background: '#FFF0EE', color: RED }}>从计划移除</button>
                 </div>
               ))}
+              {day.chapters.length === 0 && <div className="py-4 text-center text-[11px]" style={{ color: T4 }}>拖拽知识点到这里</div>}
             </div>
           ))}
-          <p className="text-[12px] text-center" style={{ color: '#CCC' }}>可拖拽知识点到别的日期调整顺序</p>
+          {removedChapter && <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px]" style={{ background: '#252525', color: '#fff' }}><span className="flex-1">已从计划移除，不会删除知识点或原资料</span><button onClick={() => { setPlanDays(prev => prev.map(day => day.day === removedChapter.day ? { ...day, chapters: [...day.chapters, removedChapter.chapter] } : day)); setRemovedChapter(null); }} style={{ color: PRIMARY }}>撤销</button></div>}
+          <p className="text-[12px] text-center" style={{ color: '#AAA' }}>按住拖拽可跨日期调整；移动端左滑可移除</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto pb-4 space-y-3">
@@ -1695,6 +1787,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
       case 'A5': return (
         <A5Screen
           hasPreset={hasPreset}
+          isStem={goalDetail.includes('理工')}
           onNext={() => {
             // After C2 (or simple loading for no-preset) → A6
             next();
