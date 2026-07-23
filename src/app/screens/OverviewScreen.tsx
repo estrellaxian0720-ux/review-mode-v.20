@@ -3,6 +3,7 @@ import {
   Star, FolderOpen, Settings, Info, X,
   TrendingUp, AlertTriangle, RotateCcw, BookOpen, Share2,
 } from "lucide-react";
+import { useApp } from "../contexts/AppContext";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -313,30 +314,11 @@ function StarMapPreview({ height, onClick, onShare }: { height: number; onClick:
               </div>
             </div>
           </div>
-          {/* New this week + relative-position field (spec 行324-331). HUD 里最轻一行。
-              同侪字段带重叠虚拟头像堆制造“用户参与感”；暂不支持点击，不放「›」等可点暗示 */}
+          {/* New this week — 同侪排名 + 虚拟头像堆已上移到顶部「预测分数」旁（见 FusionCard A-top）。
+              此处星图 HUD 只保留最轻的「本周新点亮」一行，不再重复画排名。 */}
           <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <div style={{ display: "flex", flexShrink: 0 }}>
-              {[
-                { bg: "linear-gradient(135deg,#FFB74D,#F57C00)", ch: "李" },
-                { bg: "linear-gradient(135deg,#64B5F6,#1976D2)", ch: "王" },
-                { bg: "linear-gradient(135deg,#81C784,#388E3C)", ch: "张" },
-                { bg: "linear-gradient(135deg,#BA68C8,#7B1FA2)", ch: "陈" },
-              ].map((a, i) => (
-                <span key={i} style={{
-                  width: 16, height: 16, borderRadius: "50%", background: a.bg,
-                  border: "1.5px solid rgba(6,9,22,0.85)",
-                  marginLeft: i === 0 ? 0 : -5, zIndex: 4 - i, position: "relative",
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  fontSize: 8, fontWeight: 700, color: "rgba(255,255,255,0.92)",
-                }}>
-                  {a.ch}
-                </span>
-              ))}
-            </div>
             <p style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", margin: 0, lineHeight: 1.45 }}>
-              本周新点亮 <strong style={{ color: "rgba(255,238,140,0.62)" }}>8</strong> 颗 · 超过同专业{" "}
-              <strong style={{ color: "rgba(255,255,255,0.72)", fontWeight: 700 }}>68%</strong> 的同学
+              本周新点亮 <strong style={{ color: "rgba(255,238,140,0.62)" }}>8</strong> 颗
             </p>
           </div>
         </div>
@@ -629,6 +611,33 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare }: FusionCardPr
                 </span>
               </div>
             </div>
+
+            {/* 同侪临场 / 陪伴：虚拟头像堆 + 「已超过 X% 同学」，紧贴预测分数下方。
+                口径=竞争临场 + 陪伴，不贬低用户；头像为示意元素，暂不支持点击。 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
+              <div style={{ display: "flex", flexShrink: 0 }}>
+                {[
+                  { bg: "linear-gradient(135deg,#FFB74D,#F57C00)", ch: "李" },
+                  { bg: "linear-gradient(135deg,#64B5F6,#1976D2)", ch: "王" },
+                  { bg: "linear-gradient(135deg,#81C784,#388E3C)", ch: "张" },
+                  { bg: "linear-gradient(135deg,#BA68C8,#7B1FA2)", ch: "陈" },
+                  { bg: "linear-gradient(135deg,#4DB6AC,#00796B)", ch: "刘" },
+                ].map((a, i) => (
+                  <span key={i} style={{
+                    width: 22, height: 22, borderRadius: "50%", background: a.bg,
+                    border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.16)",
+                    marginLeft: i === 0 ? 0 : -7, zIndex: 5 - i, position: "relative",
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.95)",
+                  }}>
+                    {a.ch}
+                  </span>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: C.inkMuted, margin: 0, lineHeight: 1.4 }}>
+                已超过 <strong style={{ color: C.ink, fontWeight: 800 }}>68%</strong> 同学 · 还有 32% 在你前面
+              </p>
+            </div>
           </div>
 
           {/* Vertical divider */}
@@ -839,7 +848,9 @@ export default function OverviewScreen({
 }: OverviewScreenProps) {
   const [infoAnchor, setInfoAnchor] = useState<DOMRect | null>(null);
   const [showShare, setShowShare] = useState(false);
-  const [portrait, setPortrait] = useState(false);
+  // 朝向改为消费全局 orientation（切换按钮已上移到 App 外框全局控件）
+  const { orientation } = useApp();
+  const portrait = orientation === 'portrait';
 
   const FF = "'Inter','Noto Sans SC',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif";
 
@@ -849,18 +860,7 @@ export default function OverviewScreen({
 
   return (
     <div style={{ position: "relative", height: "100%", background: C.bg, fontFamily: FF, overflow: "hidden" }}>
-      {/* Fix 8: Orientation toggle — anchored inside the canvas, above the bottom tab bar */}
-      <div style={{ position: "absolute", bottom: 80, right: 20, zIndex: 30 }}>
-        <button
-          onClick={() => setPortrait(p => !p)}
-          style={{
-            fontSize: 11, padding: "4px 10px", borderRadius: 16,
-            border: `1px solid ${C.border}`, background: C.card,
-            color: C.inkMuted, cursor: "pointer", boxShadow: C.shadow,
-          }}>
-          {portrait ? "🖥 横屏" : "📱 竖屏"}
-        </button>
-      </div>
+      {/* 横竖屏切换已提升为 App 外框的全局控件（见 App.tsx），此处不再单独放置按钮 */}
 
       {/* Scrollable content */}
       <div

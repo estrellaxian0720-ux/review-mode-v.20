@@ -49,6 +49,7 @@ function AppContent() {
     topTab,
     reviewModeTab,
     isSidebarCollapsed,
+    orientation,
     practiceStartingPoint,
     dailyStudyHours,
     overallMastery,
@@ -66,6 +67,7 @@ function AppContent() {
     setTopTab,
     setReviewModeTab,
     toggleSidebar,
+    toggleOrientation,
     setSelectedSpaceId,
     setPracticeStartingPoint,
     setShowPivotPopup,
@@ -93,6 +95,15 @@ function AppContent() {
   const showSidebar = !HIDE_SIDEBAR_SCREENS.includes(currentScreen) && !isSidebarCollapsed;
   const showTopTab = !isFullscreen;
   const showReviewModeBottomTab = topTab === 'review-mode' && !isFullscreen && currentScreen !== 'space-selector';
+
+  // 全局横竖屏：练习页强制横屏（左题右助教依赖横向宽度），其余页面跟随全局朝向
+  const forceLandscape = currentScreen === 'practice';
+  const effectiveOrientation = forceLandscape ? 'landscape' : orientation;
+  const isPortrait = effectiveOrientation === 'portrait';
+  const frameW = isPortrait ? 640 : 1024;
+  const frameH = isPortrait ? 1024 : 640;
+  // 竖屏空间窄：侧栏单列回落（隐藏），内容占满整幅宽度
+  const showSidebarEffective = showSidebar && !isPortrait;
 
   // 处理顶部Tab切换
   const handleTopTabChange = (tab: typeof topTab) => {
@@ -348,9 +359,30 @@ function AppContent() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-[1024px] h-[640px] overflow-hidden bg-white relative flex">
+      <div
+        className="overflow-hidden bg-white relative flex"
+        style={{ width: frameW, height: frameH, transition: 'width .3s ease, height .3s ease' }}
+      >
+        {/* 全局横竖屏切换按钮（练习页强制横屏时隐藏） */}
+        {!forceLandscape && (
+          <button
+            onClick={toggleOrientation}
+            title={isPortrait ? '切换到横屏' : '切换到竖屏'}
+            style={{
+              position: 'absolute', top: 8, right: 8, zIndex: 300,
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 9px', borderRadius: 8, cursor: 'pointer',
+              border: '1px solid rgba(0,0,0,0.12)', background: 'rgba(255,255,255,0.92)',
+              fontSize: 11, fontWeight: 600, color: '#555',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+            }}
+          >
+            {isPortrait ? '🖥 横屏' : '📱 竖屏'}
+          </button>
+        )}
+
         {/* 左侧边栏 */}
-        {showSidebar && (
+        {showSidebarEffective && (
           <AppSidebar
               isCollapsed={isSidebarCollapsed}
               onNavClick={(navId) => console.log('Nav clicked:', navId)}

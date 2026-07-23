@@ -25,6 +25,9 @@ interface AppState {
   
   // 侧边栏状态
   isSidebarCollapsed: boolean;
+
+  // 全局横竖屏朝向（练习页强制横屏除外）
+  orientation: 'landscape' | 'portrait';
   
   // 学习计划状态
   selectedSpaceId: string | null;
@@ -61,6 +64,10 @@ interface AppActions {
   // 侧边栏操作
   toggleSidebar: () => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
+
+  // 朝向操作
+  toggleOrientation: () => void;
+  setOrientation: (o: 'landscape' | 'portrait') => void;
   
   // 学习计划操作
   setSelectedSpaceId: (id: string | null) => void;
@@ -193,6 +200,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   
   // 侧边栏状态
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
+  // 全局横竖屏朝向
+  const [orientation, setOrientationState] = useState<'landscape' | 'portrait'>('landscape');
   
   // 学习计划状态
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
@@ -292,6 +302,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     reviewModeTab,
     previousScreen,
     isSidebarCollapsed,
+    orientation,
     selectedSpaceId,
     practiceStartingPoint,
     dailyStudyHours,
@@ -311,6 +322,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setReviewModeTab,
     toggleSidebar: () => setIsSidebarCollapsed(prev => !prev),
     setSidebarCollapsed: setIsSidebarCollapsed,
+    toggleOrientation: () => setOrientationState(prev => (prev === 'landscape' ? 'portrait' : 'landscape')),
+    setOrientation: setOrientationState,
     setSelectedSpaceId,
     setPracticeStartingPoint,
     setDailyStudyHours,

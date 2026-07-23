@@ -8,6 +8,8 @@ import {
   Landmark,
   Languages,
   Shapes,
+  Search,
+  ChevronDown,
   Users,
 } from 'lucide-react';
 
@@ -88,6 +90,9 @@ const COHORT_COUNTS: Record<string, string> = {
   'certificate:teacher': '9,000+',
   'certificate:medical': '3,000+',
 };
+
+const SCHOOL_SUGGESTIONS = ['北京大学', '清华大学', '复旦大学', '上海交通大学', '浙江大学', '南京大学', '武汉大学', '中山大学'];
+const MAJOR_SUGGESTIONS = ['计算机科学与技术', '软件工程', '电子信息工程', '机械工程', '自动化', '临床医学', '工商管理', '法学'];
 
 const LAW_SUBJECTS = ['刑法', '民法', '行政法', '理论法', '商法', '诉讼法', '国际法'];
 
@@ -402,23 +407,25 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
 
     return (
       <div className="pb-2 max-w-[980px] mx-auto">
-        <ScreenTitle title="最近主要在准备什么？" sub="告诉我们你的方向，我们好为你准备更贴合的学习内容" />
-        <div className="px-8 space-y-5">
+        <div className="px-8 pb-2 text-[13px] font-medium" style={{ color: '#737373' }}>
+          告诉我们你的方向，我们好为你准备更贴合的学习内容
+        </div>
+        <div className="px-8 space-y-3">
           <section>
-            <div className="text-[12px] font-semibold mb-2.5" style={{ color: '#8B8B8B' }}>选择备考类型</div>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="text-[12px] font-semibold mb-2" style={{ color: '#8B8B8B' }}>选择备考类型</div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
           {GOAL_TYPES.map(e => {
             const sel = goalType === e.id;
             const Icon = e.icon;
             return (
               <button key={e.id} onClick={() => selectGoalType(e.id)}
-                className="relative min-h-[88px] flex flex-col items-center justify-center gap-2.5 px-3 py-4 rounded-[12px] text-center transition-all"
+                className="relative h-[64px] flex items-center justify-center gap-2.5 px-4 rounded-[12px] text-center transition-all"
                 style={{
                   background: sel ? '#FFFBDF' : '#FFF',
                   border: `2px solid ${sel ? '#FDEA3B' : '#EBEBEB'}`,
-                  boxShadow: sel ? '0 0 0 3px rgba(255,229,98,0.18)' : '0 1px 4px rgba(0,0,0,0.05)',
+                  boxShadow: sel ? '0 1px 5px rgba(168,131,0,0.10)' : '0 1px 4px rgba(0,0,0,0.04)',
                 }}>
-                <Icon size={23} color={sel ? '#A88300' : '#6B7280'} strokeWidth={1.8} />
+                <Icon size={21} color={sel ? '#A88300' : '#6B7280'} strokeWidth={1.8} />
                 <span className="text-[14px] font-semibold" style={{ color: '#222' }}>{e.label}</span>
                 {sel && (
                   <span className="absolute right-2.5 top-2.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#FDEA3B' }}>
@@ -432,7 +439,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
           </section>
 
           {goalType && (
-            <section className="pt-4" style={{ borderTop: '1px solid #E8E8E8' }}>
+            <section className="pt-2.5" style={{ borderTop: '1px solid #E8E8E8' }}>
               {goalType === 'other' && (
                 <div className="mb-4">
                   <label className="block text-[12px] font-semibold mb-2" style={{ color: '#555' }}>具体准备什么？</label>
@@ -446,7 +453,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
                 </div>
               )}
 
-              <div className="text-[12px] font-semibold mb-2.5" style={{ color: '#555' }}>{DETAIL_PROMPTS[goalType]}</div>
+              <div className="text-[12px] font-semibold mb-2" style={{ color: '#555' }}>{DETAIL_PROMPTS[goalType]}</div>
               <div className="flex flex-wrap gap-2">
                 {details.map(detail => {
                   const selected = goalDetail === detail.id;
@@ -454,7 +461,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
                     <button
                       key={detail.id}
                       onClick={() => selectGoalDetail(detail.id)}
-                      className="px-4 py-2.5 rounded-[10px] text-[13px] font-medium transition-all"
+                      className="px-4 py-2 rounded-[10px] text-[13px] font-medium transition-all"
                       style={{
                         background: selected ? '#FFFBDF' : '#FFF',
                         border: `1.5px solid ${selected ? '#FDC700' : '#E3E3E3'}`,
@@ -469,35 +476,66 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
             </section>
           )}
 
+          {isKnowledgeSelection && cohortCount && (
+            <section
+              className="min-h-10 flex items-center gap-3 px-3.5 py-2 rounded-[12px] transition-all"
+              style={{ background: '#FFF8D8', border: '1px solid #F6E69C', color: '#574900' }}
+            >
+              <div className="flex items-center -space-x-1.5 flex-shrink-0" aria-hidden="true">
+                {['#FDEA3B', '#FFE98A', '#FFF3BC'].map((background, index) => (
+                  <span key={background} className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background, border: '2px solid #FFF8D8', zIndex: 3 - index }}>
+                    <Users size={12} color="#6B5900" />
+                  </span>
+                ))}
+              </div>
+              <p className="text-[12px] leading-5">
+                已有 <strong className="text-[14px]">{cohortCount} 位同学</strong>正在准备
+                <span style={{ color: '#7C6B18' }}>「{selectedGoalLabel} · {selectedDetailLabel}」</span>
+              </p>
+            </section>
+          )}
+
           {showBackground && (
-            <section className="pt-4" style={{ borderTop: '1px solid #E8E8E8' }}>
-              <div className="flex items-end justify-between gap-3 mb-2.5">
+            <section className="pt-2.5" style={{ borderTop: '1px solid #E8E8E8' }}>
+              <div className="flex items-end justify-between gap-3 mb-2">
                 <div>
                   <div className="text-[12px] font-semibold" style={{ color: '#555' }}>学习背景 <span style={{ color: '#AAA', fontWeight: 400 }}>（选填）</span></div>
-                  <p className="text-[11px] mt-1" style={{ color: '#AAA' }}>帮助我们更好地了解你的学习需求 · 可稍后补充</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: '#AAA' }}>帮助我们更好地了解你的学习需求 · 可稍后补充</p>
                 </div>
               </div>
               <div className={`grid gap-3 ${backgroundLabels[1] ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-                <label>
+                <label className="relative">
                   <span className="block text-[11px] font-medium mb-1.5" style={{ color: '#777' }}>{backgroundLabels[0]}</span>
+                  <Search size={15} className="absolute left-3 top-[34px] pointer-events-none" color="#999" />
                   <input
                     value={school}
                     onChange={(event) => setSchool(event.target.value)}
+                    list="onboarding-school-suggestions"
                     placeholder={`搜索或输入${backgroundLabels[0]}`}
-                    className="w-full h-11 px-3.5 rounded-[10px] text-[13px] outline-none"
+                    className="w-full h-11 pl-9 pr-9 rounded-[10px] text-[13px] outline-none"
                     style={{ background: '#FFF', border: '1.5px solid #DEDEDE', color: '#222' }}
                   />
+                  <ChevronDown size={15} className="absolute right-3 top-[34px] pointer-events-none" color="#999" />
+                  <datalist id="onboarding-school-suggestions">
+                    {SCHOOL_SUGGESTIONS.map(item => <option key={item} value={item} />)}
+                  </datalist>
                 </label>
                 {backgroundLabels[1] && (
-                  <label>
+                  <label className="relative">
                     <span className="block text-[11px] font-medium mb-1.5" style={{ color: '#777' }}>{backgroundLabels[1]}</span>
+                    <Search size={15} className="absolute left-3 top-[34px] pointer-events-none" color="#999" />
                     <input
                       value={major}
                       onChange={(event) => setMajor(event.target.value)}
+                      list="onboarding-major-suggestions"
                       placeholder={`搜索或输入${backgroundLabels[1]}`}
-                      className="w-full h-11 px-3.5 rounded-[10px] text-[13px] outline-none"
+                      className="w-full h-11 pl-9 pr-9 rounded-[10px] text-[13px] outline-none"
                       style={{ background: '#FFF', border: '1.5px solid #DEDEDE', color: '#222' }}
                     />
+                    <ChevronDown size={15} className="absolute right-3 top-[34px] pointer-events-none" color="#999" />
+                    <datalist id="onboarding-major-suggestions">
+                      {MAJOR_SUGGESTIONS.map(item => <option key={item} value={item} />)}
+                    </datalist>
                   </label>
                 )}
               </div>
@@ -505,14 +543,8 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
           )}
 
           {isKnowledgeSelection && (
-            <section className="flex flex-wrap items-center gap-2 pt-1">
+            <section className="flex flex-wrap items-center gap-2">
               <p className="text-[12px]" style={{ color: '#6B7280' }}>明白了，我们会据此准备更贴合的学习内容与练习。</p>
-              {cohortCount && (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-medium" style={{ background: '#EFF6FF', color: '#3976B7' }}>
-                  <Users size={13} />
-                  已有 {cohortCount} 位同学也在准备「{selectedGoalLabel}·{selectedDetailLabel}」
-                </span>
-              )}
             </section>
           )}
         </div>
@@ -1040,12 +1072,17 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
       {/* Content area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <div className="flex items-center px-6 pt-5 pb-2 flex-shrink-0">
+        <div className="h-14 flex items-center gap-2 px-6 flex-shrink-0">
           <button onClick={goBack}
             className="w-9 h-9 flex items-center justify-center rounded-full transition-colors"
             style={{ background: 'transparent' }}>
             <ArrowLeft size={20} strokeWidth={2} color={isStarMap ? '#666' : '#555'} />
           </button>
+          {step === 1 && !creating && (
+            <h1 className="text-[22px] font-semibold leading-none" style={{ color: '#171717' }}>
+              最近主要在准备什么？
+            </h1>
+          )}
         </div>
 
         {/* Screen */}
@@ -1055,7 +1092,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: Props) {
 
         {/* CTA */}
         {!creating && (
-          <div className={`px-8 pb-6 pt-2 flex-shrink-0 ${step === 1 ? 'w-full max-w-[980px] mx-auto' : ''}`}>
+          <div className={`px-8 pb-4 pt-2 flex-shrink-0 ${step === 1 ? 'w-full max-w-[980px] mx-auto' : ''}`}>
             <button onClick={goNext} disabled={!ctaEnabled()}
               className="w-full py-[18px] rounded-[20px] text-[15px] font-semibold transition-all"
               style={{

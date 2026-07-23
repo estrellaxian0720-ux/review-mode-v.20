@@ -866,17 +866,21 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                     style={{ filter: isMatch ? 'drop-shadow(0 0 5px rgba(100,136,176,0.55))' : undefined, cursor: 'pointer' }}
                     onClick={() => {
                       if (dragRef.current.moved) return;
-                      setSelectedId(isSel ? null : node.id);
-                      const c = conceptById.get(node.id);
-                      if (c) {
-                        // 延迟触发预览闪卡，给双击编辑留出窗口
-                        if (clickTimer.current) clearTimeout(clickTimer.current);
-                        clickTimer.current = setTimeout(() => ops.onOpenConcept(c), 240);
-                      }
+                      // 单击 = 纯选中节点（浮出「+」/删除按钮）；不再自动弹预览闪卡，
+                      // 用 240ms 窗口区分单击与双击：双击会清掉此定时器、走编辑。
+                      if (clickTimer.current) clearTimeout(clickTimer.current);
+                      clickTimer.current = setTimeout(() => {
+                        setSelectedId(prev => (prev === node.id ? null : node.id));
+                        clickTimer.current = null;
+                      }, 240);
                     }}
                     onDoubleClick={() => {
+                      // 双击 = 就地进入编辑（光标闪烁，失焦/回车自动保存）
                       if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
-                      if (node.isUser || conceptById.has(node.id)) { setEditing(node.id); setEditVal(node.label); }
+                      if (node.isUser || conceptById.has(node.id)) {
+                        setSelectedId(node.id);
+                        setEditing(node.id); setEditVal(node.label);
+                      }
                     }}
                   />
                   {p.level > 0 && dotColor !== 'transparent' && (

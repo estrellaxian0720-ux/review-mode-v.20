@@ -25,6 +25,17 @@ type ModuleType = 'new' | 'review';
 type ModuleStatus = 'not-started' | 'in-progress' | 'completed';
 type Importance = 1 | 2 | 3; // 3=高频考点(红) 2=重要(黄) 1=常规(灰)
 type ViewMode = 'list' | 'flashcard';
+
+// Hero 练习模式（题型）——default=算法混合，其余为单题型；不含「只学闪卡」
+type PracticeType = 'default' | 'single' | 'judge' | 'blank' | 'multi' | 'essay';
+const PRACTICE_TYPE_OPTIONS: { key: PracticeType; label: string }[] = [
+  { key: 'default', label: '默认（算法混合）' },
+  { key: 'single', label: '仅单选' },
+  { key: 'judge', label: '仅判断' },
+  { key: 'blank', label: '仅填空' },
+  { key: 'multi', label: '仅多选' },
+  { key: 'essay', label: '仅简答' },
+];
 type BubbleId = 'hero-cta' | 'type-new' | 'type-review' | 'module-expand'
   | 'module-start' | 'batch-ops' | 'star-bookmark' | 'priority-bar';
 
@@ -49,7 +60,7 @@ interface Module {
 }
 
 interface TodayScreenProps {
-  onStartPractice?: () => void;
+  onStartPractice?: (practiceType?: PracticeType) => void;
   onViewResources?: () => void;
   onStartMockExam?: () => void;
   onViewKnowledgeMap?: () => void;
@@ -751,6 +762,7 @@ interface ModuleSectionProps {
   onToggle: () => void;
   selected: Set<string>;
   onSelect: (id: string) => void;
+  onSelectModule: (mod: Module) => void;
   bookmarked: Set<string>;
   onBookmark: (id: string) => void;
   expandedKP: Set<string>;
@@ -773,7 +785,7 @@ interface ModuleSectionProps {
 
 function ModuleSection({
   mod, viewMode, batchMode, isExpanded, onToggle,
-  selected, onSelect, bookmarked, onBookmark, expandedKP, onToggleKP,
+  selected, onSelect, onSelectModule, bookmarked, onBookmark, expandedKP, onToggleKP,
   onOpenFullscreen, onEnterBatch, onStartModule,
   showExpandBubble, onDismissExpandBubble,
   showStartBubble, onDismissStartBubble,
@@ -791,11 +803,32 @@ function ModuleSection({
   const statusColor = mod.status === 'in-progress' ? C.learning
     : mod.status === 'completed' ? C.mastered : C.tertiary;
 
+  // 模块整选态：全选 / 半选 / 未选（批量模式下浮现复选框）
+  const selCount = mod.kps.reduce((a, k) => a + (selected.has(k.id) ? 1 : 0), 0);
+  const modChecked = mod.kps.length > 0 && selCount === mod.kps.length;
+  const modIndeterminate = selCount > 0 && !modChecked;
+
   return (
     <div style={{ position: 'relative', borderBottom: isLast ? 'none' : `1px solid ${C.borderSoft}` }}>
       {/* L2 row */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '12px 14px 12px 12px',
         background: '#fff', gap: 8 }}>
+        {/* 批量模式：模块整选复选框（全选/半选/未选） */}
+        {batchMode && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onSelectModule(mod); }}
+            aria-label="整选该模块"
+            style={{
+              width: 18, height: 18, borderRadius: 5, flexShrink: 0, padding: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+              border: `1.5px solid ${(modChecked || modIndeterminate) ? C.learning : C.muted}`,
+              background: (modChecked || modIndeterminate) ? C.learning : '#fff',
+            }}>
+            {modChecked && <Check size={11} color="#fff" strokeWidth={3} />}
+            {modIndeterminate && <div style={{ width: 8, height: 2, borderRadius: 1, background: '#fff' }} />}
+          </button>
+        )}
+
         {/* 独立展开箭头热区 ▸ */}
         <button onClick={onToggle} style={{
           width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -943,6 +976,9 @@ export default function TodayScreen({
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [batchMode, setBatchMode] = useState(false);
+  // Hero 练习模式（题型）下拉：default=算法混合，其余为单题型
+  const [practiceType, setPracticeType] = useState<PracticeType>('default');
+  const [practiceMenuOpen, setPracticeMenuOpen] = useState(false);
 
   const [l1Expanded, setL1Expanded] = useState({ new: true, review: true });
   const [l2Expanded, setL2Expanded] = useState<Record<string, boolean>>({ malfeasance: true });
@@ -979,7 +1015,11 @@ export default function TodayScreen({
   const showStarBubble   = dismissed.has('batch-ops') && !dismissed.has('star-bookmark') && anyL2Expanded;
   const showPriorityBubble = dismissed.has('star-bookmark') && !dismissed.has('priority-bar') && anyL2Expanded;
 
-  const handleStart = useCallback(() => { dismiss('hero-cta'); onStartPractice?.(); }, [dismiss, onStartPractice]);
+  const handleStart = useCallback(() => {
+    dismiss('hero-cta');
+    // 按所选练习模式（题型）发起练习；demo 下 onStartPractice 无参，题型经此传递给上层练习流
+    onStartPractice?.(practiceType === 'default' ? undefined : practiceType);
+  }, [dismiss, onStartPractice, practiceType]);
 
   const handleL1Toggle = (type: 'new' | 'review') => {
     setL1Expanded(s => ({ ...s, [type]: !s[type] }));
@@ -994,6 +1034,16 @@ export default function TodayScreen({
 
   const handleSelect = (kpId: string) =>
     setSelected(s => { const n = new Set(s); n.has(kpId) ? n.delete(kpId) : n.add(kpId); return n; });
+
+  // 模块整选：全选→清空该模块所有知识点；否则补齐全选（动作仍落知识点集合）
+  const handleSelectModule = (mod: Module) =>
+    setSelected(s => {
+      const n = new Set(s);
+      const allSelected = mod.kps.length > 0 && mod.kps.every(k => n.has(k.id));
+      if (allSelected) mod.kps.forEach(k => n.delete(k.id));
+      else mod.kps.forEach(k => n.add(k.id));
+      return n;
+    });
 
   const handleToggleKP = (kpId: string) =>
     setExpandedKP(s => { const n = new Set(s); n.has(kpId) ? n.delete(kpId) : n.add(kpId); return n; });
@@ -1180,6 +1230,44 @@ export default function TodayScreen({
                       </button>
                       <p style={{ fontSize: 11, color: C.tertiary, margin: '6px 0 0' }}>约 45 min</p>
 
+                      {/* 练习模式（题型）下拉 —— 挂 Hero CTA 正下方 */}
+                      <div style={{ position: 'relative', marginTop: 8 }}>
+                        <button
+                          onClick={() => setPracticeMenuOpen(o => !o)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+                            border: `1px solid ${C.border}`, background: '#fff',
+                            fontSize: 11, fontWeight: 600, color: C.sub, whiteSpace: 'nowrap',
+                          }}>
+                          {PRACTICE_TYPE_OPTIONS.find(o => o.key === practiceType)!.label}
+                          <ChevronDown size={12} color={C.muted}
+                            style={{ transform: practiceMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                        </button>
+                        {practiceMenuOpen && (
+                          <div style={{
+                            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 40,
+                            background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`,
+                            boxShadow: '0 6px 20px rgba(0,0,0,0.14)', overflow: 'hidden', minWidth: 148,
+                          }}>
+                            {PRACTICE_TYPE_OPTIONS.map(opt => (
+                              <button key={opt.key}
+                                onClick={() => { setPracticeType(opt.key); setPracticeMenuOpen(false); }}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                  fontSize: 12, fontWeight: opt.key === practiceType ? 700 : 500,
+                                  background: opt.key === practiceType ? '#F1F6FF' : '#fff',
+                                  color: opt.key === practiceType ? C.learning : C.ink,
+                                }}>
+                                {opt.key === practiceType && <Check size={11} color={C.learning} strokeWidth={3} />}
+                                <span style={{ marginLeft: opt.key === practiceType ? 0 : 17 }}>{opt.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       {showHeroCTA && (
                         <BubbleTip
                           text="点这里开始今天的学习"
@@ -1285,6 +1373,7 @@ export default function TodayScreen({
                   onToggle={() => handleL2Toggle(mod.id)}
                   selected={selected}
                   onSelect={handleSelect}
+                  onSelectModule={handleSelectModule}
                   bookmarked={bookmarked}
                   onBookmark={handleBookmark}
                   expandedKP={expandedKP}
@@ -1336,6 +1425,7 @@ export default function TodayScreen({
                   onToggle={() => handleL2Toggle(mod.id)}
                   selected={selected}
                   onSelect={handleSelect}
+                  onSelectModule={handleSelectModule}
                   bookmarked={bookmarked}
                   onBookmark={handleBookmark}
                   expandedKP={expandedKP}
