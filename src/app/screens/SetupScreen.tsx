@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TopNavigation } from '../components/TopNavigation';
 import { SetupStepIndicator } from '../components/SetupStepIndicator';
+import { useApp } from '../contexts/AppContext';
 
 interface SetupScreenProps {
   onNext: () => void;
@@ -22,6 +23,9 @@ const LANGUAGE_OPTIONS = [
 ];
 
 export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps) {
+  const { orientation } = useApp();
+  const portrait = orientation === 'portrait';
+  const gridCols = portrait ? 'grid-cols-1' : 'grid-cols-2';
   const [spaceName, setSpaceName] = useState('');
   const [examDate, setExamDate] = useState('');
   const [targetScore, setTargetScore] = useState('80');
@@ -100,7 +104,7 @@ export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps
             </div>
 
             {/* Row: Exam Date | Output Language */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className={`grid ${gridCols} gap-5`}>
               <div>
                 <label className={labelBase}>Exam Date</label>
                 <input
@@ -135,7 +139,7 @@ export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps
             </div>
 
             {/* Row: Target Score | Current Familiarity */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className={`grid ${gridCols} gap-5`}>
 
               {/* Target Score */}
               <div>
