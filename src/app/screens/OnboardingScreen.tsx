@@ -593,22 +593,28 @@ function A3Screen({ hasPreset, onNext, onBack }: {
 
   return (
     <div className="flex flex-col h-full px-5">
-      <div className="pt-3 pb-1 flex items-start justify-between">
+      <div className="pt-3 pb-1">
         <div>
           <h1 className="text-[19px] font-bold leading-tight mb-0.5" style={{ color: T1 }}>添加你的学习资料</h1>
           <p className="text-[12px] font-medium" style={{ color: BLUE }}>
-            {selected === 'SAMPLE' ? '正在使用与你目标匹配的示例包' : '默认使用你的资料，AI 会提取并组织知识点'}
+            用你自己的资料，或先用示例快速体验
           </p>
         </div>
-        {hasPreset && (
-          <button onClick={() => setSelected(selected === 'SAMPLE' ? 'REAL_UPLOAD' : 'SAMPLE')}
-            className="px-3 py-1.5 rounded-full text-[11px] font-semibold"
-            style={{ background: selected === 'SAMPLE' ? '#F3F4F6' : '#EAF3FF', color: selected === 'SAMPLE' ? T3 : BLUE }}>
-            {selected === 'SAMPLE' ? '改回我的资料' : '改用示例快速体验'}
-          </button>
-        )}
       </div>
       <div className="mb-2"><StepBar active={1} /></div>
+      <div className="grid grid-cols-[2fr_1fr] gap-2.5 mb-2">
+        <button onClick={() => setSelected('REAL_UPLOAD')} className="rounded-xl px-4 py-3 flex items-center gap-3 text-left"
+          style={{ background:CARD, border:`2px solid ${selected==='REAL_UPLOAD'?PRIMARY:BORDER}`, boxShadow:selected==='REAL_UPLOAD'?'0 2px 8px rgba(210,164,0,.15)':'none' }}>
+          <span className="w-4 h-4 rounded-full flex-shrink-0" style={{ background:selected==='REAL_UPLOAD'?PRIMARY:'#EEE' }}/>
+          <span className="text-[13px] font-bold" style={{color:T1}}>上传我自己的资料</span>
+          {selected==='REAL_UPLOAD' && <span className="ml-auto text-[11px]" style={{color:GREEN}}>已选 {checked.size} 项</span>}
+        </button>
+        {hasPreset && <button onClick={() => setSelected('SAMPLE')} className="rounded-xl px-4 py-3 text-left"
+          style={{ background:CARD, border:`2px solid ${selected==='SAMPLE'?PRIMARY:BORDER}` }}>
+          <p className="text-[12px] font-bold" style={{color:T1}}>先用示例探索</p>
+          <p className="text-[10px] mt-0.5" style={{color:T4}}>内容已备好，立即可用</p>
+        </button>}
+      </div>
 
       {/* ── Expanded file browser (Card A selected) ── */}
       {selected === 'REAL_UPLOAD' && (
@@ -1172,26 +1178,26 @@ function lcgRng(seed: number) {
 
 function B2Inner({ onNext }: { onNext: () => void }) {
   const branches = [
-    { title: '受贿罪构成', items: ['主体身份', '职务便利', '财物控制'] },
-    { title: '斡旋受贿', items: ['地位影响', '第三人谋利', '收受财物'] },
-    { title: '既遂判断', items: ['实际控制', '财物交付'] },
+    { title: '受贿罪构成', color:'#6C8CFF', x:18, y:22, items: ['主体身份', '职务便利', '财物控制'] },
+    { title: '斡旋受贿', color:'#8C6BFF', x:76, y:20, items: ['地位影响', '第三人谋利', '收受财物'] },
+    { title: '既遂与量刑', color:'#35B37E', x:18, y:70, items: ['实际控制', '数额情节', '既遂标准'] },
+    { title: '关联罪名', color:'#E6A23C', x:77, y:72, items: ['单位受贿', '利用影响力', '行贿罪'] },
   ];
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <div className="flex justify-end mb-2"><span className="px-3 py-1 rounded-full text-[11px] font-semibold" style={{ background: '#EAF3FF', color: BLUE }}>当前：思维导图</span></div>
-      <div className="flex-1 relative rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-3 rounded-xl text-[14px] font-bold z-10" style={{ background: PRIMARY, color: '#6B5900' }}>贿赂犯罪</div>
-        <div className="grid grid-cols-3 gap-20 w-[88%]">
-          {branches.map((branch, index) => (
-            <div key={branch.title} className={`flex flex-col gap-2 ${index === 1 ? 'mt-28' : index === 2 ? 'mt-4' : ''}`}>
-              <div className="rounded-xl px-3 py-2 text-[12px] font-semibold text-center" style={{ background: '#EAF3FF', color: BLUE, border: '1px solid #BEDAFF' }}>{branch.title}</div>
-              {branch.items.map(item => <div key={item} className="rounded-lg px-2 py-1.5 text-[11px] text-center" style={{ background: '#F7F7F7', color: T3, border: `1px solid ${BORDER}` }}>{item}</div>)}
-            </div>
-          ))}
-        </div>
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 800 300">
-          <path d="M400 150 C300 150 250 70 130 70 M400 150 C400 210 400 225 400 245 M400 150 C500 150 560 90 680 90" fill="none" stroke="#B9CEE8" strokeWidth="2" />
+      <div className="flex-1 relative rounded-2xl overflow-hidden" style={{ background:'linear-gradient(135deg,#FBFCFF,#F5F8FF)', border:`1px solid ${BORDER}` }}>
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs><filter id="mapShadow"><feDropShadow dx="0" dy="1" stdDeviation="1" floodOpacity=".12"/></filter></defs>
+          {branches.map(b => <path key={b.title} d={`M50 50 C${b.x<50?38:62} 50 ${b.x<50?32:68} ${b.y} ${b.x} ${b.y}`} fill="none" stroke={b.color} strokeWidth=".7" opacity=".55"/>)}
+          {branches.flatMap(b => b.items.map((_,i) => <path key={`${b.title}-${i}`} d={`M${b.x} ${b.y} C${b.x} ${b.y+(i-1)*7} ${b.x<50?b.x-11:b.x+11} ${b.y+(i-1)*8} ${b.x<50?b.x-16:b.x+16} ${b.y+(i-1)*8}`} fill="none" stroke={b.color} strokeWidth=".45" opacity=".35"/>))}
         </svg>
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-5 py-3 rounded-2xl text-[14px] font-bold z-10 shadow-md" style={{ background:PRIMARY,color:'#6B5900',border:'2px solid #FFF3A8' }}>贿赂犯罪体系</div>
+        {branches.map(b => <React.Fragment key={b.title}>
+          <div className="absolute -translate-x-1/2 -translate-y-1/2 rounded-xl px-3 py-2 text-[11px] font-bold z-10 shadow-sm" style={{left:`${b.x}%`,top:`${b.y}%`,background:CARD,color:b.color,border:`1.5px solid ${b.color}`}}>{b.title}</div>
+          {b.items.map((item,i) => <div key={item} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[9px] z-10 whitespace-nowrap" style={{left:`${b.x<50?b.x-16:b.x+16}%`,top:`${b.y+(i-1)*8}%`,background:CARD,color:T3,border:`1px solid ${b.color}55`}}>{item}</div>)}
+        </React.Fragment>)}
+        <div className="absolute left-3 bottom-3 flex gap-3 text-[9px]" style={{color:T4}}><span>● 4 个章节</span><span>● 12 个核心知识点</span><span>关系已自动归类</span></div>
       </div>
       <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>下一步，用同一批知识点查看掌握状态</p>
       <div className="pb-5 pt-2"><CTAButton onClick={onNext}>下一步：看看掌握状态 →</CTAButton></div>
@@ -1255,9 +1261,15 @@ function B3Inner({ onNext }: { onNext: () => void }) {
           <p className="text-[12px]" style={{ color: '#888' }}>54% 已亮</p>
         </div>
       </div>
-      <div className="flex-1 relative overflow-hidden mx-6 rounded-2xl" style={{ background: '#111116', minHeight: 0 }}>
+      <div className="flex-1 relative overflow-hidden mx-6 rounded-2xl" style={{ background:'radial-gradient(circle at 55% 48%,#102B65 0%,#071631 38%,#030817 100%)', minHeight:0, boxShadow:'inset 0 0 80px rgba(28,92,220,.25)' }}>
         <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
           style={{ position: 'absolute', inset: 0 }}>
+          <defs>
+            <filter id="blueGlow"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="goldGlow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <radialGradient id="nebula"><stop offset="0" stopColor="#275CCB" stopOpacity=".22"/><stop offset="1" stopColor="#061127" stopOpacity="0"/></radialGradient>
+          </defs>
+          <ellipse cx="72" cy="58" rx="34" ry="42" fill="url(#nebula)"/>
           {dustStars.map((s, i) => (
             <circle key={i} cx={s.x} cy={s.y} r={s.radius * 0.4} fill="#FFFFFF" opacity={s.opacity} />
           ))}
@@ -1266,14 +1278,15 @@ function B3Inner({ onNext }: { onNext: () => void }) {
               stroke="#FFE090" strokeWidth="0.18" opacity="0.22" strokeLinecap="round" />
           ))}
           {stars.filter(st => st.cat === 'learning').map((s, i) => (
-            <circle key={i} cx={s.x} cy={s.y} r={s.radius * 0.7} fill="#5A7FCC" opacity={0.35} />
+            <circle key={i} cx={s.x} cy={s.y} r={s.radius * 0.7} fill="#5E91FF" opacity={0.5} filter={i%9===0?'url(#blueGlow)':undefined} />
           ))}
           {masteredStars.map((s, i) => {
             const isLit      = i < 38 + newLit;
             const isNewlyLit = i >= 38 && i < 38 + newLit;
             return (
               <g key={i}>
-                <circle cx={s.x} cy={s.y} r={s.radius} fill={isLit ? '#FFF8D6' : '#444'} opacity={isLit ? 0.95 : 0.3}>
+                {isLit && i % 11 === 0 && <><line x1={s.x-3.2} y1={s.y} x2={s.x+3.2} y2={s.y} stroke={isNewlyLit?'#FFE08A':'#9BC2FF'} strokeWidth=".35" opacity=".85"/><line x1={s.x} y1={s.y-4.5} x2={s.x} y2={s.y+4.5} stroke={isNewlyLit?'#FFE08A':'#9BC2FF'} strokeWidth=".28" opacity=".75"/></>}
+                <circle cx={s.x} cy={s.y} r={s.radius} fill={isLit ? (isNewlyLit?'#FFE77A':'#EAF2FF') : '#444'} opacity={isLit ? 0.98 : 0.3} filter={isLit?(isNewlyLit?'url(#goldGlow)':'url(#blueGlow)'):undefined}>
                   {isNewlyLit && <animate attributeName="opacity" values="0;0.95" dur="0.35s" fill="freeze" />}
                 </circle>
                 {isLit && (
@@ -1297,13 +1310,16 @@ function B3Inner({ onNext }: { onNext: () => void }) {
           {stars.filter(st => st.cat === 'new').map((s, i) => (
             <circle key={i} cx={s.x} cy={s.y} r={s.radius} fill="#8899CC" opacity={0.5} />
           ))}
+          {[
+            {x:23,y:30,t:'受贿罪构成'},{x:55,y:44,t:'斡旋受贿'},{x:72,y:69,t:'既遂标准'},{x:40,y:76,t:'数额与情节'}
+          ].map((p,i)=><g key={p.t}><circle cx={p.x} cy={p.y} r={i===1?1.8:1.25} fill={i===1?'#FFE477':'#DCE9FF'} filter={i===1?'url(#goldGlow)':'url(#blueGlow)'}/><text x={p.x+2} y={p.y+1} fontSize="2.4" fill="#DDE8FF">{p.t}</text></g>)}
           <text x="50" y="95" textAnchor="middle" fontSize="6" fill="#FFFFFF" opacity="0.04" fontFamily="sans-serif">
             刑法分论·贿赂渎职
           </text>
         </svg>
       </div>
       <div className="px-6 pb-4 pt-3">
-        <p className="text-[12px] mb-3 text-center" style={{ color: '#666' }}>还能切换成思维导图看结构</p>
+        <p className="text-[12px] mb-3 text-center" style={{ color: '#7483A0' }}>同一套知识结构，学习后会逐颗点亮并形成掌握轨迹</p>
         <CTAButton onClick={onNext}>太酷了，继续 →</CTAButton>
       </div>
     </div>
@@ -1362,6 +1378,7 @@ function B5Inner({ onNext }: { onNext: () => void }) {
   const [tab, setTab] = useState<'填空' | '判断' | '多选' | '简答'>('填空');
   const [draft, setDraft] = useState('');
   const [solved, setSolved] = useState(false);
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const contents = {
     填空: { question: '斡旋受贿罪的行为主体必须是 ______。', user: '公职人员', answer: '国家工作人员', analysis: '“公职人员”范围过宽，法条要求行为人具有国家工作人员身份。' },
     判断: { question: '斡旋受贿要求行为人亲自利用本人职务为请托人谋利。', user: '正确', answer: '错误', analysis: '其核心是利用职权或地位形成的影响，通过其他国家工作人员为请托人谋利。' },
@@ -1372,13 +1389,15 @@ function B5Inner({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       <div className="flex gap-2 mb-3">
-        {(Object.keys(contents) as Array<keyof typeof contents>).map(type => <button key={type} onClick={() => { setTab(type); setDraft(''); setSolved(false); }} className="flex-1 py-2 rounded-lg text-[12px] font-semibold" style={{ background: tab === type ? BLUE : '#F3F4F6', color: tab === type ? '#fff' : T3 }}>{type}</button>)}
+        {(Object.keys(contents) as Array<keyof typeof contents>).map(type => <button key={type} onClick={() => { setTab(type); setDraft(''); setSolved(false); setMultiSelected(new Set()); }} className="flex-1 py-2 rounded-lg text-[12px] font-semibold" style={{ background: tab === type ? BLUE : '#F3F4F6', color: tab === type ? '#fff' : T3 }}>{type}</button>)}
       </div>
       <div className="flex-1 rounded-2xl p-4 overflow-y-auto" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
         <p className="text-[14px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
         {!solved ? <>
           {tab === '判断' ? <div className="grid grid-cols-2 gap-2 mb-3">{['正确','错误'].map(v => <button key={v} onClick={() => setDraft(v)} className="py-3 rounded-xl text-[12px]" style={{ background: draft === v ? '#FFFBDE' : '#F6F6F6', border: `1.5px solid ${draft === v ? PRIMARY : BORDER}` }}>{v}</button>)}</div>
-          : tab === '多选' ? <div className="space-y-2 mb-3">{['国家工作人员身份','地位影响','收受财物'].map(v => <button key={v} onClick={() => setDraft(draft.includes(v) ? draft.replace(v, '') : `${draft} ${v}`)} className="w-full text-left px-3 py-2 rounded-lg text-[12px]" style={{ background: draft.includes(v) ? '#FFFBDE' : '#F6F6F6' }}>□ {v}</button>)}</div>
+          : tab === '多选' ? <div className="space-y-2 mb-3">{['国家工作人员身份','职权或地位形成的影响','收受财物','仅靠普通私人交情'].map(v => {
+            const checked=multiSelected.has(v);
+            return <button key={v} onClick={() => { const next=new Set(multiSelected); checked?next.delete(v):next.add(v); setMultiSelected(next); setDraft([...next].join('、')); }} className="w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center gap-2" style={{ background:checked?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${checked?PRIMARY:BORDER}` }}><span className="w-4 h-4 rounded flex items-center justify-center" style={{background:checked?BLUE:CARD,border:`1px solid ${checked?BLUE:'#C9CDD3'}`}}>{checked&&<Check size={11} color="#fff" strokeWidth={3}/>}</span>{v}</button>})}</div>
           : <textarea value={draft} onChange={e => setDraft(e.target.value)} placeholder={tab === '填空' ? '输入答案' : '写下你的回答'} className="w-full rounded-xl p-3 text-[12px] mb-3 resize-none" style={{ border: `1.5px solid ${BORDER}`, minHeight: 72 }} />}
           <button onClick={() => { if (!draft) setDraft(current.user); setSolved(true); }} className="px-5 py-2 rounded-full text-[12px] font-semibold" style={{ background: BLUE, color: '#fff' }}>提交答案</button>
         </> : <>
@@ -1440,7 +1459,28 @@ function TracebackDemo({ onNext }: { onNext: () => void }) {
             <div className="flex items-center gap-2 mb-3"><FileText size={14} color={BLUE} /><span className="text-[11px]" style={{ color: T3 }}>刑法分论讲义.pdf · 第 42 页</span></div>
             <p className="text-[12px] leading-7" style={{ color: T2 }}>斡旋受贿是指国家工作人员利用本人职权或者地位形成的便利条件，<mark style={{ background: '#FFF09A' }}>通过其他国家工作人员职务上的行为</mark>，为请托人谋取不正当利益。</p>
             <div className="flex gap-2 mt-4"><button onClick={() => setMarked(true)} className="px-3 py-1.5 rounded-lg text-[11px]" style={{ background: PRIMARY, color: '#6B5900' }}>{marked ? '已同步标记 ✓' : '标记这段原文'}</button><button onClick={() => setOpenNote(true)} className="px-3 py-1.5 rounded-lg text-[11px]" style={{ background: '#EAF3FF', color: BLUE }}>打开原笔记（最新）</button></div>
-          </div> : <div className="p-4 flex-1"><div className="flex items-center gap-2 mb-3"><button onClick={() => setOpenNote(false)}><ArrowLeft size={14} /></button><BookOpen size={14} color={BLUE} /><span className="text-[12px] font-bold">斡旋受贿专题笔记 · 最新</span></div><div contentEditable suppressContentEditableWarning className="rounded-xl p-3 text-[12px] leading-6 h-32" style={{ background: CARD, border: `1px solid ${BORDER}` }}>核心区别：借助职权或地位形成的影响，通过其他国家工作人员为请托人谋利。</div></div>}
+          </div> : <div className="flex flex-col flex-1 min-h-0" style={{background:CARD}}>
+            <div className="flex items-center gap-2 px-3 py-2" style={{background:'#5B4A6B',color:'#fff'}}>
+              <button onClick={() => setOpenNote(false)}><ArrowLeft size={14}/></button><BookOpen size={14}/><span className="text-[11px] font-bold flex-1">斡旋受贿专题笔记</span>
+              <Search size={13}/><PenLine size={13}/><MoreHorizontal size={14}/>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2" style={{borderBottom:`1px solid ${BORDER}`}}>
+              <button className="w-6 h-6 rounded text-[11px] font-bold" style={{background:'#F3F4F6'}}>B</button>
+              <button className="w-6 h-6 rounded text-[11px] italic" style={{background:'#F3F4F6'}}>I</button>
+              <button className="px-2 h-6 rounded text-[10px]" style={{background:'#F3F4F6'}}>标题</button>
+              <span className="w-px h-5" style={{background:BORDER}}/>
+              <span className="w-4 h-4 rounded-full" style={{background:'#2D58B5'}}/><span className="w-4 h-4 rounded-full" style={{background:'#E74B52'}}/><span className="w-4 h-4 rounded-full" style={{background:'#111'}}/>
+              <span className="ml-auto text-[9px]" style={{color:GREEN}}>已自动保存</span>
+            </div>
+            <div className="flex-1 overflow-y-auto px-5 py-4" contentEditable suppressContentEditableWarning>
+              <p className="text-[16px] font-bold mb-1" style={{color:T1}}>斡旋受贿罪：构成与判断</p>
+              <p className="text-[9px] mb-4" style={{color:T4}}>更新于刚刚 · 刑法 / 贿赂犯罪</p>
+              <p className="text-[11px] leading-6 mb-3" style={{color:T2}}>斡旋受贿的核心，不是普通的“找人办事”，而是行为人利用本人职权或地位形成的影响力。</p>
+              <div className="rounded-r-lg px-3 py-2 mb-3 text-[11px] leading-5" style={{background:'#FFF8CC',borderLeft:`3px solid ${PRIMARY}`,color:T2}}>通过其他国家工作人员职务上的行为，为请托人谋取不正当利益，并索取或者收受财物。</div>
+              <p className="text-[11px] font-bold mb-2" style={{color:T2}}>判断要点</p>
+              <p className="text-[11px] leading-6" style={{color:T3}}>1. 主体是国家工作人员<br/>2. 影响力来自职权或地位<br/>3. 通过其他国家工作人员谋利<br/>4. 索取或收受财物</p>
+            </div>
+          </div>}
         </div>
       </div>
       <div className="pb-5 pt-3"><CTAButton onClick={onNext}>继续看学习结果 →</CTAButton></div>
@@ -1556,39 +1596,52 @@ const B1_CHIPS = [
 ];
 
 function B1Screen({ onNext }: { onNext: () => void }) {
-  const [phase, setPhase] = useState<0 | 1 | 2>(0);
+  const [phase, setPhase] = useState<0 | 1 | 2 | 3>(0);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(1), 800);
-    const t2 = setTimeout(() => setPhase(2), 1700);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    const t1 = setTimeout(() => setPhase(1), 650);
+    const t2 = setTimeout(() => setPhase(2), 1450);
+    const t3 = setTimeout(() => setPhase(3), 2500);
+    const done = setTimeout(onNext, 3800);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(done); };
   }, []);
 
   return (
     <div className="flex flex-col h-full px-6">
-      <div className="pt-6 pb-3">
-        <h1 className="text-[22px] font-bold leading-tight mb-1" style={{ color: T1 }}>一份资料，自动拆成知识点</h1>
-        <p className="text-[14px] font-semibold" style={{ color: BLUE }}>重点、概念和考点，已经为你整理出来</p>
+      <div className="pt-5 pb-3 flex items-end justify-between">
+        <div>
+          <h1 className="text-[22px] font-bold leading-tight mb-1" style={{ color: T1 }}>一堆资料，自动拆成可学习的知识点</h1>
+          <p className="text-[14px] font-semibold" style={{ color: BLUE }}>提取概念、考点与重点，并保留每条知识的来源</p>
+        </div>
+        <span className="text-[11px] px-3 py-1.5 rounded-full" style={{ background: '#EAF3FF', color: BLUE }}>
+          {phase < 1 ? '正在读取资料…' : phase < 2 ? '正在识别重点…' : phase < 3 ? '正在生成知识点…' : '已整理 28 个知识点 ✓'}
+        </span>
       </div>
 
-      <div className="flex-1 grid grid-cols-2 gap-5 overflow-hidden">
-        <div className="rounded-2xl p-4 overflow-hidden" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-2 mb-3"><FileText size={16} color={RED} /><span className="text-[12px] font-semibold" style={{ color: T2 }}>刑法分论·贿赂渎职.pdf</span></div>
+      <div className="flex-1 grid grid-cols-[44%_56%] gap-4 overflow-hidden">
+        <div className="rounded-2xl p-4 overflow-hidden relative" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+          <div className="flex items-center gap-2 mb-3"><FileText size={16} color={RED} /><span className="text-[12px] font-semibold" style={{ color: T2 }}>刑法分论·贿赂渎职.pdf</span><span className="ml-auto text-[9px]" style={{ color: T4 }}>第 42 页</span></div>
           {['国家工作人员利用本人职权或地位形成的便利条件', '通过其他国家工作人员职务上的行为', '为请托人谋取不正当利益并索取或收受财物', '实际取得或控制财物时达到既遂'].map((line, index) => (
             <p key={line} className="text-[11px] leading-7 px-1 transition-all" style={{ color: T3, background: phase >= 1 && index < 3 ? '#FFF3A8' : 'transparent' }}>{line}</p>
           ))}
+          <div className="absolute left-4 right-4 bottom-4 flex gap-2">
+            {['课堂讲义.pptx','专题笔记','真题解析.pdf'].map((f,i) => <div key={f} className="flex-1 rounded-lg px-2 py-2 text-[9px] truncate transition-all" style={{ background: ['#EAF3FF','#FFF8E7','#F6FEF9'][i], color:T3, opacity: phase >= 1 ? 1 : .45, transform:`translateY(${phase>=1?0:8}px)` }}><FileText size={10} className="inline mr-1"/>{f}</div>)}
+          </div>
         </div>
-        <div className="flex flex-col gap-2">
-          {['受贿罪主体', '职务或地位影响', '财物控制', '既遂标准'].map((item, index) => (
-            <div key={item} className="flex-1 rounded-xl px-4 flex items-center gap-3 transition-all" style={{ background: CARD, border: `1px solid ${phase >= 2 ? '#BEDAFF' : BORDER}`, opacity: phase >= 2 ? 1 : .35, transform: `translateX(${phase >= 2 ? 0 : 24}px)` }}>
+        <div className="grid grid-cols-2 gap-2.5 overflow-hidden">
+          {['受贿罪主体','职务或地位影响','财物控制','既遂标准','索贿与收受','不正当利益','第三人斡旋','数额与情节'].map((item, index) => (
+            <div key={item} className="rounded-xl px-3 flex items-center gap-2 transition-all" style={{ background: CARD, border: `1px solid ${phase >= 2 && index < (phase === 2 ? 4 : 8) ? '#BEDAFF' : BORDER}`, opacity: phase >= 2 && index < (phase === 2 ? 4 : 8) ? 1 : .25, transform: `translateY(${phase >= 2 ? 0 : 14}px)` }}>
               <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: '#EAF3FF', color: BLUE }}>{index + 1}</span>
-              <div><p className="text-[12px] font-semibold" style={{ color: T2 }}>{item}</p><p className="text-[9px]" style={{ color: T4 }}>concept-law-bribery-{index + 1}</p></div>
+              <div className="min-w-0"><p className="text-[11px] font-semibold truncate" style={{ color: T2 }}>{item}</p><p className="text-[9px]" style={{ color: T4 }}>{index < 3 ? '重点 · ' : index < 6 ? '考点 · ' : '概念 · '}来源 {index % 3 + 1}</p></div>
+              {index < 3 && <Star size={10} fill="#FFE562" color="#D2A400" className="ml-auto flex-shrink-0" />}
             </div>
           ))}
         </div>
       </div>
-      <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>预制内容用于说明处理方式；真实提取将在选择资料并确认优先级后开始。</p>
-      <div className="pb-5 pt-2"><CTAButton onClick={onNext}>添加我的学习资料 →</CTAButton></div>
+      <div className="pb-5 pt-3">
+        <div className="h-1 rounded-full overflow-hidden" style={{ background:'#E8E8E8' }}><div className="h-full transition-all duration-700" style={{ width:`${[18,45,76,100][phase]}%`, background:BLUE }}/></div>
+        <p className="text-[10px] text-center mt-1.5" style={{ color:T4 }}>演示完成后将自动进入添加资料</p>
+      </div>
     </div>
   );
 }
