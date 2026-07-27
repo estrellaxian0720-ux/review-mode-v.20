@@ -2,22 +2,23 @@ import React from 'react';
 import { AppProvider, useApp, useHasResourceUpdates } from './contexts/AppContext';
 
 /**
- * 让固定尺寸的设备框自适应视口：返回 ≤1 的缩放比，
- * 使整个设备（含底部悬浮 Tab）在竖屏 1024 高时也能完整显示。
+ * 让固定尺寸的设备框自适应视口：横竖屏共用同一缩放基准（按设备长边 1024 对窗口宽/高取最紧的一边），
+ * 这样短边 640 在两个朝向渲染出的物理尺寸完全相等，切换朝向即「同一台设备旋转 90°」，不会一大一小。
+ * 同时保证竖屏 1024 高、横屏 1024 宽都能完整显示（含底部悬浮 Tab）。
  */
 function useViewportScale(frameW: number, frameH: number) {
   const [scale, setScale] = React.useState(1);
+  const longEdge = Math.max(frameW, frameH); // 恒为 1024，横竖屏一致
   React.useEffect(() => {
     const compute = () => {
       const margin = 24; // 四周留白
-      const sw = (window.innerWidth - margin) / frameW;
-      const sh = (window.innerHeight - margin) / frameH;
-      setScale(Math.min(1, sw, sh));
+      const s = Math.min(1, (window.innerWidth - margin) / longEdge, (window.innerHeight - margin) / longEdge);
+      setScale(s);
     };
     compute();
     window.addEventListener('resize', compute);
     return () => window.removeEventListener('resize', compute);
-  }, [frameW, frameH]);
+  }, [longEdge]);
   return scale;
 }
 
@@ -382,10 +383,12 @@ function AppContent() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div
-        className="overflow-hidden bg-white relative flex"
-        style={{ width: frameW, height: frameH, transform: `scale(${viewportScale})`, transformOrigin: 'center center', transition: 'width .3s ease, height .3s ease' }}
-      >
+      {/* 外层：占据「缩放后」的真实尺寸，保证居中不溢出、不被裁 */}
+      <div style={{ width: frameW * viewportScale, height: frameH * viewportScale }}>
+        <div
+          className="overflow-hidden bg-white relative flex"
+          style={{ width: frameW, height: frameH, transform: `scale(${viewportScale})`, transformOrigin: 'top left', transition: 'width .3s ease, height .3s ease' }}
+        >
         {/* 全局横竖屏切换按钮（练习页强制横屏时隐藏） */}
         {!forceLandscape && (
           <button
@@ -503,6 +506,7 @@ function AppContent() {
               }}
             />
         )}
+        </div>
       </div>
     </div>
   );
