@@ -3,6 +3,7 @@ import {
   ChevronDown, ChevronRight, ChevronLeft, ChevronUp, Play, Star, Check,
   Maximize2,
 } from 'lucide-react';
+import { useApp } from '../contexts/AppContext';
 
 // ── Design tokens (通用设计令牌) ────────────────────────────────────────────────
 
@@ -663,13 +664,14 @@ interface KPTileProps {
   batchMode: boolean;
   selected: boolean;
   bookmarked: boolean;
+  portrait?: boolean;                // 竖屏：每行 2 张预览
   onTap: () => void;                 // 批量=勾选；否则=就地翻卡
   onLongPress: () => void;
   onToggleBookmark: () => void;
   onOpenFullscreen: (rect: OriginRect) => void;
 }
 
-function KPTile({ kp, batchMode, selected, bookmarked, onTap, onLongPress, onToggleBookmark, onOpenFullscreen }: KPTileProps) {
+function KPTile({ kp, batchMode, selected, bookmarked, portrait, onTap, onLongPress, onToggleBookmark, onOpenFullscreen }: KPTileProps) {
   const { handlers, firedRef } = useLongPress(onLongPress);
   const [flipped, setFlipped] = useState(false);
   const [reason, setReason] = useState(false);
@@ -686,7 +688,8 @@ function KPTile({ kp, batchMode, selected, bookmarked, onTap, onLongPress, onTog
         else setFlipped(f => !f); // 就地翻卡
       }}
       style={{
-        position: 'relative', flex: '1 1 30%', minWidth: 180, maxWidth: '32%',
+        position: 'relative', flex: portrait ? '1 1 46%' : '1 1 30%',
+        minWidth: portrait ? 0 : 180, maxWidth: portrait ? '48%' : '32%',
         aspectRatio: '2 / 1', minHeight: 96,
         background: selected ? '#F1F6FF' : '#fff',
         border: `1.5px solid ${selected ? C.learning : C.border}`,
@@ -758,6 +761,7 @@ interface ModuleSectionProps {
   mod: Module;
   viewMode: ViewMode;
   batchMode: boolean;
+  portrait?: boolean;
   isExpanded: boolean;
   onToggle: () => void;
   selected: Set<string>;
@@ -784,7 +788,7 @@ interface ModuleSectionProps {
 }
 
 function ModuleSection({
-  mod, viewMode, batchMode, isExpanded, onToggle,
+  mod, viewMode, batchMode, portrait, isExpanded, onToggle,
   selected, onSelect, onSelectModule, bookmarked, onBookmark, expandedKP, onToggleKP,
   onOpenFullscreen, onEnterBatch, onStartModule,
   showExpandBubble, onDismissExpandBubble,
@@ -928,6 +932,7 @@ function ModuleSection({
                 onLongPress={() => onEnterBatch(kp.id)}
                 onToggleBookmark={() => onBookmark(kp.id)}
                 onOpenFullscreen={(rect) => onOpenFullscreen(kp, mod, rect)}
+                portrait={portrait}
               />
             ))}
             {showBatchBubble && (
@@ -972,6 +977,8 @@ export default function TodayScreen({
   onStartPractice, onViewResources, onStartMockExam, onViewKnowledgeMap, onViewPlan, onViewAllSpaces,
 }: TodayScreenProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const { orientation } = useApp();
+  const portrait = orientation === 'portrait';
 
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -1194,7 +1201,8 @@ export default function TodayScreen({
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: '22px 24px 0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 24,
+                    flexWrap: portrait ? 'wrap' : 'nowrap', padding: '22px 24px 0' }}>
                     {/* 左·状态区：环形（主角）+ 情绪/动机文案 */}
                     <ProgressRing pct={DONE_KPS / TOTAL_KPS} size={112} />
 
@@ -1218,12 +1226,14 @@ export default function TodayScreen({
                       </button>
                     </div>
 
-                    {/* 右·行动区：CTA（主角）+ 约45min，位于卡片右侧 */}
-                    <div style={{ position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    {/* 右·行动区：CTA（主角）+ 约45min，位于卡片右侧（竖屏时换行占满） */}
+                    <div style={{ position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', width: portrait ? '100%' : 'auto' }}>
                       <button onClick={handleStart} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         padding: '15px 32px', borderRadius: 12, border: 'none', cursor: 'pointer',
                         background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700,
+                        width: portrait ? '100%' : 'auto',
                       }}>
                         <Play size={14} fill="#fff" strokeWidth={0} />
                         开始今日学习
@@ -1369,6 +1379,7 @@ export default function TodayScreen({
                   mod={mod}
                   viewMode={viewMode}
                   batchMode={batchMode}
+                  portrait={portrait}
                   isExpanded={!!l2Expanded[mod.id]}
                   onToggle={() => handleL2Toggle(mod.id)}
                   selected={selected}
@@ -1421,6 +1432,7 @@ export default function TodayScreen({
                   mod={mod}
                   viewMode={viewMode}
                   batchMode={batchMode}
+                  portrait={portrait}
                   isExpanded={!!l2Expanded[mod.id]}
                   onToggle={() => handleL2Toggle(mod.id)}
                   selected={selected}

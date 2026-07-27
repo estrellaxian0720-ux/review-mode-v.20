@@ -1,6 +1,26 @@
 import React from 'react';
 import { AppProvider, useApp, useHasResourceUpdates } from './contexts/AppContext';
 
+/**
+ * 让固定尺寸的设备框自适应视口：返回 ≤1 的缩放比，
+ * 使整个设备（含底部悬浮 Tab）在竖屏 1024 高时也能完整显示。
+ */
+function useViewportScale(frameW: number, frameH: number) {
+  const [scale, setScale] = React.useState(1);
+  React.useEffect(() => {
+    const compute = () => {
+      const margin = 24; // 四周留白
+      const sw = (window.innerWidth - margin) / frameW;
+      const sh = (window.innerHeight - margin) / frameH;
+      setScale(Math.min(1, sw, sh));
+    };
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [frameW, frameH]);
+  return scale;
+}
+
 
 import TopTabBar from './components/TopTabBar';
 import ReviewModeBottomTabBar from './components/ReviewModeBottomTabBar';
@@ -104,6 +124,9 @@ function AppContent() {
   const frameH = isPortrait ? 1024 : 640;
   // 竖屏空间窄：侧栏单列回落（隐藏），内容占满整幅宽度
   const showSidebarEffective = showSidebar && !isPortrait;
+
+  // 设备框自适应视口缩放：竖屏 1024 高会超出视口，缩放后底部悬浮 Tab 才可见
+  const viewportScale = useViewportScale(frameW, frameH);
 
   // 处理顶部Tab切换
   const handleTopTabChange = (tab: typeof topTab) => {
@@ -361,7 +384,7 @@ function AppContent() {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div
         className="overflow-hidden bg-white relative flex"
-        style={{ width: frameW, height: frameH, transition: 'width .3s ease, height .3s ease' }}
+        style={{ width: frameW, height: frameH, transform: `scale(${viewportScale})`, transformOrigin: 'center center', transition: 'width .3s ease, height .3s ease' }}
       >
         {/* 全局横竖屏切换按钮（练习页强制横屏时隐藏） */}
         {!forceLandscape && (

@@ -572,6 +572,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
   const [editing, setEditing] = useState<string | null>(null);
   const [editVal, setEditVal] = useState('');
   const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // 区分单击(预览)与双击(编辑)
+  const lastClickRef = useRef<{ id: string; t: number }>({ id: '', t: 0 }); // 手动双击判定（SVG onDoubleClick 不可靠）
 
   // ── Layout ────────────────────────────────────────────────────────────────
   const positions = useMemo(() => mmComputeLayout(fullTree, collapsed), [fullTree, collapsed]);
@@ -866,8 +867,22 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                     style={{ filter: isMatch ? 'drop-shadow(0 0 5px rgba(100,136,176,0.55))' : undefined, cursor: 'pointer' }}
                     onClick={() => {
                       if (dragRef.current.moved) return;
-                      // 单击 = 纯选中节点（浮出「+」/删除按钮）；不再自动弹预览闪卡，
-                      // 用 240ms 窗口区分单击与双击：双击会清掉此定时器、走编辑。
+                      const now = Date.now();
+                      const last = lastClickRef.current;
+                      const isDbl = last.id === node.id && now - last.t < 320;
+                      lastClickRef.current = { id: node.id, t: now };
+
+                      if (isDbl) {
+                        // 双击 = 就地进入编辑（光标闪烁，失焦/回车自动保存）
+                        if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
+                        lastClickRef.current = { id: '', t: 0 };
+                        if (node.isUser || conceptById.has(node.id)) {
+                          setSelectedId(node.id);
+                          setEditing(node.id); setEditVal(node.label);
+                        }
+                        return;
+                      }
+                      // 单击 = 纯选中节点（浮出「+」/删除按钮）；240ms 窗口内若再次点击则升级为双击编辑
                       if (clickTimer.current) clearTimeout(clickTimer.current);
                       clickTimer.current = setTimeout(() => {
                         setSelectedId(prev => (prev === node.id ? null : node.id));
@@ -875,8 +890,9 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                       }, 240);
                     }}
                     onDoubleClick={() => {
-                      // 双击 = 就地进入编辑（光标闪烁，失焦/回车自动保存）
+                      // 兜底：部分浏览器仍会派发原生 dblclick
                       if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
+                      lastClickRef.current = { id: '', t: 0 };
                       if (node.isUser || conceptById.has(node.id)) {
                         setSelectedId(node.id);
                         setEditing(node.id); setEditVal(node.label);
