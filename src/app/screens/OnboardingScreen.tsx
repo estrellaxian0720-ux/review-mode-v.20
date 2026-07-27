@@ -60,12 +60,12 @@ const SUBJECTS_BY_GOAL: Record<GoalType, string[]> = {
 
 // Professional background — now collected in A1, removed from A2
 const BACKGROUND_FIELDS: Record<GoalType, string[]> = {
-  college:  ['学校', '专业'],
-  postgrad: ['本科专业', '报考方向'],
-  civil:    ['专业背景'],
-  cert:     ['学习或从业方向'],
-  language: [],
-  other:    ['学习或从业方向'],
+  college:  ['所在学校', '所学专业'],
+  postgrad: ['所在学校', '所学专业'],
+  civil:    ['所在学校', '所学专业'],
+  cert:     ['所在学校', '所学专业'],
+  language: ['所在学校', '所学专业'],
+  other:    ['所在学校', '所学专业'],
 };
 
 // Cohort counts by secondary goal — tiered aggregation, omit when below threshold
@@ -849,8 +849,10 @@ function A5DemoBar({ phase }: { phase: A5SubPhase }) {
   );
 }
 
-function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: boolean; onNext: () => void }) {
-  const [subPhase, setSubPhase]   = useState<A5SubPhase>('loading');
+function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit }: {
+  hasPreset: boolean; isStem: boolean; initialPhase?: A5SubPhase; onNext: () => void; onExit: () => void;
+}) {
+  const [subPhase, setSubPhase]   = useState<A5SubPhase>(initialPhase);
   const [progress, setProgress]   = useState(0);
   const [dotCount, setDotCount]   = useState(0);
   const [planChoice, setPlanChoice] = useState<'year' | 'month'>('year');
@@ -901,11 +903,30 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
     }
   };
 
+  const backAfterCreation = () => {
+    const idx = DEMO_PHASES.indexOf(subPhase);
+    if (subPhase === 'loading' || subPhase === 'B2' || idx <= 0) {
+      onExit();
+      return;
+    }
+    let previous = DEMO_PHASES[idx - 1];
+    if (previous === 'B5S' && !isStem) previous = 'B5';
+    setSubPhase(previous);
+  };
+
+  const postCreateBack = (
+    <button onClick={backAfterCreation} className="absolute left-3 top-3 z-[120] flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-medium"
+      style={{ background:'rgba(255,255,255,.94)', border:`1px solid ${BORDER}`, color:T3, boxShadow:'0 2px 8px rgba(0,0,0,.08)' }}>
+      <ArrowLeft size={14}/>{subPhase === 'loading' || subPhase === 'B2' ? '退出学习空间' : '返回'}
+    </button>
+  );
+
   const dots = '.'.repeat(dotCount);
 
   if (subPhase === 'B2') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B2" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="零散知识点，自动连成体系" sub="章节关系和知识结构，一眼看清" />
@@ -919,6 +940,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B3') {
     return (
       <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: '#1B1B1B', display: 'flex', flexDirection: 'column' }}>
+        {postCreateBack}
         <A5DemoBar phase="B3" />
         <B3Inner onNext={advanceDemo} />
       </div>
@@ -929,6 +951,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B4') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B4" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="不是让你背，是先问你会不会" sub="每个知识点，先给你一张闪卡" />
@@ -942,6 +965,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B5') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B5" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="一个知识点，用不同方式练到会" sub="填空 · 判断 · 多选 · 简答，自动生成真实解析" />
@@ -954,6 +978,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B5S') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B5S" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="计算题，也能随手打草稿" sub="草稿本跟着练习走，不遮挡题目" />
@@ -967,6 +992,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B6') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B6" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="不只给答案，自动带你学会" sub="识别错因 · 继续追问 · 自动进入强化学习" />
@@ -979,6 +1005,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B65') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B65" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="每个答案，都能找到出处" sub="直接标记来源，也能打开最新原笔记继续补记" />
@@ -992,6 +1019,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'B7') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="B7" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="知道学到哪，也知道接下来补什么" sub="学习报告与模考结果，自动变成下一步行动" />
@@ -1005,6 +1033,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'C1') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="C1" />
         <div className="flex flex-col flex-1 px-6 overflow-y-auto">
           <div className="pt-4 pb-3 text-center">
@@ -1060,6 +1089,7 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
   if (subPhase === 'C2') {
     return (
       <div className="flex flex-col h-full">
+        {postCreateBack}
         <A5DemoBar phase="C2" />
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <div className="pt-4 pb-3">
@@ -1115,7 +1145,8 @@ function A5Screen({ hasPreset, isStem, onNext }: { hasPreset: boolean; isStem: b
 
   // ── Loading phase (default) ───────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full px-6 justify-between">
+    <div className="flex flex-col h-full px-6 justify-between relative">
+      {postCreateBack}
       <div />
       <div className="flex flex-col items-center gap-6 py-8">
         <div className="relative w-20 h-20 flex items-center justify-center">
@@ -1608,35 +1639,40 @@ function B1Screen({ onNext }: { onNext: () => void }) {
 
   return (
     <div className="flex flex-col h-full px-6">
-      <div className="pt-5 pb-3 flex items-end justify-between">
+      <div className="pt-5 pb-2 flex items-end justify-between">
         <div>
           <h1 className="text-[22px] font-bold leading-tight mb-1" style={{ color: T1 }}>一堆资料，自动拆成可学习的知识点</h1>
-          <p className="text-[14px] font-semibold" style={{ color: BLUE }}>提取概念、考点与重点，并保留每条知识的来源</p>
+          <p className="text-[14px] font-semibold" style={{ color: BLUE }}>从资料堆里抽丝剥茧，整理出真正要学的内容</p>
         </div>
         <span className="text-[11px] px-3 py-1.5 rounded-full" style={{ background: '#EAF3FF', color: BLUE }}>
-          {phase < 1 ? '正在读取资料…' : phase < 2 ? '正在识别重点…' : phase < 3 ? '正在生成知识点…' : '已整理 28 个知识点 ✓'}
+          {phase < 1 ? '正在读取资料…' : phase < 2 ? '正在抽取内容…' : phase < 3 ? '正在标记重点…' : '已整理 28 个知识点 ✓'}
         </span>
       </div>
 
-      <div className="flex-1 grid grid-cols-[44%_56%] gap-4 overflow-hidden">
-        <div className="rounded-2xl p-4 overflow-hidden relative" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-          <div className="flex items-center gap-2 mb-3"><FileText size={16} color={RED} /><span className="text-[12px] font-semibold" style={{ color: T2 }}>刑法分论·贿赂渎职.pdf</span><span className="ml-auto text-[9px]" style={{ color: T4 }}>第 42 页</span></div>
-          {['国家工作人员利用本人职权或地位形成的便利条件', '通过其他国家工作人员职务上的行为', '为请托人谋取不正当利益并索取或收受财物', '实际取得或控制财物时达到既遂'].map((line, index) => (
-            <p key={line} className="text-[11px] leading-7 px-1 transition-all" style={{ color: T3, background: phase >= 1 && index < 3 ? '#FFF3A8' : 'transparent' }}>{line}</p>
-          ))}
-          <div className="absolute left-4 right-4 bottom-4 flex gap-2">
-            {['课堂讲义.pptx','专题笔记','真题解析.pdf'].map((f,i) => <div key={f} className="flex-1 rounded-lg px-2 py-2 text-[9px] truncate transition-all" style={{ background: ['#EAF3FF','#FFF8E7','#F6FEF9'][i], color:T3, opacity: phase >= 1 ? 1 : .45, transform:`translateY(${phase>=1?0:8}px)` }}><FileText size={10} className="inline mr-1"/>{f}</div>)}
-          </div>
+      <div className="flex-1 relative rounded-3xl overflow-hidden" style={{ background:'linear-gradient(135deg,#FBFCFF,#F5F8FF)',border:`1px solid ${BORDER}` }}>
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+          <defs><linearGradient id="extractFlow" x1="0" x2="1"><stop stopColor="#BFD4FF"/><stop offset=".55" stopColor="#7EA7FF"/><stop offset="1" stopColor="#FFE562"/></linearGradient></defs>
+          {[24,35,46,57,68].map((y,i)=><path key={y} d={`M28 ${y} C42 ${y} 42 50 53 50 C64 50 64 ${31+i*10} 76 ${31+i*10}`} fill="none" stroke="url(#extractFlow)" strokeWidth={phase>=1?0.8:0.35} opacity={phase>=1?.72:.2}/>)}
+        </svg>
+        <div className="absolute left-[8%] top-[17%] w-[23%] h-[64%]">
+          {B1_CHIPS.map((chip,i)=><div key={chip.label} className="absolute w-28 h-14 rounded-xl px-3 py-2 shadow-sm transition-all" style={{left:`${(i%3)*18}px`,top:`${i*32}px`,background:chip.bg,border:`1px solid ${BORDER}`,transform:`rotate(${chip.rotate}deg) translateX(${phase>=1?8:0}px)`,opacity:phase>=1?.72:1}}>
+            <FileText size={13} color={i%2?BLUE:RED}/><span className="block text-[9px] mt-1" style={{color:T3}}>{chip.label}</span>
+          </div>)}
         </div>
-        <div className="grid grid-cols-2 gap-2.5 overflow-hidden">
-          {['受贿罪主体','职务或地位影响','财物控制','既遂标准','索贿与收受','不正当利益','第三人斡旋','数额与情节'].map((item, index) => (
-            <div key={item} className="rounded-xl px-3 flex items-center gap-2 transition-all" style={{ background: CARD, border: `1px solid ${phase >= 2 && index < (phase === 2 ? 4 : 8) ? '#BEDAFF' : BORDER}`, opacity: phase >= 2 && index < (phase === 2 ? 4 : 8) ? 1 : .25, transform: `translateY(${phase >= 2 ? 0 : 14}px)` }}>
-              <span className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: '#EAF3FF', color: BLUE }}>{index + 1}</span>
-              <div className="min-w-0"><p className="text-[11px] font-semibold truncate" style={{ color: T2 }}>{item}</p><p className="text-[9px]" style={{ color: T4 }}>{index < 3 ? '重点 · ' : index < 6 ? '考点 · ' : '概念 · '}来源 {index % 3 + 1}</p></div>
-              {index < 3 && <Star size={10} fill="#FFE562" color="#D2A400" className="ml-auto flex-shrink-0" />}
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full flex flex-col items-center justify-center shadow-lg transition-all" style={{background:phase>=2?PRIMARY:CARD,border:`2px solid ${phase>=2?'#F4C900':'#BFD4FF'}`}}>
+          <span className="text-[22px]">{phase>=2?'✦':'⌁'}</span><span className="text-[9px] font-bold" style={{color:phase>=2?'#6B5900':BLUE}}>AI 提取</span>
+        </div>
+        <div className="absolute right-[6%] top-[15%] w-[25%] h-[70%] grid grid-cols-2 gap-2">
+          {['核心概念','高频考点','重点结论','易错辨析','关联知识','复习提示'].map((item,i)=>{
+            const visible=phase>=2 && i<(phase===2?3:6);
+            return <div key={item} className="rounded-xl px-2 flex items-center gap-2 transition-all shadow-sm" style={{background:CARD,border:`1px solid ${i<3?'#FFE562':'#BEDAFF'}`,opacity:visible?1:.15,transform:`translateX(${visible?0:12}px)`}}>
+              <span className="w-5 h-5 rounded-full flex items-center justify-center text-[9px]" style={{background:i<3?'#FFF6B8':'#EAF3FF',color:i<3?'#9A7B00':BLUE}}>{i<3?'★':i+1}</span>
+              <span className="text-[9px] font-semibold" style={{color:T2}}>{item}</span>
             </div>
-          ))}
+          })}
         </div>
+        <div className="absolute left-[35%] bottom-5 text-[10px]" style={{color:T4}}>资料堆</div>
+        <div className="absolute right-[12%] bottom-5 text-[10px]" style={{color:T4}}>可学习知识点</div>
       </div>
       <div className="pb-5 pt-3">
         <div className="h-1 rounded-full overflow-hidden" style={{ background:'#E8E8E8' }}><div className="h-full transition-all duration-700" style={{ width:`${[18,45,76,100][phase]}%`, background:BLUE }}/></div>
@@ -1809,6 +1845,8 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
   const [goalType, setGoalType]     = useState<GoalType>('cert');
   const [goalDetail, setGoalDetail] = useState('法考·法律类');
   const [materialSource, setMaterialSource] = useState<'REAL_UPLOAD' | 'SAMPLE'>('SAMPLE');
+  const [spaceCreated, setSpaceCreated] = useState(false);
+  const [resumeDemoAtEnd, setResumeDemoAtEnd] = useState(false);
 
   // Language type has no preset sample pack → no B1 pre-animation, no demo chain in A5
   const hasPreset = goalType !== 'language';
@@ -1820,8 +1858,22 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
   const next = () => setStepIdx(i => Math.min(i + 1, total - 1));
   const back = () => setStepIdx(i => Math.max(i - 1, 0));
 
-  // Disable back on A5 (loading/demo chain) and A6 (plan gate) to avoid broken state
-  const canBack = stepIdx > 0 && step !== 'A5' && step !== 'A6';
+  const returnFromPlanToDemo = () => {
+    if (!hasPreset) {
+      onSkip();
+      return;
+    }
+    setResumeDemoAtEnd(true);
+    setStepIdx(i => Math.max(i - 1, 0));
+  };
+
+  const wrapperBack = step === 'A5'
+    ? undefined
+    : step === 'A6'
+      ? returnFromPlanToDemo
+      : stepIdx > 0
+        ? back
+        : onSkip;
 
   const renderStep = () => {
     switch (step) {
@@ -1835,14 +1887,17 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
       case 'A3': return (
         <A3Screen hasPreset={hasPreset} onNext={(src) => { setMaterialSource(src); next(); }} onBack={back} />
       );
-      case 'A4': return <A4Screen onNext={next} onBack={back} />;
+      case 'A4': return <A4Screen onNext={() => { setSpaceCreated(true); setResumeDemoAtEnd(false); next(); }} onBack={back} />;
       // A5 internally hosts the full loading + demo chain (B3→B7→C1→C2 for preset flows)
       case 'A5': return (
         <A5Screen
           hasPreset={hasPreset}
           isStem={goalDetail.includes('理工')}
+          initialPhase={resumeDemoAtEnd ? 'C2' : 'loading'}
+          onExit={spaceCreated ? onSkip : back}
           onNext={() => {
             // After C2 (or simple loading for no-preset) → A6
+            setResumeDemoAtEnd(false);
             next();
           }}
         />
@@ -1855,7 +1910,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
   // ScreenWrapper needs position:relative so A5's dark B3 overlay can cover it
   return (
     <div className="w-full h-full relative" style={{ background: BG }}>
-      <ScreenWrapper onBack={canBack ? back : undefined} totalSteps={total} currentStep={stepIdx}>
+      <ScreenWrapper onBack={wrapperBack} totalSteps={total} currentStep={stepIdx}>
         {renderStep()}
       </ScreenWrapper>
     </div>
