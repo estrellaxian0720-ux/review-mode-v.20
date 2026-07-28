@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -138,9 +139,9 @@ function CTAButton({ children, onClick, disabled }: { children: React.ReactNode;
 
 function ScreenTitle({ title, sub, subColor = BLUE }: { title: string; sub: string; subColor?: string }) {
   return (
-    <div className="pt-6 pb-4 px-0">
-      <h1 className="text-[22px] font-bold leading-tight mb-1.5" style={{ color: T1 }}>{title}</h1>
-      <p className="text-[14px] font-medium" style={{ color: subColor }}>{sub}</p>
+    <div className="pb-4 px-0">
+      <h1 className="text-[23px] font-bold leading-tight mb-1.5" style={{ color: T1 }}>{title}</h1>
+      <p className="text-[14px] font-medium leading-relaxed" style={{ color: subColor }}>{sub}</p>
     </div>
   );
 }
@@ -761,9 +762,20 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [removed, setRemoved] = useState<PriorityResource | null>(null);
   const [menuId, setMenuId] = useState<number | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{top:number;left:number} | null>(null);
   const [swipedId, setSwipedId] = useState<number | null>(null);
   const [pointerStart, setPointerStart] = useState<{ id: number; x: number } | null>(null);
   const [showGestureHint, setShowGestureHint] = useState(true);
+  useEffect(() => {
+    if (menuId === null) return;
+    const closeMenu = () => { setMenuId(null); setMenuPosition(null); };
+    window.addEventListener('resize', closeMenu);
+    window.addEventListener('scroll', closeMenu, true);
+    return () => {
+      window.removeEventListener('resize', closeMenu);
+      window.removeEventListener('scroll', closeMenu, true);
+    };
+  }, [menuId]);
   const moveResource = (id: number, priority: PriorityId, beforeId?: number) => {
     setResources(prev => {
       const moving = prev.find(r => r.id === id);
@@ -775,6 +787,7 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
       return at < 0 ? [...rest, next] : [...rest.slice(0, at), next, ...rest.slice(at)];
     });
     setMenuId(null);
+    setMenuPosition(null);
     setSwipedId(null);
     setShowGestureHint(false);
   };
@@ -782,6 +795,7 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
     setResources(prev => prev.filter(r => r.id !== resource.id));
     setRemoved(resource);
     setMenuId(null);
+    setMenuPosition(null);
     setSwipedId(null);
     setShowGestureHint(false);
   };
@@ -820,20 +834,34 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
                     style={{background:CARD,transform:swipedId===r.id?'translateX(-72px)':'translateX(0)',opacity:draggedId===r.id ? .45 : 1}}>
                     <GripVertical size={15} color="#B6BBC2" /><FileText size={14} color={group.color} />
                     <span className="flex-1 text-[12px]" style={{ color: T2 }}>{r.name}</span>
-                    <button title="更多操作" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setMenuId(menuId===r.id?null:r.id);setSwipedId(null);setShowGestureHint(false);}} className="p-1.5 rounded-lg" style={{color:T4}}><MoreHorizontal size={16}/></button>
+                    <button title="更多操作" onPointerDown={e=>e.stopPropagation()} onClick={e=>{
+                      e.stopPropagation();
+                      if (menuId===r.id) { setMenuId(null); setMenuPosition(null); }
+                      else {
+                        const rect=e.currentTarget.getBoundingClientRect();
+                        const menuHeight=190;
+                        setMenuId(r.id);
+                        setMenuPosition({top:Math.min(rect.bottom+6,window.innerHeight-menuHeight-12),left:Math.max(12,rect.right-170)});
+                      }
+                      setSwipedId(null);setShowGestureHint(false);
+                    }} className="p-1.5 rounded-lg" style={{color:T4}}><MoreHorizontal size={16}/></button>
                   </div>
-                  {menuId===r.id&&<div className="absolute right-3 top-[34px] z-50 w-[170px] rounded-xl p-1.5" style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:'0 10px 28px rgba(20,35,60,.16)'}}>
-                    <p className="px-2 py-1 text-[9px] font-semibold" style={{color:T4}}>调整优先级</p>
-                    {PRIORITIES.map(priority=><button key={priority.id} onClick={()=>moveResource(r.id,priority.id)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] text-left" style={{background:r.priority===priority.id?priority.bg:'transparent',color:T2}}><span className="w-2 h-2 rounded-full" style={{background:priority.color}}/>{priority.name}{r.priority===priority.id&&<Check size={11} className="ml-auto" color={GREEN}/>}</button>)}
-                    <div className="h-px my-1" style={{background:BORDER}}/>
-                    <button onClick={()=>removeResource(r)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px]" style={{color:RED}}><Trash2 size={12}/>从学习空间移除</button>
-                  </div>}
                 </div>
               ))}
             </div>
           );
         })}
       </div>
+      {menuId!==null && menuPosition && createPortal((()=>{
+        const resource=resources.find(item=>item.id===menuId);
+        if (!resource) return null;
+        return <><button aria-label="关闭更多操作" onClick={()=>{setMenuId(null);setMenuPosition(null);}} className="fixed inset-0 z-[999] cursor-default"/><div className="fixed z-[1000] w-[170px] rounded-xl p-1.5" style={{top:menuPosition.top,left:menuPosition.left,background:CARD,border:`1px solid ${BORDER}`,boxShadow:'0 14px 36px rgba(20,35,60,.22)'}}>
+          <p className="px-2 py-1 text-[10px] font-semibold" style={{color:T4}}>调整优先级</p>
+          {PRIORITIES.map(priority=><button key={priority.id} onClick={()=>moveResource(resource.id,priority.id)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px] text-left" style={{background:resource.priority===priority.id?priority.bg:'transparent',color:T2}}><span className="w-2 h-2 rounded-full" style={{background:priority.color}}/>{priority.name}{resource.priority===priority.id&&<Check size={11} className="ml-auto" color={GREEN}/>}</button>)}
+          <div className="h-px my-1" style={{background:BORDER}}/>
+          <button onClick={()=>removeResource(resource)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[11px]" style={{color:RED}}><Trash2 size={12}/>从学习空间移除</button>
+        </div></>;
+      })(),document.body)}
       {removed && <div className="flex items-center gap-2 px-3 py-2 mb-2 rounded-lg text-[11px]" style={{ background: '#252525', color: '#fff' }}><span className="flex-1">已从学习空间移除「{removed.name}」</span><button onClick={() => { setResources(prev => [...prev, removed]); setRemoved(null); }} className="flex items-center gap-1" style={{ color: PRIMARY }}><RotateCcw size={12} />撤销</button></div>}
       <div className="pb-4 pt-1">
         <CTAButton onClick={onNext} disabled={resources.length === 0}>Analyze and Create →</CTAButton>
@@ -847,19 +875,23 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
 type A5SubPhase = 'loading' | 'B2' | 'B3' | 'B4' | 'B5' | 'B5S' | 'B6' | 'B65' | 'B7' | 'C1' | 'C2' | 'done';
 const DEMO_PHASES: A5SubPhase[] = ['B2', 'B3', 'B4', 'B5', 'B5S', 'B6', 'B65', 'B7', 'C1', 'C2'];
 
-function A5DemoBar({ phase, onSkip }: { phase: A5SubPhase; onSkip: () => void }) {
+function A5DemoBar({ phase, onBack, onSkip }: { phase: A5SubPhase; onBack: () => void; onSkip: () => void }) {
   const idx = DEMO_PHASES.indexOf(phase);
   if (idx < 0) return null;
   return (
-    <div className="relative z-[115] h-11 flex items-center justify-center gap-3 px-6 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
-      <span className="text-[10px] whitespace-nowrap" style={{color:T4}}>产品介绍 {idx + 1}/{DEMO_PHASES.length}</span>
-      <div className="flex items-center gap-1.5">
-        {DEMO_PHASES.map((_, i) => (
-          <div key={i} className="rounded-full transition-all"
-            style={{ width: i === idx ? 14 : 5, height: 4, background: i <= idx ? BLUE : '#D0D0D0' }} />
-        ))}
+    <div className="relative z-[115] h-[52px] grid grid-cols-[1fr_auto_1fr] items-center px-7 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
+      <button onClick={onBack} className="justify-self-start flex items-center gap-1.5 text-[12px] font-medium" style={{color:T3}}>
+        <ArrowLeft size={15}/>{phase === 'B2' ? '退出学习空间' : '返回'}
+      </button>
+      <div className="w-[330px] flex items-center justify-center gap-3">
+        <span className="text-[13px] font-medium whitespace-nowrap" style={{color:T3}}>产品介绍 {idx + 1}/{DEMO_PHASES.length}</span>
+        <div className="flex-1 flex items-center gap-1.5">
+          {DEMO_PHASES.map((_, i) => (
+            <div key={i} className="h-1.5 flex-1 rounded-full transition-all" style={{background:i <= idx ? BLUE:'#D8DCE2'}}/>
+          ))}
+        </div>
       </div>
-      <button onClick={onSkip} className="absolute right-6 text-[10px] whitespace-nowrap" style={{color:BLUE}}>跳过产品介绍</button>
+      <button onClick={onSkip} className="justify-self-end text-[12px] font-medium whitespace-nowrap" style={{color:BLUE}}>跳过产品介绍</button>
     </div>
   );
 }
@@ -929,16 +961,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
     setSubPhase(previous);
   };
 
-  const postCreateBack = (
-    <button onClick={backAfterCreation} className="absolute left-3 top-3 z-[120] flex items-center gap-1.5 px-2.5 py-2 rounded-xl text-[11px] font-medium"
-      style={{ background:'rgba(255,255,255,.94)', border:`1px solid ${BORDER}`, color:T3, boxShadow:'0 2px 8px rgba(0,0,0,.08)' }}>
-      <ArrowLeft size={14}/>{subPhase === 'loading' || subPhase === 'B2' ? '退出学习空间' : '返回'}
-    </button>
-  );
-
   const demoChrome = (
     <>
-      <A5DemoBar phase={subPhase} onSkip={() => setShowNotReadyModal(true)} />
+      <A5DemoBar phase={subPhase} onBack={backAfterCreation} onSkip={() => setShowNotReadyModal(true)} />
       {showNotReadyModal && (
         <div className="absolute inset-0 z-[180] flex items-center justify-center p-6" style={{background:'rgba(20,24,32,.42)'}}>
           <div className="w-full max-w-[430px] rounded-3xl p-6" style={{background:CARD,boxShadow:'0 20px 60px rgba(0,0,0,.22)'}}>
@@ -960,9 +985,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B2') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="杂乱的资料，自动梳理成思维导图" sub="章节、知识点和关联关系，一眼看清并梳理知识关系" />
           <B2Inner onNext={advanceDemo} />
         </div>
@@ -974,7 +998,6 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B3') {
     return (
       <div className="flex flex-col h-full relative" style={{ background: CARD }}>
-        {postCreateBack}
         {demoChrome}
         <B3Inner onNext={advanceDemo} />
       </div>
@@ -985,9 +1008,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B4') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="不是让你背，是先问你会不会" sub="每个知识点，先给你一张闪卡" />
           <B4Inner onNext={advanceDemo} />
         </div>
@@ -999,9 +1021,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B5') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="一个知识点，多种练习方式，直到真正掌握" sub="根据每次作答结果，逐步从记忆、辨析走向理解与应用" />
           <B5Inner onNext={advanceDemo} />
         </div>
@@ -1012,9 +1033,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B5S') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="计算题，也能随手打草稿" sub="草稿本跟着练习走，不遮挡题目" />
           <ScratchpadDemo onNext={advanceDemo} />
         </div>
@@ -1026,9 +1046,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B6') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="不只给答案，像老师一样带你学会" sub="遇到不会的知识点，AI 会换种方式带你一步步理解" />
           <B6Inner onNext={advanceDemo} />
         </div>
@@ -1039,9 +1058,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B65') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="每个答案，都能找到出处" sub="直接标记来源，也能打开最新原笔记继续补记" />
           <TracebackDemo onNext={advanceDemo} />
         </div>
@@ -1053,9 +1071,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'B7') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="知道学到哪，也知道接下来补什么" sub="学习报告与模考结果，自动变成下一步行动" />
           <B7Inner onNext={advanceDemo} />
         </div>
@@ -1067,10 +1084,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'C1') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 overflow-y-auto">
-          <div className="pt-4 pb-3 text-center">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-y-auto">
+          <div className="pb-4 text-center">
             <h1 className="text-[22px] font-bold mb-1" style={{ color: T1 }}>很多人，已经用云记把资料真正学会</h1>
             <p className="text-[14px] font-medium" style={{ color: BLUE }}>从大学课程到考研、法考和职业考试</p>
           </div>
@@ -1123,10 +1139,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   if (subPhase === 'C2') {
     return (
       <div className="flex flex-col h-full">
-        {postCreateBack}
         {demoChrome}
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
-          <div className="pt-4 pb-3">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
+          <div className="pb-4">
             <p className="text-[11px] text-center mb-1" style={{ color: T4 }}>你刚才体验了一个章节的完整学习流程</p>
             <h1 className="text-[22px] font-bold text-center" style={{ color: T1 }}>从一堆资料，到真正掌握</h1>
             <p className="text-[12px] text-center mt-1" style={{ color: BLUE }}>升级后，用同样的方式学习你自己的全部资料</p>
@@ -1179,10 +1194,12 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
 
   // ── Loading phase (default) ───────────────────────────────────────────────
   return (
-    <div className="flex flex-col h-full px-6 justify-between relative">
-      {postCreateBack}
+    <div className="flex flex-col h-full justify-between relative">
+      <div className="h-[52px] flex items-center px-7 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
+        <button onClick={onExit} className="flex items-center gap-1.5 text-[12px] font-medium" style={{color:T3}}><ArrowLeft size={15}/>退出学习空间</button>
+      </div>
       <div />
-      <div className="flex flex-col items-center gap-6 py-8">
+      <div className="flex flex-col items-center gap-6 py-8 px-6">
         <div className="relative w-20 h-20 flex items-center justify-center">
           <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
             <circle cx="40" cy="40" r="34" fill="none" stroke="#EBEBEB" strokeWidth="5" />
@@ -1429,20 +1446,20 @@ function B3Inner({ onNext }: { onNext: () => void }) {
   const dustStars     = stars.filter(s => s.cat === 'dust');
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden px-6 pt-2">
-      <div className="pb-2 max-w-[1080px] w-full mx-auto flex items-end justify-between gap-6">
+    <div className="flex flex-col flex-1 overflow-hidden px-7 pt-5">
+      <div className="pb-4 max-w-[1080px] w-full mx-auto flex items-center justify-between gap-8">
         <div className="min-w-0">
-          <h1 className="text-[20px] font-bold" style={{ color: T1 }}>刚才梳理出的知识点，正在沉淀成一片知识星空</h1>
-          <p className="text-[12px] font-medium mt-1" style={{ color: BLUE }}>每掌握一个，就点亮一颗星；星与星相连，组成属于你的学习路径</p>
+          <h1 className="text-[23px] font-bold leading-tight" style={{ color: T1 }}>刚才梳理出的知识点，正在沉淀成一片知识星空</h1>
+          <p className="text-[14px] font-medium mt-2 leading-relaxed" style={{ color: BLUE }}>每掌握一个，就点亮一颗星；星与星相连，组成属于你的学习路径</p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          <div className="rounded-xl px-3 py-2 min-w-[150px] flex items-center justify-between" style={{background:'#FFFCED',border:'1px solid #F2E4A0'}}>
-            <p className="text-[10px] font-medium" style={{color:'#8C7410'}}>本周新点亮</p>
-            <p className="text-[19px] font-bold leading-none" style={{color:'#9B7A00'}}><span key={newLit}>{newLit}</span><span className="text-[10px] ml-1">颗</span></p>
+        <div className="flex gap-3 flex-shrink-0">
+          <div className="rounded-xl px-4 py-3 min-w-[160px] flex items-center justify-between gap-4" style={{background:'#FFFCED',border:'1px solid #F2E4A0'}}>
+            <p className="text-[11px] font-medium" style={{color:'#8C7410'}}>本周新点亮</p>
+            <p className="text-[21px] font-bold leading-none" style={{color:'#9B7A00'}}><span key={newLit}>{newLit}</span><span className="text-[10px] ml-1">颗</span></p>
           </div>
-          <div className="rounded-xl px-3 py-2 min-w-[150px] flex items-center justify-between" style={{background:'#F4F8FF',border:'1px solid #D4E3FA'}}>
-            <p className="text-[10px] font-medium" style={{color:'#56749D'}}>星空已点亮</p>
-            <p className="text-[19px] font-bold leading-none" style={{color:BLUE}}>{48 + Math.round(newLit * 6 / 8)}<span className="text-[10px] ml-0.5">%</span></p>
+          <div className="rounded-xl px-4 py-3 min-w-[160px] flex items-center justify-between gap-4" style={{background:'#F4F8FF',border:'1px solid #D4E3FA'}}>
+            <p className="text-[11px] font-medium" style={{color:'#56749D'}}>星空已点亮</p>
+            <p className="text-[21px] font-bold leading-none" style={{color:BLUE}}>{48 + Math.round(newLit * 6 / 8)}<span className="text-[10px] ml-0.5">%</span></p>
           </div>
         </div>
       </div>
