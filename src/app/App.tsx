@@ -53,7 +53,7 @@ import PlanFrameworkScreen from './screens/PlanFrameworkScreen';
 /**
  * 定义哪些屏幕需要隐藏顶部Tab和侧边栏（全屏模式）
  */
-const FULLSCREEN_SCREENS = ['practice', 'mock-exam', 'setup', 'resource-collection', 'priority-triage', 'plan-loading', 'plan-framework', 'course-progress', 'knowledge-map', 'favorites', 'onboarding'];
+const FULLSCREEN_SCREENS = ['practice', 'mock-exam', 'setup', 'resource-collection', 'priority-triage', 'plan-loading', 'plan-framework', 'course-progress', 'knowledge-map', 'favorites'];
 
 /**
  * 定义哪些屏幕需要隐藏侧边栏
@@ -110,12 +110,23 @@ function AppContent() {
   // 计划概览页的进入语境：'created' = 创建完成后首次落地（语境A，显示"开始练习/回到首页"）；
   // 'view' = 日后从 Hero 再进入查看计划（语境B）
   const [courseProgressContext, setCourseProgressContext] = React.useState<'created' | 'view'>('view');
+  const [showGeneratedPlanReady, setShowGeneratedPlanReady] = React.useState(false);
+  const [openOnboardingAtPlan, setOpenOnboardingAtPlan] = React.useState(false);
+  const generationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    if (currentScreen === 'onboarding') setTopTab('review-mode');
+  }, [currentScreen, setTopTab]);
+
+  React.useEffect(() => () => {
+    if (generationTimerRef.current) clearTimeout(generationTimerRef.current);
+  }, []);
 
   // 判断是否显示顶部Tab和侧边栏
   const isFullscreen = FULLSCREEN_SCREENS.includes(currentScreen);
   const showSidebar = !HIDE_SIDEBAR_SCREENS.includes(currentScreen) && !isSidebarCollapsed;
   const showTopTab = !isFullscreen;
-  const showReviewModeBottomTab = topTab === 'review-mode' && !isFullscreen && currentScreen !== 'space-selector';
+  const showReviewModeBottomTab = topTab === 'review-mode' && !isFullscreen && currentScreen !== 'space-selector' && currentScreen !== 'onboarding';
 
   // 全局横竖屏：练习页强制横屏（左题右助教依赖横向宽度），其余页面跟随全局朝向
   const forceLandscape = currentScreen === 'practice';
@@ -363,8 +374,16 @@ function AppContent() {
       case 'onboarding' as any:
         return (
           <OnboardingScreen
-            onComplete={() => navigateTo('dashboard')}
+            initialStep={openOnboardingAtPlan ? 'A6' : undefined}
+            onComplete={() => { setOpenOnboardingAtPlan(false); navigateTo('dashboard'); }}
             onSkip={() => navigateTo('space-selector')}
+            onEnterSample={() => {
+              setTopTab('review-mode');
+              setReviewModeTab('dashboard');
+              navigateTo('dashboard');
+              if (generationTimerRef.current) clearTimeout(generationTimerRef.current);
+              generationTimerRef.current = setTimeout(() => setShowGeneratedPlanReady(true), 3500);
+            }}
           />
         );
 
@@ -505,6 +524,31 @@ function AppContent() {
                 setShowExamSetup(false);
               }}
             />
+        )}
+
+        {showGeneratedPlanReady && (
+          <div className="absolute inset-0 z-[500] flex items-center justify-center p-6" style={{ background:'rgba(20,24,32,.42)' }}>
+            <div className="w-full max-w-[430px] rounded-3xl p-6 bg-white" style={{ boxShadow:'0 22px 70px rgba(0,0,0,.24)' }}>
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-[22px] mb-3" style={{ background:'#EAF9EF' }}>✓</div>
+              <h2 className="text-[19px] font-bold text-gray-900">你的学习计划已生成</h2>
+              <p className="text-[13px] leading-relaxed text-gray-500 mt-2">新学习空间已经准备好。你可以立即确认计划并开始学习，也可以继续留在 sample 空间体验。</p>
+              <button
+                onClick={() => {
+                  setShowGeneratedPlanReady(false);
+                  setOpenOnboardingAtPlan(true);
+                  setTopTab('review-mode');
+                  navigateTo('onboarding' as any);
+                }}
+                className="w-full py-3.5 rounded-full text-[14px] font-bold mt-5"
+                style={{ background:'#FFE562', color:'#7A6400' }}
+              >
+                立即确认学习计划
+              </button>
+              <button onClick={() => setShowGeneratedPlanReady(false)} className="w-full py-3 text-[13px] text-gray-500">
+                继续体验 sample 空间
+              </button>
+            </div>
+          </div>
         )}
         </div>
       </div>

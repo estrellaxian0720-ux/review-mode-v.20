@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,8 @@ const STEPS_NO_SAMPLE: Step[]   = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6'];
 interface OnboardingScreenProps {
   onComplete: () => void;
   onSkip: () => void;
+  onEnterSample?: () => void;
+  initialStep?: Step;
 }
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -56,16 +58,6 @@ const SUBJECTS_BY_GOAL: Record<GoalType, string[]> = {
   cert:     ['刑法', '民法', '行政法', '理论法', '商法', '诉讼法', '国际法'],
   language: ['词汇', '听力', '阅读', '写作', '口语'],
   other:    ['自定义科目'],
-};
-
-// Professional background — now collected in A1, removed from A2
-const BACKGROUND_FIELDS: Record<GoalType, string[]> = {
-  college:  ['所在学校', '所学专业'],
-  postgrad: ['所在学校', '所学专业'],
-  civil:    ['所在学校', '所学专业'],
-  cert:     ['所在学校', '所学专业'],
-  language: ['所在学校', '所学专业'],
-  other:    ['所在学校', '所学专业'],
 };
 
 // Cohort counts by secondary goal — tiered aggregation, omit when below threshold
@@ -114,22 +106,19 @@ function ProgressDots({ current, total }: { current: number; total: number }) {
   );
 }
 
-function ScreenWrapper({ children, onBack, totalSteps, currentStep }: {
-  children: React.ReactNode; onBack?: () => void; totalSteps: number; currentStep: number;
+function ScreenWrapper({ children, onBack }: {
+  children: React.ReactNode; onBack?: () => void;
 }) {
   return (
     <div className="w-full h-full flex" style={{ background: BG, position: 'relative' }}>
-      <div className="flex flex-col justify-start pt-5 pl-5 pr-2 flex-shrink-0" style={{ width: 44 }}>
-        {onBack && (
+      {onBack && (
+        <div className="flex flex-col justify-start pt-5 pl-5 pr-2 flex-shrink-0" style={{ width: 44 }}>
           <button onClick={onBack} className="p-1.5 rounded-lg" style={{ background: '#F0F0F0' }}>
             <ArrowLeft size={16} color={T2} />
           </button>
-        )}
-      </div>
+        </div>
+      )}
       <div className="flex-1 flex flex-col overflow-hidden">{children}</div>
-      <div className="flex flex-col justify-center pr-5 pl-2 flex-shrink-0">
-        <ProgressDots current={currentStep} total={totalSteps} />
-      </div>
     </div>
   );
 }
@@ -156,21 +145,53 @@ function ScreenTitle({ title, sub, subColor = BLUE }: { title: string; sub: stri
   );
 }
 
-function StepBar({ active }: { active: 0 | 1 | 2 }) {
+function StepBar({ active }: { active: 0 | 1 | 2 | 3 }) {
+  const steps = ['学什么', '怎么学', '用哪些资料', '先学什么'];
   return (
-    <div className="flex items-center gap-2 mb-4">
-      {(['Set Goal', 'Add Materials', 'Prioritize'] as const).map((s, i) => (
+    <div className="flex items-center gap-2">
+      {steps.map((s, i) => (
         <React.Fragment key={s}>
           <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+            <div className={`rounded-full flex items-center justify-center font-bold transition-all ${i === active ? 'w-7 h-7 text-[12px]' : 'w-5 h-5 text-[10px]'}`}
               style={{ background: i === active ? BLUE : '#EBEBEB', color: i === active ? '#fff' : '#AAA' }}>
               {i + 1}
             </div>
-            <span className="text-[12px]" style={{ color: i === active ? BLUE : '#AAA' }}>{s}</span>
+            <span className={i === active ? 'text-[13px] font-semibold' : 'text-[11px]'} style={{ color: i === active ? BLUE : '#AAA' }}>{s}</span>
           </div>
-          {i < 2 && <div className="flex-1 h-px" style={{ background: '#EBEBEB' }} />}
+          {i < 3 && <div className="flex-1 h-px" style={{ background: i < active ? '#A9CEFF' : '#EBEBEB' }} />}
         </React.Fragment>
       ))}
+    </div>
+  );
+}
+
+const STEP_DESCRIPTIONS = [
+  '你最近主要在准备什么？选择后将生成更适合你的题目',
+  '设置目标与节奏，让系统安排每天学什么',
+  '选择用于生成知识点和练习的资料',
+  '确认资料优先级，让重点内容优先进入计划',
+];
+
+function PlanHeader({ active }: { active: 0 | 1 | 2 | 3 }) {
+  const [showPriorityInfo, setShowPriorityInfo] = useState(false);
+  const alignment = active === 0 ? {left:0, textAlign:'left' as const}
+    : active === 3 ? {right:0, textAlign:'right' as const}
+    : {left:`${active * 33.333}%`, transform:`translateX(-${active * 33.333}%)`, textAlign:'center' as const};
+  return (
+    <div className="pt-3 pb-3 flex-shrink-0">
+      <h1 className="text-[21px] font-bold text-center mb-3" style={{color:T1}}>创建你的学习计划</h1>
+      <div className="relative pb-8">
+        <StepBar active={active}/>
+        <div className="absolute top-9 w-[310px] text-[12px] font-medium" style={{color:BLUE,...alignment}}>
+          <span>{STEP_DESCRIPTIONS[active]}</span>
+          {active === 3 && <span className="relative inline-block ml-1">
+            <button aria-label="查看 AI 优先级评估方式" onClick={()=>setShowPriorityInfo(v=>!v)} onBlur={()=>setTimeout(()=>setShowPriorityInfo(false),120)} className="w-4 h-4 rounded-full text-[10px] font-bold" style={{border:`1px solid ${BLUE}`,color:BLUE}}>i</button>
+            {showPriorityInfo && <div className="absolute right-0 top-6 z-30 w-[310px] p-3 rounded-xl text-left text-[10px] leading-5 font-normal" style={{background:CARD,color:T2,border:`1px solid ${BORDER}`,boxShadow:'0 10px 28px rgba(20,35,60,.15)'}}>
+              AI 会结合资料的优先级、知识点在多份资料中的出现次数，以及与考试目标的相关性，评估知识点的重要程度。你仍然可以拖动资料调整排序。
+            </div>}
+          </span>}
+        </div>
+      </div>
     </div>
   );
 }
@@ -180,19 +201,21 @@ function StepBar({ active }: { active: 0 | 1 | 2 }) {
 function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => void }) {
   const [primaryGoal, setPrimaryGoal]     = useState<GoalType | null>(null);
   const [detail, setDetail]               = useState('');
-  const [bgFields, setBgFields]           = useState(['', '']);
+  const [bgFields, setBgFields]           = useState(['', '', '']);
   const [showModal, setShowModal]         = useState(false);
   const [langConfirmed, setLangConfirmed] = useState(false);
+  const [schoolOpen, setSchoolOpen]       = useState(false);
+  const schools = ['北京大学','北京理工大学','北京师范大学','北京航空航天大学','清华大学','复旦大学','上海交通大学','浙江大学'];
+  const matchedSchools = schools.filter(s => !bgFields[2] || s.includes(bgFields[2])).slice(0, 5);
 
   const isLanguage   = primaryGoal === 'language' || (primaryGoal === 'other' && detail === '语言类');
-  const canProceed   = !!primaryGoal && !!detail && (!isLanguage || langConfirmed);
-  const showFeedback = !!detail && !isLanguage;
-  const cohortCount  = detail ? (COHORT_COUNTS[detail] ?? null) : null;
-  const bgLabels     = primaryGoal ? BACKGROUND_FIELDS[primaryGoal] : [];
+  const canProceed   = !!primaryGoal && (!isLanguage || langConfirmed);
+  const cohortCount  = detail ? (COHORT_COUNTS[detail] ?? '5,000+') : primaryGoal ? '10,000+' : null;
 
   const handlePrimary = (g: GoalType) => {
-    if (g !== primaryGoal) { setDetail(''); setLangConfirmed(false); setBgFields(['', '']); }
+    if (g !== primaryGoal) { setDetail(''); setLangConfirmed(false); setBgFields(['', '', '']); }
     setPrimaryGoal(g);
+    if (g === 'language') setShowModal(true);
   };
 
   const handleDetail = (val: string) => {
@@ -206,21 +229,10 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
 
   return (
     <div className="flex flex-col h-full px-5 relative">
-      <div className="h-14 flex items-center gap-2 flex-shrink-0">
-        <h1 className="text-[22px] font-semibold leading-tight" style={{ color: T1 }}>
-          最近主要在准备什么？
-        </h1>
-      </div>
-      <p className="text-[12px] -mt-1 mb-2" style={{ color: T3 }}>告诉我们你的方向，我们好为你准备更贴合的学习内容</p>
+      <PlanHeader active={0}/>
 
-      {/* ── Two-column body ── */}
       <div className="flex-1 flex flex-col gap-2.5 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-
-        {/* Left: primary goal cards (3+2 grid) */}
         <div>
-          <p className="text-[10.5px] font-semibold mb-2 uppercase tracking-wide" style={{ color: T4 }}>
-            选择备考类型
-          </p>
           <div className="grid grid-cols-3 gap-2">
             {PRIMARY_GOALS.map(p => (
               <button key={p.id} onClick={() => handlePrimary(p.id)}
@@ -240,74 +252,30 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
         </div>
 
         <div className="flex flex-col gap-2.5 pb-1 pt-2.5" style={{ borderTop: `1px solid ${BORDER}` }}>
-
-          {/* Secondary — native select, gated until primary chosen */}
-          <div>
-            <p className="text-[10.5px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: T4 }}>
-              具体方向
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {primaryGoal && SECONDARY_GOALS[primaryGoal].map(opt => (
-                <button key={opt} onClick={() => handleDetail(opt)}
-                  className="px-3 py-1.5 rounded-lg text-[11.5px] font-medium"
-                  style={{ background: detail === opt ? '#FFFBDE' : CARD, border: `1.5px solid ${detail === opt ? PRIMARY : BORDER}`, color: detail === opt ? '#7A6400' : T3 }}>
-                  {opt}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {showFeedback && cohortCount && (
-            <div className="min-h-10 flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: '#FFF8D8', border: '1px solid #F6E69C' }}>
-              <div className="flex -space-x-1.5">{[0, 1, 2].map(i => <span key={i} className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: ['#FDEA3B','#FFE98A','#FFF3BC'][i], border: '2px solid #FFF8D8' }}><Users size={11} color="#6B5900" /></span>)}</div>
-              <span className="text-[11.5px]" style={{ color: '#574900' }}>已有 <strong className="text-[13px]">{cohortCount} 位同学</strong>正在准备「{PRIMARY_GOALS.find(g => g.id === primaryGoal)?.label} · {detail}」</span>
-            </div>
-          )}
-
-          {/* Professional background — 1 or 2 paired short inputs, optional */}
-          {primaryGoal && bgLabels.length > 0 && (
-            <div>
-              <p className="text-[10.5px] font-semibold mb-1.5 uppercase tracking-wide" style={{ color: T4 }}>
-                专业背景
-                <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10 }}>
-                  {' '}（选填）
-                </span>
-              </p>
-              <div className={bgLabels.length > 1 ? 'flex gap-2' : ''}>
-                {bgLabels.map((label, i) => (
-                  <label key={label} className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-2.5" color="#999" />
-                  <input
-                    value={bgFields[i] ?? ''}
-                    onChange={e => {
-                      const f = [...bgFields]; f[i] = e.target.value; setBgFields(f);
-                    }}
-                    placeholder={`搜索或输入${label}`}
-                    list={`onboarding-bg-${i}`}
-                    className="w-full pl-8 pr-8 py-2 rounded-xl text-[12px] outline-none"
-                    style={inputBase} />
-                  <ChevronDown size={14} className="absolute right-3 top-2.5" color="#999" />
-                  <datalist id={`onboarding-bg-${i}`}>
-                    {(i === 0 ? ['北京大学','清华大学','复旦大学','上海交通大学','浙江大学'] : ['计算机科学与技术','软件工程','临床医学','工商管理','法学']).map(v => <option key={v} value={v} />)}
-                  </datalist>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Feedback row */}
-          {showFeedback && (
-            <div className="space-y-1.5">
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl"
-                style={{ background: '#F6FEF9', border: `1px solid #B7EFCF` }}>
-                <Check size={13} color={GREEN} strokeWidth={2.5} className="flex-shrink-0 mt-0.5" />
-                <span className="text-[12px] leading-relaxed" style={{ color: GREEN }}>
-                  明白了，我们会据此为你准备更贴合的学习内容与练习。
-                </span>
-              </div>
-            </div>
-          )}
+          {primaryGoal && <div className="grid grid-cols-2 gap-2">
+            {primaryGoal === 'other' ? (
+              <label className="col-span-2"><FieldLabel>你准备学习什么？（选填）</FieldLabel><input value={detail} onChange={e=>setDetail(e.target.value)} placeholder="输入学习方向" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
+            ) : <>
+              <label><FieldLabel>{primaryGoal==='civil'?'考公类型':primaryGoal==='cert'?'资格类型':primaryGoal==='language'?'语言考试类型':'学科大类'}（选填）</FieldLabel>
+                <select value={detail} onChange={e=>handleDetail(e.target.value)} className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}><option value="">暂未确定</option>{SECONDARY_GOALS[primaryGoal].map(v=><option key={v}>{v}</option>)}</select>
+              </label>
+              {(primaryGoal==='college'||primaryGoal==='postgrad') && <>
+                <label><FieldLabel>细分专业（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,bgFields[1],bgFields[2]])} list="major-options" placeholder="搜索或选择专业" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
+                <label><FieldLabel>{primaryGoal==='college'?'课程':'备考科目'}（选填）</FieldLabel><input value={bgFields[1]} onChange={e=>setBgFields([bgFields[0],e.target.value,bgFields[2]])} placeholder="搜索或输入课程" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
+                <label className="relative"><FieldLabel>学校（选填）</FieldLabel>
+                  <div className="relative"><Search size={14} className="absolute left-3 top-2.5" color={T4}/><input value={bgFields[2]} onFocus={()=>setSchoolOpen(true)} onBlur={()=>setTimeout(()=>setSchoolOpen(false),120)} onChange={e=>{setBgFields([bgFields[0],bgFields[1],e.target.value]);setSchoolOpen(true);}} placeholder="搜索或输入学校" className="w-full pl-8 pr-8 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/><ChevronDown size={14} className="absolute right-3 top-2.5" color={T4}/></div>
+                  {schoolOpen && <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl overflow-hidden" style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:'0 10px 24px rgba(20,35,60,.12)'}}>
+                    {matchedSchools.map(s=><button type="button" key={s} onMouseDown={e=>e.preventDefault()} onClick={()=>{setBgFields([bgFields[0],bgFields[1],s]);setSchoolOpen(false);}} className="w-full text-left px-3 py-2 text-[11px] hover:bg-gray-50" style={{color:T2}}>{s}</button>)}
+                    {bgFields[2] && !schools.includes(bgFields[2]) && <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSchoolOpen(false)} className="w-full text-left px-3 py-2 text-[11px]" style={{color:BLUE,borderTop:`1px solid ${BORDER}`}}>使用当前输入：{bgFields[2]}</button>}
+                  </div>}
+                </label>
+                <datalist id="major-options"><option>计算机科学与技术</option><option>临床医学</option><option>工商管理</option><option>法学</option></datalist>
+              </>}
+              {primaryGoal==='civil' && <label><FieldLabel>考公科目（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,'',''])} placeholder="如：行测、申论" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>}
+              {primaryGoal==='cert' && <label><FieldLabel>具体考试（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,'',''])} placeholder={detail==='其他'?'请输入资格考试名称':'搜索或输入考试'} className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>}
+              {primaryGoal==='language' && <label><FieldLabel>目标级别或分数（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,'',''])} placeholder="如：雅思 7 分" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>}
+            </>}
+          </div>}
 
           {isLanguage && langConfirmed && (
             <div className="px-3 py-2.5 rounded-xl"
@@ -321,6 +289,10 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
       </div>
 
       <div className="pb-4 pt-2">
+        {primaryGoal && primaryGoal !== 'language' && cohortCount && <div className="flex items-center justify-center gap-2 mb-4">
+          <div className="flex -space-x-2">{[12,32,47,5].map((n,i)=><img key={n} src={`https://i.pravatar.cc/48?img=${n}`} className="w-7 h-7 rounded-full object-cover" style={{border:`2px solid ${BG}`,zIndex:4-i}} alt="正在学习的同学"/>)}</div>
+          <span className="text-[11.5px]" style={{color:T3}}>已有 <strong style={{color:'#7A6400'}}>{cohortCount} 位同学</strong>正在学习{detail?`「${detail}」`:`「${PRIMARY_GOALS.find(g=>g.id===primaryGoal)?.label}」`}</span>
+        </div>}
         <CTAButton onClick={() => onNext(primaryGoal!, detail)} disabled={!canProceed}>
           下一步：设置复习科目 →
         </CTAButton>
@@ -396,6 +368,10 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
   const [customPct, setCustomPct]     = useState('50');
   const [lang, setLang]               = useState('简体中文');
   const [scoreError, setScoreError]   = useState('');
+  const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderDenied, setReminderDenied] = useState(false);
+  const [reminderTime, setReminderTime] = useState('19:00');
+  const [customReminder, setCustomReminder] = useState(false);
 
   const daysLeft = examDate
     ? Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000))
@@ -411,6 +387,18 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
     const t = parseFloat(target), tot = parseFloat(total);
     setScoreError(tot > 0 && t > 0 && t < tot * 0.6 ? '目标分数需 ≥ 总分的 60%' : '');
   };
+  const toggleReminder = async () => {
+    if (reminderEnabled) { setReminderEnabled(false); return; }
+    if (typeof Notification === 'undefined') { setReminderDenied(true); return; }
+    const permission = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+    if (permission === 'granted') {
+      setReminderEnabled(true);
+      setReminderDenied(false);
+    } else {
+      setReminderEnabled(false);
+      setReminderDenied(true);
+    }
+  };
 
   const inputCls = 'w-full px-3 py-2 rounded-xl text-[13px] outline-none';
   const inputStyle = (err?: boolean) => ({
@@ -419,11 +407,7 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
 
   return (
     <div className="flex flex-col h-full px-5">
-      <div className="pt-4 pb-1">
-        <h1 className="text-[20px] font-bold leading-tight mb-1" style={{ color: T1 }}>设定你的目标</h1>
-        <p className="text-[13px] font-medium" style={{ color: BLUE }}>一页填好，系统按考试日期倒排每天学什么</p>
-      </div>
-      <div className="mb-2"><StepBar active={0} /></div>
+      <PlanHeader active={1}/>
 
       <div className="flex-1 overflow-y-auto pb-2" style={{ scrollbarWidth: 'none' }}>
         <div className="grid grid-cols-2 gap-x-5">
@@ -531,6 +515,21 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
               </select>
               <p className="text-[11px] mt-0.5" style={{ color: '#BBB' }}>用于后续练习题与 AI Tutor 回复</p>
             </div>
+
+            <div className="pt-2" style={{borderTop:`1px solid ${BORDER}`}}>
+              <div className="flex items-center justify-between">
+                <div><p className="text-[12px] font-semibold" style={{color:T2}}>复习提醒</p><p className="text-[10px]" style={{color:T4}}>按你的节奏提醒当天任务</p></div>
+                <button onClick={toggleReminder} className="w-11 h-6 rounded-full p-0.5 transition-colors" style={{background:reminderEnabled?GREEN:'#D6D8DC'}}><span className="block w-5 h-5 rounded-full bg-white transition-transform" style={{transform:reminderEnabled?'translateX(20px)':'translateX(0)'}}/></button>
+              </div>
+              {reminderDenied && !reminderEnabled && <p className="text-[10px] mt-2" style={{color:'#A06B00'}}>需要开启通知权限才能设置复习提醒，可在系统设置中授权。</p>}
+              {reminderEnabled && <div className="mt-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {[['10:00','上午 10:00'],['12:00','中午 12:00'],['14:00','下午 2:00'],['19:00','晚上 7:00']].map(([value,label])=><button key={value} onClick={()=>{setReminderTime(value);setCustomReminder(false);}} className="px-2.5 py-1.5 rounded-lg text-[10px]" style={{background:!customReminder&&reminderTime===value?'#EAF3FF':CARD,border:`1px solid ${!customReminder&&reminderTime===value?BLUE:BORDER}`,color:!customReminder&&reminderTime===value?BLUE:T3}}>{label}</button>)}
+                  <button onClick={()=>setCustomReminder(true)} className="px-2.5 py-1.5 rounded-lg text-[10px]" style={{background:customReminder?'#EAF3FF':CARD,border:`1px solid ${customReminder?BLUE:BORDER}`,color:customReminder?BLUE:T3}}>其他时间</button>
+                </div>
+                {customReminder && <input type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)} className="w-full mt-2 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputStyle()}/>}
+              </div>}
+            </div>
           </div>
         </div>
       </div>
@@ -593,15 +592,7 @@ function A3Screen({ hasPreset, onNext, onBack }: {
 
   return (
     <div className="flex flex-col h-full px-5">
-      <div className="pt-3 pb-1">
-        <div>
-          <h1 className="text-[19px] font-bold leading-tight mb-0.5" style={{ color: T1 }}>添加你的学习资料</h1>
-          <p className="text-[12px] font-medium" style={{ color: BLUE }}>
-            用你自己的资料，或先用示例快速体验
-          </p>
-        </div>
-      </div>
-      <div className="mb-2"><StepBar active={1} /></div>
+      <PlanHeader active={2}/>
       <div className="grid grid-cols-[2fr_1fr] gap-2.5 mb-2">
         <button onClick={() => setSelected('REAL_UPLOAD')} className="rounded-xl px-4 py-3 flex items-center gap-3 text-left"
           style={{ background:CARD, border:`2px solid ${selected==='REAL_UPLOAD'?PRIMARY:BORDER}`, boxShadow:selected==='REAL_UPLOAD'?'0 2px 8px rgba(210,164,0,.15)':'none' }}>
@@ -769,6 +760,10 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
   const [resources, setResources] = useState(RESOURCES_DATA);
   const [draggedId, setDraggedId] = useState<number | null>(null);
   const [removed, setRemoved] = useState<PriorityResource | null>(null);
+  const [menuId, setMenuId] = useState<number | null>(null);
+  const [swipedId, setSwipedId] = useState<number | null>(null);
+  const [pointerStart, setPointerStart] = useState<{ id: number; x: number } | null>(null);
+  const [showGestureHint, setShowGestureHint] = useState(true);
   const moveResource = (id: number, priority: PriorityId, beforeId?: number) => {
     setResources(prev => {
       const moving = prev.find(r => r.id === id);
@@ -779,17 +774,22 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
       const at = rest.findIndex(r => r.id === beforeId);
       return at < 0 ? [...rest, next] : [...rest.slice(0, at), next, ...rest.slice(at)];
     });
+    setMenuId(null);
+    setSwipedId(null);
+    setShowGestureHint(false);
   };
   const removeResource = (resource: PriorityResource) => {
     setResources(prev => prev.filter(r => r.id !== resource.id));
     setRemoved(resource);
+    setMenuId(null);
+    setSwipedId(null);
+    setShowGestureHint(false);
   };
 
   return (
     <div className="flex flex-col h-full px-5">
-      <div className="pt-3 pb-1"><h1 className="text-[19px] font-bold" style={{ color: T1 }}>确认资料优先级</h1><p className="text-[12px]" style={{ color: BLUE }}>拖拽可调整级别，也可在级别内重新排序</p></div>
-      <StepBar active={2} />
-      <div className="rounded-lg px-3 py-2 mb-2 text-[11px]" style={{ background: '#EAF3FF', color: BLUE }}>优先级与多来源命中次数共同决定知识点星级。每份资料已自动归入一个级别。</div>
+      <PlanHeader active={3}/>
+      {showGestureHint && <div className="flex items-center gap-1.5 mb-2 text-[10px]" style={{color:T4}}><GripVertical size={12}/><span>拖动可排序 · 左滑可移除 · 更多操作在 ⋯</span></div>}
       <div className="flex-1 overflow-y-auto pb-3 space-y-2" style={{ scrollbarWidth: 'none' }}>
         {PRIORITIES.map(group => {
           const items = resources.filter(r => r.priority === group.id);
@@ -805,18 +805,29 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
                 <span className="ml-auto text-[10px]" style={{ color: T4 }}>{items.length} 项</span>
               </div>
               {items.map((r, index) => (
-                <div key={r.id} draggable onDragStart={() => setDraggedId(r.id)}
-                  onDragOver={e => e.preventDefault()}
-                  onDrop={e => { e.stopPropagation(); if (draggedId !== null) moveResource(draggedId, group.id, r.id); setDraggedId(null); }}
-                  className="flex items-center gap-2.5 px-3 py-2 cursor-grab"
-                  style={{ borderTop: index >= 0 ? `1px solid ${BORDER}` : undefined, opacity: draggedId === r.id ? .45 : 1 }}>
-                  <GripVertical size={15} color="#B6BBC2" /><FileText size={14} color={group.color} />
-                  <span className="flex-1 text-[12px]" style={{ color: T2 }}>{r.name}</span>
-                  <select value={r.priority} onChange={e => moveResource(r.id, e.target.value as PriorityId)}
-                    className="text-[10px] rounded-lg px-1.5 py-1" style={{ border: `1px solid ${BORDER}`, color: T3 }}>
-                    {PRIORITIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                  </select>
-                  <button title="移除资源" onClick={() => removeResource(r)} className="p-1"><Trash2 size={13} color="#BBB" /></button>
+                <div key={r.id} className="relative overflow-visible" style={{borderTop:index >= 0 ? `1px solid ${BORDER}` : undefined}}>
+                  <button onClick={() => removeResource(r)} className="absolute right-0 inset-y-0 w-[72px] flex items-center justify-center gap-1 text-[10px] font-semibold" style={{background:'#FFF0EE',color:RED}}><Trash2 size={13}/>移除</button>
+                  <div draggable onDragStart={() => {setDraggedId(r.id);setShowGestureHint(false);}}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => { e.stopPropagation(); if (draggedId !== null) moveResource(draggedId, group.id, r.id); setDraggedId(null); }}
+                    onPointerDown={e => setPointerStart({id:r.id,x:e.clientX})}
+                    onPointerUp={e => {
+                      if (pointerStart?.id === r.id && e.clientX - pointerStart.x < -42) {setSwipedId(r.id);setMenuId(null);setShowGestureHint(false);}
+                      else if (pointerStart?.id === r.id && e.clientX - pointerStart.x > 28) setSwipedId(null);
+                      setPointerStart(null);
+                    }}
+                    className="relative flex items-center gap-2.5 px-3 py-2 cursor-grab transition-transform"
+                    style={{background:CARD,transform:swipedId===r.id?'translateX(-72px)':'translateX(0)',opacity:draggedId===r.id ? .45 : 1}}>
+                    <GripVertical size={15} color="#B6BBC2" /><FileText size={14} color={group.color} />
+                    <span className="flex-1 text-[12px]" style={{ color: T2 }}>{r.name}</span>
+                    <button title="更多操作" onPointerDown={e=>e.stopPropagation()} onClick={e=>{e.stopPropagation();setMenuId(menuId===r.id?null:r.id);setSwipedId(null);setShowGestureHint(false);}} className="p-1.5 rounded-lg" style={{color:T4}}><MoreHorizontal size={16}/></button>
+                  </div>
+                  {menuId===r.id&&<div className="absolute right-3 top-[34px] z-50 w-[170px] rounded-xl p-1.5" style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:'0 10px 28px rgba(20,35,60,.16)'}}>
+                    <p className="px-2 py-1 text-[9px] font-semibold" style={{color:T4}}>调整优先级</p>
+                    {PRIORITIES.map(priority=><button key={priority.id} onClick={()=>moveResource(r.id,priority.id)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px] text-left" style={{background:r.priority===priority.id?priority.bg:'transparent',color:T2}}><span className="w-2 h-2 rounded-full" style={{background:priority.color}}/>{priority.name}{r.priority===priority.id&&<Check size={11} className="ml-auto" color={GREEN}/>}</button>)}
+                    <div className="h-px my-1" style={{background:BORDER}}/>
+                    <button onClick={()=>removeResource(r)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px]" style={{color:RED}}><Trash2 size={12}/>从学习空间移除</button>
+                  </div>}
                 </div>
               ))}
             </div>
@@ -836,21 +847,25 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
 type A5SubPhase = 'loading' | 'B2' | 'B3' | 'B4' | 'B5' | 'B5S' | 'B6' | 'B65' | 'B7' | 'C1' | 'C2' | 'done';
 const DEMO_PHASES: A5SubPhase[] = ['B2', 'B3', 'B4', 'B5', 'B5S', 'B6', 'B65', 'B7', 'C1', 'C2'];
 
-function A5DemoBar({ phase }: { phase: A5SubPhase }) {
+function A5DemoBar({ phase, onSkip }: { phase: A5SubPhase; onSkip: () => void }) {
   const idx = DEMO_PHASES.indexOf(phase);
   if (idx < 0) return null;
   return (
-    <div className="flex items-center gap-1.5 px-6 pt-3 pb-0 justify-center">
-      {DEMO_PHASES.map((_, i) => (
-        <div key={i} className="rounded-full transition-all"
-          style={{ width: i === idx ? 16 : 6, height: 4, background: i <= idx ? BLUE : '#D0D0D0' }} />
-      ))}
+    <div className="relative z-[115] h-11 flex items-center justify-center gap-3 px-6 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
+      <span className="text-[10px] whitespace-nowrap" style={{color:T4}}>产品介绍 {idx + 1}/{DEMO_PHASES.length}</span>
+      <div className="flex items-center gap-1.5">
+        {DEMO_PHASES.map((_, i) => (
+          <div key={i} className="rounded-full transition-all"
+            style={{ width: i === idx ? 14 : 5, height: 4, background: i <= idx ? BLUE : '#D0D0D0' }} />
+        ))}
+      </div>
+      <button onClick={onSkip} className="absolute right-6 text-[10px] whitespace-nowrap" style={{color:BLUE}}>跳过产品介绍</button>
     </div>
   );
 }
 
-function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit }: {
-  hasPreset: boolean; isStem: boolean; initialPhase?: A5SubPhase; onNext: () => void; onExit: () => void;
+function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit, onEnterSample }: {
+  hasPreset: boolean; isStem: boolean; initialPhase?: A5SubPhase; onNext: () => void; onExit: () => void; onEnterSample: () => void;
 }) {
   const [subPhase, setSubPhase]   = useState<A5SubPhase>(initialPhase);
   const [progress, setProgress]   = useState(0);
@@ -921,27 +936,46 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     </button>
   );
 
+  const demoChrome = (
+    <>
+      <A5DemoBar phase={subPhase} onSkip={() => setShowNotReadyModal(true)} />
+      {showNotReadyModal && (
+        <div className="absolute inset-0 z-[180] flex items-center justify-center p-6" style={{background:'rgba(20,24,32,.42)'}}>
+          <div className="w-full max-w-[430px] rounded-3xl p-6" style={{background:CARD,boxShadow:'0 20px 60px rgba(0,0,0,.22)'}}>
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3" style={{background:'#EAF3FF',color:BLUE}}><Sparkles size={20}/></div>
+            <h2 className="text-[18px] font-bold" style={{color:T1}}>新学习空间仍在生成中</h2>
+            <p className="text-[12px] mt-2 leading-relaxed" style={{color:T3}}>你可以留在当前页面等待，或先进入 sample 空间体验完整功能。计划生成后，我们会直接弹窗通知你。</p>
+            <div className="mt-5 space-y-2">
+              <button onClick={() => setShowNotReadyModal(false)} className="w-full py-3 rounded-full text-[13px] font-bold" style={{background:PRIMARY,color:'#7A6400'}}>留在这里等待</button>
+              <button onClick={onEnterSample} className="w-full py-3 rounded-full text-[13px] font-semibold" style={{background:'#F3F4F6',color:T2}}>进入 sample 空间体验</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   const dots = '.'.repeat(dotCount);
 
   if (subPhase === 'B2') {
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B2" />
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
-          <ScreenTitle title="零散知识点，自动连成体系" sub="章节关系和知识结构，一眼看清" />
+        {demoChrome}
+        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+          <ScreenTitle title="杂乱的资料，自动梳理成思维导图" sub="章节、知识点和关联关系，一眼看清并梳理知识关系" />
           <B2Inner onNext={advanceDemo} />
         </div>
       </div>
     );
   }
 
-  // ── B3: Star Map (dark full-screen overlay) ────────────────────────────────
+  // ── B3: Star Map (white onboarding shell + dark galaxy canvas) ─────────────
   if (subPhase === 'B3') {
     return (
-      <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: '#1B1B1B', display: 'flex', flexDirection: 'column' }}>
+      <div className="flex flex-col h-full relative" style={{ background: CARD }}>
         {postCreateBack}
-        <A5DemoBar phase="B3" />
+        {demoChrome}
         <B3Inner onNext={advanceDemo} />
       </div>
     );
@@ -952,8 +986,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B4" />
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
+        {demoChrome}
+        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
           <ScreenTitle title="不是让你背，是先问你会不会" sub="每个知识点，先给你一张闪卡" />
           <B4Inner onNext={advanceDemo} />
         </div>
@@ -966,9 +1000,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B5" />
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
-          <ScreenTitle title="一个知识点，用不同方式练到会" sub="填空 · 判断 · 多选 · 简答，自动生成真实解析" />
+        {demoChrome}
+        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+          <ScreenTitle title="一个知识点，多种练习方式，直到真正掌握" sub="根据每次作答结果，逐步从记忆、辨析走向理解与应用" />
           <B5Inner onNext={advanceDemo} />
         </div>
       </div>
@@ -979,7 +1013,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B5S" />
+        {demoChrome}
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="计算题，也能随手打草稿" sub="草稿本跟着练习走，不遮挡题目" />
           <ScratchpadDemo onNext={advanceDemo} />
@@ -993,9 +1027,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B6" />
-        <div className="flex flex-col flex-1 px-6 overflow-hidden">
-          <ScreenTitle title="不只给答案，自动带你学会" sub="识别错因 · 继续追问 · 自动进入强化学习" />
+        {demoChrome}
+        <div className="flex flex-col flex-1 px-6 pt-8 overflow-hidden">
+          <ScreenTitle title="不只给答案，像老师一样带你学会" sub="遇到不会的知识点，AI 会换种方式带你一步步理解" />
           <B6Inner onNext={advanceDemo} />
         </div>
       </div>
@@ -1006,7 +1040,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B65" />
+        {demoChrome}
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="每个答案，都能找到出处" sub="直接标记来源，也能打开最新原笔记继续补记" />
           <TracebackDemo onNext={advanceDemo} />
@@ -1020,7 +1054,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="B7" />
+        {demoChrome}
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <ScreenTitle title="知道学到哪，也知道接下来补什么" sub="学习报告与模考结果，自动变成下一步行动" />
           <B7Inner onNext={advanceDemo} />
@@ -1034,7 +1068,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="C1" />
+        {demoChrome}
         <div className="flex flex-col flex-1 px-6 overflow-y-auto">
           <div className="pt-4 pb-3 text-center">
             <h1 className="text-[22px] font-bold mb-1" style={{ color: T1 }}>很多人，已经用云记把资料真正学会</h1>
@@ -1090,7 +1124,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
     return (
       <div className="flex flex-col h-full">
         {postCreateBack}
-        <A5DemoBar phase="C2" />
+        {demoChrome}
         <div className="flex flex-col flex-1 px-6 overflow-hidden">
           <div className="pt-4 pb-3">
             <p className="text-[11px] text-center mb-1" style={{ color: T4 }}>你刚才体验了一个章节的完整学习流程</p>
@@ -1133,9 +1167,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit 
             </div>
           </div>
           <div className="pb-4 pt-2 space-y-2">
-            <CTAButton onClick={advanceDemo}>开始系统掌握我的知识点</CTAButton>
+            <CTAButton onClick={advanceDemo}>立刻购买</CTAButton>
             <button onClick={advanceDemo} className="w-full text-center text-[13px]" style={{ color: T4 }}>
-              暂时免费使用
+              先开始体验
             </button>
           </div>
         </div>
@@ -1208,30 +1242,103 @@ function lcgRng(seed: number) {
 }
 
 function B2Inner({ onNext }: { onNext: () => void }) {
-  const branches = [
-    { title: '受贿罪构成', color:'#6C8CFF', x:18, y:22, items: ['主体身份', '职务便利', '财物控制'] },
-    { title: '斡旋受贿', color:'#8C6BFF', x:76, y:20, items: ['地位影响', '第三人谋利', '收受财物'] },
-    { title: '既遂与量刑', color:'#35B37E', x:18, y:70, items: ['实际控制', '数额情节', '既遂标准'] },
-    { title: '关联罪名', color:'#E6A23C', x:77, y:72, items: ['单位受贿', '利用影响力', '行贿罪'] },
-  ];
+  const [branches, setBranches] = useState([
+    { title: '受贿罪构成', color:'#6C8CFF', x:24, y:25, items: ['主体身份', '职务便利', '财物控制'] },
+    { title: '斡旋受贿', color:'#8C6BFF', x:76, y:24, items: ['地位影响', '第三人谋利', '收受财物'] },
+    { title: '既遂与量刑', color:'#35B37E', x:24, y:73, items: ['实际控制', '数额情节', '既遂标准'] },
+    { title: '关联罪名', color:'#E6A23C', x:76, y:72, items: ['单位受贿', '利用影响力', '行贿罪'] },
+  ]);
+  const [selected, setSelected] = useState<{ branch: number; item: number } | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editDraft, setEditDraft] = useState('');
+  const [showGesture, setShowGesture] = useState(true);
+  const itemCount = branches.reduce((sum, branch) => sum + branch.items.length, 0);
+  const selectItem = (branch: number, item: number) => {
+    setSelected({ branch, item });
+    setEditing(false);
+    setShowGesture(false);
+  };
+  const editSelected = () => {
+    if (!selected) return;
+    setEditDraft(branches[selected.branch].items[selected.item]);
+    setEditing(true);
+  };
+  const commitEdit = () => {
+    if (!selected) return;
+    const nextName = editDraft.trim();
+    if (!nextName) {
+      setEditing(false);
+      return;
+    }
+    setBranches(prev => prev.map((branch, bi) => bi === selected.branch
+      ? { ...branch, items: branch.items.map((item, ii) => ii === selected.item ? nextName : item) }
+      : branch));
+    setEditing(false);
+  };
+  const addKnowledge = () => {
+    const branchIndex = selected?.branch ?? 0;
+    setBranches(prev => prev.map((branch, bi) => bi === branchIndex
+      ? { ...branch, items: [...branch.items, '新增知识点'] }
+      : branch));
+    setSelected({ branch: branchIndex, item: branches[branchIndex].items.length });
+    setShowGesture(false);
+  };
+  const deleteSelected = () => {
+    if (!selected) return;
+    setBranches(prev => prev.map((branch, bi) => bi === selected.branch
+      ? { ...branch, items: branch.items.filter((_, ii) => ii !== selected.item) }
+      : branch));
+    setSelected(null);
+    setEditing(false);
+  };
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex justify-end mb-2"><span className="px-3 py-1 rounded-full text-[11px] font-semibold" style={{ background: '#EAF3FF', color: BLUE }}>当前：思维导图</span></div>
-      <div className="flex-1 relative rounded-2xl overflow-hidden" style={{ background:'linear-gradient(135deg,#FBFCFF,#F5F8FF)', border:`1px solid ${BORDER}` }}>
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[920px] w-full mx-auto">
+      <div className="flex items-center gap-2 mb-3 text-[11px]">
+        <span className="px-3 py-1.5 rounded-full font-semibold" style={{background:'#EAF3FF',color:BLUE}}>已整理 {branches.length} 个章节</span>
+        <span className="px-3 py-1.5 rounded-full font-semibold" style={{background:'#F6FEF9',color:GREEN}}>提取 {itemCount} 个核心知识点</span>
+        <span className="px-3 py-1.5 rounded-full" style={{background:'#F3F4F6',color:T3}}>关系已自动归类</span>
+        <span className="ml-auto flex items-center gap-1" style={{color:T4}}><MousePointer2 size={12}/>点击节点可继续调整</span>
+      </div>
+      <div className="flex-1 relative rounded-2xl overflow-hidden mx-auto w-full" style={{ background:'linear-gradient(135deg,#FBFCFF,#F5F8FF)', border:`1px solid ${BORDER}`, minHeight: 300 }}>
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs><filter id="mapShadow"><feDropShadow dx="0" dy="1" stdDeviation="1" floodOpacity=".12"/></filter></defs>
           {branches.map(b => <path key={b.title} d={`M50 50 C${b.x<50?38:62} 50 ${b.x<50?32:68} ${b.y} ${b.x} ${b.y}`} fill="none" stroke={b.color} strokeWidth=".7" opacity=".55"/>)}
-          {branches.flatMap(b => b.items.map((_,i) => <path key={`${b.title}-${i}`} d={`M${b.x} ${b.y} C${b.x} ${b.y+(i-1)*7} ${b.x<50?b.x-11:b.x+11} ${b.y+(i-1)*8} ${b.x<50?b.x-16:b.x+16} ${b.y+(i-1)*8}`} fill="none" stroke={b.color} strokeWidth=".45" opacity=".35"/>))}
+          {branches.flatMap(b => b.items.map((_,i) => <path key={`${b.title}-${i}`} d={`M${b.x} ${b.y} C${b.x} ${b.y+(i-1)*7} ${b.x<50?b.x-8:b.x+8} ${b.y+(i-1)*8} ${b.x<50?b.x-12:b.x+12} ${b.y+(i-1)*8}`} fill="none" stroke={b.color} strokeWidth=".45" opacity=".35"/>))}
         </svg>
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-5 py-3 rounded-2xl text-[14px] font-bold z-10 shadow-md" style={{ background:PRIMARY,color:'#6B5900',border:'2px solid #FFF3A8' }}>贿赂犯罪体系</div>
-        {branches.map(b => <React.Fragment key={b.title}>
+        {branches.map((b, bi) => <React.Fragment key={b.title}>
           <div className="absolute -translate-x-1/2 -translate-y-1/2 rounded-xl px-3 py-2 text-[11px] font-bold z-10 shadow-sm" style={{left:`${b.x}%`,top:`${b.y}%`,background:CARD,color:b.color,border:`1.5px solid ${b.color}`}}>{b.title}</div>
-          {b.items.map((item,i) => <div key={item} className="absolute -translate-x-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[9px] z-10 whitespace-nowrap" style={{left:`${b.x<50?b.x-16:b.x+16}%`,top:`${b.y+(i-1)*8}%`,background:CARD,color:T3,border:`1px solid ${b.color}55`}}>{item}</div>)}
+          {b.items.map((item,i) => {
+            const isSelected = selected?.branch === bi && selected.item === i;
+            const nodeStyle = {left:`${b.x<50?b.x-12:b.x+12}%`,top:`${b.y+(i-1)*8}%`,background:CARD,color:isSelected?b.color:T3,border:`1.5px solid ${isSelected?b.color:`${b.color}55`}`,boxShadow:isSelected?`0 0 0 5px ${b.color}18,0 5px 14px rgba(32,52,82,.14)`:'none'};
+            if (isSelected && editing) {
+              return <input key={`${bi}-${i}-editing`} autoFocus value={editDraft}
+                onChange={e => setEditDraft(e.target.value)}
+                onBlur={commitEdit}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') commitEdit();
+                  if (e.key === 'Escape') setEditing(false);
+                }}
+                onClick={e => e.stopPropagation()}
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[9px] z-40 text-center outline-none"
+                style={{...nodeStyle,width:Math.max(70,editDraft.length*13),boxShadow:`0 0 0 5px ${b.color}18,0 6px 18px rgba(32,52,82,.18)`}}/>;
+            }
+            return <button key={`${bi}-${i}-${item}`} onClick={() => selectItem(bi, i)}
+              className="absolute -translate-x-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-[9px] z-10 whitespace-nowrap transition-all"
+              style={nodeStyle}>{item}</button>;
+          })}
         </React.Fragment>)}
-        <div className="absolute left-3 bottom-3 flex gap-3 text-[9px]" style={{color:T4}}><span>● 4 个章节</span><span>● 12 个核心知识点</span><span>关系已自动归类</span></div>
+        {showGesture && <button onClick={() => selectItem(0, 1)} className="absolute z-30 flex items-center gap-1.5 px-3 py-2 rounded-full text-[10px] font-semibold"
+          style={{left:'12%',top:'37%',background:'#2D8CFF',color:'#fff',boxShadow:'0 0 0 0 rgba(45,140,255,.4)',animation:'pulse 1.5s ease-in-out infinite'}}>
+          <MousePointer2 size={14}/>点一下知识点
+        </button>}
+        {selected && <div className="absolute z-30 flex items-center gap-1 p-1 rounded-xl" style={{left:'50%',bottom:12,transform:'translateX(-50%)',background:'rgba(255,255,255,.96)',border:`1px solid ${BORDER}`,boxShadow:'0 8px 24px rgba(32,52,82,.14)'}}>
+          <button onClick={editSelected} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px]" style={{color:T2}}><Pencil size={12}/>编辑</button>
+          <button onClick={addKnowledge} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px]" style={{color:BLUE}}><Plus size={12}/>添加</button>
+          <button onClick={deleteSelected} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px]" style={{color:RED}}><Trash2 size={12}/>删除</button>
+        </div>}
       </div>
-      <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>下一步，用同一批知识点查看掌握状态</p>
-      <div className="pb-5 pt-2"><CTAButton onClick={onNext}>下一步：看看掌握状态 →</CTAButton></div>
+      <div className="pb-5 pt-3"><CTAButton onClick={onNext}>查看这批知识点的掌握状态 →</CTAButton></div>
     </div>
   );
 }
@@ -1240,14 +1347,27 @@ function B2Inner({ onNext }: { onNext: () => void }) {
 
 function B3Inner({ onNext }: { onNext: () => void }) {
   const [newLit, setNewLit] = useState(0);
+  const [playback, setPlayback] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [isComplete, setIsComplete] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
 
   const stars = useMemo(() => {
     const r = lcgRng(42);
     return Array.from({ length: 220 }, (_, i) => ({
-      x: r() * 92 + 4, y: r() * 88 + 6,
-      radius: r() * 2 + 0.5,
+      x: r() * 152 + 4, y: r() * 88 + 6,
+      radius: r() * 0.82 + 0.22,
       opacity: r() * 0.13 + 0.03,
       cat: i < 46 ? 'mastered' : i < 54 ? 'new' : i < 110 ? 'learning' : 'dust',
+    }));
+  }, []);
+  const backgroundStars = useMemo(() => {
+    const r = lcgRng(2026);
+    return Array.from({ length: 360 }, (_, i) => ({
+      x: r() * 158 + 1,
+      y: r() * 98 + 1,
+      radius: i % 29 === 0 ? r() * .28 + .24 : r() * .14 + .05,
+      opacity: r() * .28 + .06,
     }));
   }, []);
 
@@ -1258,7 +1378,7 @@ function B3Inner({ onNext }: { onNext: () => void }) {
     for (let i = 0; i < lit.length; i++) {
       const dists = lit
         .map((s, j) => ({ j, d: Math.hypot(lit[i].x - s.x, lit[i].y - s.y) }))
-        .filter(({ j, d }) => j !== i && d < 16)
+        .filter(({ j, d }) => j !== i && d < 22)
         .sort((a, b) => a.d - b.d).slice(0, 3);
       for (const { j } of dists) {
         const key = `${Math.min(i, j)}-${Math.max(i, j)}`;
@@ -1272,56 +1392,111 @@ function B3Inner({ onNext }: { onNext: () => void }) {
   }, [stars]);
 
   useEffect(() => {
-    let n = 0;
-    const id = setInterval(() => { n = Math.min(n + 1, 8); setNewLit(n); if (n >= 8) clearInterval(id); }, 220);
-    return () => clearInterval(id);
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReduceMotion(media.matches);
+    update();
+    media.addEventListener?.('change', update);
+    return () => media.removeEventListener?.('change', update);
   }, []);
+
+  useEffect(() => {
+    setNewLit(0);
+    setIsPlaying(true);
+    setIsComplete(false);
+    if (reduceMotion) {
+      const reducedTimer = setTimeout(() => {
+        setNewLit(8);
+        setIsPlaying(false);
+        setIsComplete(true);
+      }, 300);
+      return () => clearTimeout(reducedTimer);
+    }
+    const cues = [
+      [650, 1], [1050, 2], [1700, 3], [2150, 4],
+      [2600, 5], [3150, 6], [3550, 7], [3950, 8],
+    ] as const;
+    const timers = cues.map(([delay, value]) => setTimeout(() => setNewLit(value), delay));
+    timers.push(setTimeout(() => {
+      setIsPlaying(false);
+      setIsComplete(true);
+    }, 5000));
+    return () => timers.forEach(clearTimeout);
+  }, [playback, reduceMotion]);
+
+  const replay = () => setPlayback(value => value + 1);
 
   const masteredStars = stars.filter(s => s.cat === 'mastered');
   const dustStars     = stars.filter(s => s.cat === 'dust');
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="px-6 pt-4 pb-2 flex items-center justify-between">
-        <div>
-          <h1 className="text-[20px] font-bold" style={{ color: '#EDEDED' }}>你的知识，连成一张星图</h1>
-          <p className="text-[13px] font-medium" style={{ color: BLUE }}>学会一个，点亮一颗</p>
+    <div className="flex flex-col flex-1 overflow-hidden px-6 pt-2">
+      <div className="pb-2 max-w-[1080px] w-full mx-auto flex items-end justify-between gap-6">
+        <div className="min-w-0">
+          <h1 className="text-[20px] font-bold" style={{ color: T1 }}>刚才梳理出的知识点，正在沉淀成一片知识星空</h1>
+          <p className="text-[12px] font-medium mt-1" style={{ color: BLUE }}>每掌握一个，就点亮一颗星；星与星相连，组成属于你的学习路径</p>
         </div>
-        <div className="text-right">
-          <p className="text-[12px]" style={{ color: '#888' }}>本周新点亮 <span style={{ color: '#FFE562' }}>8 颗</span></p>
-          <p className="text-[12px]" style={{ color: '#888' }}>54% 已亮</p>
+        <div className="flex gap-2 flex-shrink-0">
+          <div className="rounded-xl px-3 py-2 min-w-[150px] flex items-center justify-between" style={{background:'#FFFCED',border:'1px solid #F2E4A0'}}>
+            <p className="text-[10px] font-medium" style={{color:'#8C7410'}}>本周新点亮</p>
+            <p className="text-[19px] font-bold leading-none" style={{color:'#9B7A00'}}><span key={newLit}>{newLit}</span><span className="text-[10px] ml-1">颗</span></p>
+          </div>
+          <div className="rounded-xl px-3 py-2 min-w-[150px] flex items-center justify-between" style={{background:'#F4F8FF',border:'1px solid #D4E3FA'}}>
+            <p className="text-[10px] font-medium" style={{color:'#56749D'}}>星空已点亮</p>
+            <p className="text-[19px] font-bold leading-none" style={{color:BLUE}}>{48 + Math.round(newLit * 6 / 8)}<span className="text-[10px] ml-0.5">%</span></p>
+          </div>
         </div>
       </div>
-      <div className="flex-1 relative overflow-hidden mx-6 rounded-2xl" style={{ background:'radial-gradient(circle at 55% 48%,#102B65 0%,#071631 38%,#030817 100%)', minHeight:0, boxShadow:'inset 0 0 80px rgba(28,92,220,.25)' }}>
-        <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"
+      <div className="flex-1 relative overflow-hidden mx-auto w-full max-w-[1080px] rounded-2xl"
+        style={{
+          background:'radial-gradient(ellipse at 68% 38%,#19376F 0%,#0B1C42 28%,#050B20 62%,#020511 100%)',
+          minHeight:0,
+          boxShadow:'inset 0 0 100px rgba(45,114,255,.2),0 10px 30px rgba(23,42,78,.18)',
+          transform:reduceMotion || isComplete?'scale(1)':'scale(1.025)',
+          transition:'transform 1s cubic-bezier(.22,.8,.3,1), box-shadow 1s ease',
+        }}>
+        {isComplete && !isPlaying && (
+          <button onClick={replay} aria-label="重新播放星空动画"
+            className="absolute right-3 top-3 z-20 w-8 h-8 rounded-full flex items-center justify-center transition-opacity"
+            style={{background:'rgba(255,255,255,.14)',border:'1px solid rgba(255,255,255,.22)',color:'#F4F8FF',backdropFilter:'blur(8px)'}}>
+            <RotateCcw size={15}/>
+          </button>
+        )}
+        <svg width="100%" height="100%" viewBox="0 0 160 100" preserveAspectRatio="xMidYMid meet"
           style={{ position: 'absolute', inset: 0 }}>
           <defs>
-            <filter id="blueGlow"><feGaussianBlur stdDeviation="1.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-            <filter id="goldGlow"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="blueGlow" x="-400%" y="-400%" width="900%" height="900%"><feGaussianBlur stdDeviation=".75" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <filter id="goldGlow" x="-400%" y="-400%" width="900%" height="900%"><feGaussianBlur stdDeviation="1.15" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
             <radialGradient id="nebula"><stop offset="0" stopColor="#275CCB" stopOpacity=".22"/><stop offset="1" stopColor="#061127" stopOpacity="0"/></radialGradient>
+            <linearGradient id="activePath"><stop offset="0" stopColor="#FFF6B6"/><stop offset="1" stopColor="#75B7FF"/></linearGradient>
           </defs>
-          <ellipse cx="72" cy="58" rx="34" ry="42" fill="url(#nebula)"/>
+          <ellipse cx="112" cy="50" rx="54" ry="42" fill="url(#nebula)"/>
+          <ellipse cx="38" cy="24" rx="34" ry="20" fill="#7436B8" opacity=".07"/>
+          {backgroundStars.map((s, i) => <circle key={`bg-${i}`} cx={s.x} cy={s.y} r={s.radius} fill="#F5F8FF" opacity={s.opacity}
+            style={isComplete && !reduceMotion ? {animation:`pulse ${2.8 + (i % 5) * .35}s ease-in-out ${(i % 7) * .18}s infinite`} : undefined}>
+            {isComplete && !reduceMotion && i < 18 && <animate attributeName="cx" values={`${s.x};${s.x + .7};${s.x}`} dur={`${7 + (i % 5)}s`} repeatCount="indefinite"/>}
+          </circle>)}
           {dustStars.map((s, i) => (
             <circle key={i} cx={s.x} cy={s.y} r={s.radius * 0.4} fill="#FFFFFF" opacity={s.opacity} />
           ))}
           {connections.map((c, i) => (
             <line key={i} x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2}
-              stroke="#FFE090" strokeWidth="0.18" opacity="0.22" strokeLinecap="round" />
+              stroke="#C8D9F6" strokeWidth="0.12" opacity="0.18" strokeLinecap="round"
+              style={isComplete && !reduceMotion ? {animation:`pulse ${3.2 + (i % 4) * .4}s ease-in-out ${(i % 6) * .2}s infinite`} : undefined}/>
           ))}
           {stars.filter(st => st.cat === 'learning').map((s, i) => (
-            <circle key={i} cx={s.x} cy={s.y} r={s.radius * 0.7} fill="#5E91FF" opacity={0.5} filter={i%9===0?'url(#blueGlow)':undefined} />
+            <circle key={i} cx={s.x} cy={s.y} r={s.radius * 0.7} fill="#7896C7" opacity={0.42} />
           ))}
           {masteredStars.map((s, i) => {
             const isLit      = i < 38 + newLit;
             const isNewlyLit = i >= 38 && i < 38 + newLit;
             return (
               <g key={i}>
-                {isLit && i % 11 === 0 && <><line x1={s.x-3.2} y1={s.y} x2={s.x+3.2} y2={s.y} stroke={isNewlyLit?'#FFE08A':'#9BC2FF'} strokeWidth=".35" opacity=".85"/><line x1={s.x} y1={s.y-4.5} x2={s.x} y2={s.y+4.5} stroke={isNewlyLit?'#FFE08A':'#9BC2FF'} strokeWidth=".28" opacity=".75"/></>}
-                <circle cx={s.x} cy={s.y} r={s.radius} fill={isLit ? (isNewlyLit?'#FFE77A':'#EAF2FF') : '#444'} opacity={isLit ? 0.98 : 0.3} filter={isLit?(isNewlyLit?'url(#goldGlow)':'url(#blueGlow)'):undefined}>
+                {isLit && i % 17 === 0 && <><line x1={s.x-2.4} y1={s.y} x2={s.x+2.4} y2={s.y} stroke={isNewlyLit?'#FFF1A2':'#D8E8FF'} strokeWidth=".18" opacity=".72"/><line x1={s.x} y1={s.y-3.2} x2={s.x} y2={s.y+3.2} stroke={isNewlyLit?'#FFF1A2':'#D8E8FF'} strokeWidth=".14" opacity=".64"/></>}
+                <circle cx={s.x} cy={s.y} r={s.radius} fill={isLit ? (isNewlyLit?'#FFF2A5':'#F2F6FF') : '#465064'} opacity={isLit ? 0.98 : 0.26} filter={isLit?(isNewlyLit?'url(#goldGlow)':'url(#blueGlow)'):undefined}>
                   {isNewlyLit && <animate attributeName="opacity" values="0;0.95" dur="0.35s" fill="freeze" />}
                 </circle>
                 {isLit && (
-                  <circle cx={s.x} cy={s.y} r={s.radius * 2.8} fill="#FFE090" opacity={0.07}>
+                  <circle cx={s.x} cy={s.y} r={s.radius * 2.8} fill={isNewlyLit?'#FFECA0':'#B8D7FF'} opacity={isNewlyLit?0.11:0.045}>
                     {isNewlyLit && <animate attributeName="r" values={`${s.radius}`} to={`${s.radius * 2.8}`} dur="0.4s" fill="freeze" />}
                   </circle>
                 )}
@@ -1339,19 +1514,34 @@ function B3Inner({ onNext }: { onNext: () => void }) {
             );
           })}
           {stars.filter(st => st.cat === 'new').map((s, i) => (
-            <circle key={i} cx={s.x} cy={s.y} r={s.radius} fill="#8899CC" opacity={0.5} />
+            <circle key={i} cx={s.x} cy={s.y} r={s.radius * .8} fill="#73819C" opacity={0.34} />
           ))}
+          {/* 掌握演示：对钩 → 星星 → 虚线展开 → 下一颗掌握 → 实线 */}
+          <g>
+            <line x1="72" y1="53" x2="92" y2="44" stroke="url(#activePath)" strokeWidth=".28"
+              strokeDasharray={newLit >= 6 ? undefined : '1.4 1.4'} opacity={newLit >= 3 ? .9 : 0}>
+              <animate attributeName="stroke-dashoffset" values="5;0" dur=".8s" repeatCount="indefinite"/>
+            </line>
+            <line x1="72" y1="53" x2="58" y2="39" stroke="#B7D7FF" strokeWidth=".22" strokeDasharray="1.2 1.4" opacity={newLit >= 3 ? .48 : 0}/>
+            <line x1="92" y1="44" x2="108" y2="52" stroke="#B7D7FF" strokeWidth=".22" strokeDasharray="1.2 1.4" opacity={newLit >= 7 ? .48 : 0}/>
+            <circle cx="72" cy="53" r="4.2" fill="#FFE562" opacity={newLit >= 2 ? .07 : 0}/>
+            <circle cx="72" cy="53" r="1.15" fill="#FFF4A8" filter="url(#goldGlow)" opacity={newLit >= 2 ? 1 : .25}/>
+            {newLit < 2 && <g stroke="#FFF" strokeWidth=".55" fill="none"><path d="M70.2 53 l1.2 1.2 2.6-3"/></g>}
+            <circle cx="92" cy="44" r="1.15" fill={newLit >= 6 ? '#FFF4A8' : '#67758F'} filter={newLit >= 6 ? 'url(#goldGlow)' : undefined}/>
+            {newLit === 5 && <g stroke="#FFF" strokeWidth=".55" fill="none"><path d="M90.2 44 l1.2 1.2 2.6-3"/></g>}
+          </g>
           {[
-            {x:23,y:30,t:'受贿罪构成'},{x:55,y:44,t:'斡旋受贿'},{x:72,y:69,t:'既遂标准'},{x:40,y:76,t:'数额与情节'}
-          ].map((p,i)=><g key={p.t}><circle cx={p.x} cy={p.y} r={i===1?1.8:1.25} fill={i===1?'#FFE477':'#DCE9FF'} filter={i===1?'url(#goldGlow)':'url(#blueGlow)'}/><text x={p.x+2} y={p.y+1} fontSize="2.4" fill="#DDE8FF">{p.t}</text></g>)}
-          <text x="50" y="95" textAnchor="middle" fontSize="6" fill="#FFFFFF" opacity="0.04" fontFamily="sans-serif">
+            {x:34,y:30,t:'受贿罪构成'},{x:84,y:38,t:'斡旋受贿'},{x:122,y:69,t:'既遂标准'},{x:62,y:77,t:'数额与情节'}
+          ].map((p,i)=><g key={p.t}><circle cx={p.x} cy={p.y} r={i===1?1.15:.82} fill={i===1?'#FFF1A0':'#F0F5FF'} filter={i===1?'url(#goldGlow)':'url(#blueGlow)'}/><text x={p.x+2} y={p.y+.8} fontSize="1.9" fill="#DDE8FF" opacity=".88">{p.t}</text></g>)}
+          <text x="80" y="95" textAnchor="middle" fontSize="5" fill="#FFFFFF" opacity="0.035" fontFamily="sans-serif">
             刑法分论·贿赂渎职
           </text>
         </svg>
+        {newLit >= 3 && newLit < 6 && <div className="absolute left-1/2 top-[46%] -translate-x-1/2 px-3 py-1.5 rounded-full text-[10px] font-medium" style={{background:'rgba(9,19,45,.88)',border:'1px solid rgba(154,196,255,.35)',color:'#BBD8FF'}}>新的知识关联正在展开…</div>}
+        {newLit >= 6 && newLit < 8 && <div className="absolute left-1/2 top-[46%] -translate-x-1/2 px-3 py-1.5 rounded-full text-[10px] font-medium" style={{background:'rgba(13,35,34,.9)',border:'1px solid rgba(139,220,177,.4)',color:'#BDF3D5'}}>学习路径已建立 ✓</div>}
       </div>
-      <div className="px-6 pb-4 pt-3">
-        <p className="text-[12px] mb-3 text-center" style={{ color: '#7483A0' }}>同一套知识结构，学习后会逐颗点亮并形成掌握轨迹</p>
-        <CTAButton onClick={onNext}>太酷了，继续 →</CTAButton>
+      <div className="pb-4 pt-3 max-w-[1080px] w-full mx-auto">
+        <CTAButton onClick={onNext}>继续查看知识点 →</CTAButton>
       </div>
     </div>
   );
@@ -1361,43 +1551,50 @@ function B3Inner({ onNext }: { onNext: () => void }) {
 
 function B4Inner({ onNext }: { onNext: () => void }) {
   const [flipped, setFlipped] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [mastered, setMastered] = useState(false);
+  const [saveToast, setSaveToast] = useState('');
+  useEffect(() => {
+    if (!saveToast) return;
+    const id = setTimeout(() => setSaveToast(''), 1600);
+    return () => clearTimeout(id);
+  }, [saveToast]);
+  const toggleSaved = () => {
+    setSaved(current => {
+      setSaveToast(current ? '已取消收藏' : '已收藏到「我的收藏」');
+      return !current;
+    });
+  };
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex-1 flex flex-col justify-center pb-3">
-        <button onClick={() => setFlipped(v => !v)}
-          className="w-full rounded-2xl p-5 text-left transition-all active:scale-[0.99]"
-          style={{ background: CARD, border: `2px solid ${flipped ? GREEN : BORDER}`, minHeight: 160, boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-          {!flipped ? (
-            <div>
-              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold mb-3"
-                style={{ background: '#EAF3FF', color: BLUE }}>Q</span>
-              <p className="text-[16px] font-semibold mb-5" style={{ color: T1 }}>斡旋受贿罪的行为主体是谁？</p>
-              <p className="text-[12px] text-center" style={{ color: '#BBB' }}>点击翻面看概念</p>
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[760px] w-full mx-auto relative">
+      {saveToast && <div className="absolute top-1 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full text-[12px] font-semibold" style={{background:'#222',color:'#fff',boxShadow:'0 8px 24px rgba(0,0,0,.2)'}}><Check size={14} color="#7CE3A3"/>{saveToast}</div>}
+      <div className="flex-1 flex flex-col items-center justify-center pb-3 min-h-0">
+        <div className="w-full max-w-[620px]" style={{perspective:'1200px'}}>
+          <button onClick={() => setFlipped(v => !v)} className="relative w-full text-left active:scale-[0.99]"
+            style={{height:250,transformStyle:'preserve-3d',transform:`rotateY(${flipped ? 180 : 0}deg)`,transition:'transform .55s cubic-bezier(.2,.75,.25,1)'}}>
+            <div className="absolute inset-0 rounded-[24px] p-6 flex flex-col" style={{backfaceVisibility:'hidden',background:'linear-gradient(145deg,#FFFFFF,#FAFBFF)',border:'1px solid #DFE5EF',boxShadow:'0 16px 45px rgba(32,55,90,.12)'}}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold tracking-wider" style={{color:BLUE}}>知识闪卡 · 正面</span>
+                <span onClick={e => {e.stopPropagation();toggleSaved();}} className="p-2 -m-2 rounded-full" aria-label="收藏">
+                  <Star size={21} fill={saved ? '#FFE562' : 'none'} color={saved ? '#D9B900' : '#AAB2C0'}/>
+                </span>
+              </div>
+              <div className="flex-1 flex items-center justify-center text-center px-8"><p className="text-[22px] font-bold leading-relaxed" style={{color:T1}}>斡旋受贿罪的行为主体是谁？</p></div>
+              <p className="text-[12px] text-center flex items-center justify-center gap-1.5" style={{color:T4}}><RotateCcw size={13}/>点击卡片翻面查看答案</p>
             </div>
-          ) : (
-            <div>
-              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-bold mb-3"
-                style={{ background: '#F6FEF9', color: GREEN }}>A</span>
-              <p className="text-[14px] leading-relaxed" style={{ color: T2 }}>
-                斡旋受贿罪的行为主体是<strong>国家工作人员</strong>。行为人利用职权或地位形成的影响力，
-                斡旋其他国家工作人员为请托人谋利，并从请托人处收取财物。
-              </p>
+            <div className="absolute inset-0 rounded-[24px] p-6 flex flex-col" style={{backfaceVisibility:'hidden',transform:'rotateY(180deg)',background:'linear-gradient(145deg,#F7FFF9,#FFFFFF)',border:'1.5px solid #AEE5C1',boxShadow:'0 16px 45px rgba(0,166,62,.1)'}}>
+              <div className="flex items-center justify-between"><span className="text-[11px] font-bold tracking-wider" style={{color:GREEN}}>知识闪卡 · 答案</span><Check size={20} color={GREEN}/></div>
+              <div className="flex-1 flex items-center"><p className="text-[15px] leading-7" style={{color:T2}}>斡旋受贿罪的行为主体是<strong>国家工作人员</strong>。行为人利用职权或地位形成的影响力，斡旋其他国家工作人员为请托人谋利，并从请托人处收取财物。</p></div>
+              <p className="text-[11px] text-center" style={{color:T4}}>再次点击可返回正面</p>
             </div>
-          )}
-        </button>
-        {flipped && (
-          <div className="flex gap-3 mt-3">
-            <button onClick={onNext} className="flex-1 py-2.5 rounded-xl text-[13px] font-semibold"
-              style={{ background: BLUE, color: '#fff' }}>继续练习</button>
-            <button onClick={onNext} className="flex-1 py-2.5 rounded-xl text-[13px]"
-              style={{ background: '#F3F4F6', color: T2 }}>我已经会了，跳过</button>
-            <button onClick={onNext} className="flex-1 py-2 rounded-xl font-semibold"
-              style={{ background: PRIMARY, color: '#7A6400' }}><span className="block text-[13px]">先讲给我听</span><span className="block text-[9px] font-normal">进入 AI 引导学习</span></button>
+          </button>
+          <div className="h-12 mt-3 flex items-center justify-center">
+            {flipped && <button onClick={() => setMastered(v=>!v)} className="flex items-center gap-2 px-4 py-2 rounded-full text-[12px] font-semibold" style={{background:mastered?'#EAF9EF':'#F2F4F7',color:mastered?GREEN:T3}}><Check size={15}/>{mastered?'已掌握':'已掌握，跳过后续练习'}</button>}
           </div>
-        )}
+        </div>
       </div>
-      <div className="pb-5 pt-1">
-        <CTAButton onClick={onNext}>继续 →</CTAButton>
+      <div className="pb-5 pt-1 max-w-[620px] w-full mx-auto">
+        <CTAButton onClick={onNext}>下一题 →</CTAButton>
       </div>
     </div>
   );
@@ -1406,42 +1603,127 @@ function B4Inner({ onNext }: { onNext: () => void }) {
 // ── B5 inner ──────────────────────────────────────────────────────────────────
 
 function B5Inner({ onNext }: { onNext: () => void }) {
-  const [tab, setTab] = useState<'填空' | '判断' | '多选' | '简答'>('填空');
+  type PracticeType = '单选' | '填空' | '判断' | '多选' | '简答';
+  const journey: Array<{ type: PracticeType; purpose: string }> = [
+    { type: '单选', purpose: '识别概念' },
+    { type: '填空', purpose: '记忆关键词' },
+    { type: '判断', purpose: '辨析概念' },
+    { type: '多选', purpose: '强化理解' },
+    { type: '简答', purpose: '训练应用' },
+  ];
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [draft, setDraft] = useState('');
   const [solved, setSolved] = useState(false);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
+  const [showSource, setShowSource] = useState(false);
+  const [showSourceTip, setShowSourceTip] = useState(true);
+  const [replayKey, setReplayKey] = useState(0);
   const contents = {
+    单选: { question: '斡旋受贿罪的行为主体必须是？', answer: '国家工作人员', analysis: '斡旋受贿属于受贿罪的特殊形态，行为主体必须具有国家工作人员身份。' },
     填空: { question: '斡旋受贿罪的行为主体必须是 ______。', user: '公职人员', answer: '国家工作人员', analysis: '“公职人员”范围过宽，法条要求行为人具有国家工作人员身份。' },
     判断: { question: '斡旋受贿要求行为人亲自利用本人职务为请托人谋利。', user: '正确', answer: '错误', analysis: '其核心是利用职权或地位形成的影响，通过其他国家工作人员为请托人谋利。' },
     多选: { question: '斡旋受贿的成立条件包括哪些？', user: '☑ 国家工作人员身份　☐ 地位影响　☑ 收受财物', answer: '☑ 国家工作人员身份　☑ 地位影响　☑ 收受财物', analysis: '三项均是关键条件；多选题使用方形复选框表达。' },
     简答: { question: '请用一句话说明斡旋受贿与普通受贿的核心区别。', user: '通过别人办事并收钱。', answer: '利用职权或地位形成的影响，斡旋其他国家工作人员为请托人谋利并收受财物。', analysis: '已命中“他人办事、收受财物”，遗漏“职权或地位形成的影响”。' },
   } as const;
-  const current = contents[tab];
+  const currentType = journey[currentIndex].type;
+  const current = contents[currentType];
+  useEffect(() => {
+    setSolved(false);
+    setDraft('');
+    setMultiSelected(new Set());
+    setShowSource(false);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const preset = currentType === '单选' ? '国家工作人员'
+      : currentType === '填空' ? '公职人员'
+      : currentType === '判断' ? '错误'
+      : currentType === '简答' ? '通过别人办事并收钱。'
+      : '';
+    if (currentType === '填空' || currentType === '简答') {
+      let index = 0;
+      timers.push(setTimeout(() => {
+        const typing = setInterval(() => {
+          index += 1;
+          setDraft(preset.slice(0, index));
+          if (index >= preset.length) clearInterval(typing);
+        }, 55);
+        timers.push(typing as unknown as ReturnType<typeof setTimeout>);
+      }, 350));
+    } else if (currentType === '多选') {
+      timers.push(setTimeout(() => {
+        const selected = new Set(['国家工作人员身份', '职权或地位形成的影响', '收受财物']);
+        setMultiSelected(selected);
+        setDraft([...selected].join('、'));
+      }, 500));
+    } else {
+      timers.push(setTimeout(() => setDraft(preset), 500));
+    }
+    timers.push(setTimeout(() => setSolved(true), currentType === '简答' ? 2100 : currentType === '填空' ? 1500 : 1250));
+    return () => timers.forEach(clearTimeout);
+  }, [currentType, replayKey]);
+  const isCorrect = currentType === '单选' ? draft === '国家工作人员'
+    : currentType === '填空' ? draft.trim() === '国家工作人员'
+    : currentType === '判断' ? draft === '错误'
+    : currentType === '多选' ? multiSelected.size === 3 && !multiSelected.has('仅靠普通私人交情')
+    : draft.includes('影响') || draft.includes('职权');
+  const selectPractice = (index: number) => {
+    setCurrentIndex(index);
+    setReplayKey(key => key + 1);
+  };
+  const nextPractice = () => {
+    if (currentIndex >= journey.length - 1) {
+      onNext();
+      return;
+    }
+    selectPractice(currentIndex + 1);
+    setShowSourceTip(false);
+  };
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex gap-2 mb-3">
-        {(Object.keys(contents) as Array<keyof typeof contents>).map(type => <button key={type} onClick={() => { setTab(type); setDraft(''); setSolved(false); setMultiSelected(new Set()); }} className="flex-1 py-2 rounded-lg text-[12px] font-semibold" style={{ background: tab === type ? BLUE : '#F3F4F6', color: tab === type ? '#fff' : T3 }}>{type}</button>)}
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[820px] w-full mx-auto">
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-semibold" style={{color:T3}}>5 种题型 · 当前演示 {currentIndex + 1} / 5</p>
+          <p className="text-[10px]" style={{color:T4}}>点击题型，可查看不同练习方式</p>
+        </div>
+        <div className="grid grid-cols-5 gap-1.5">
+          {journey.map((step, index) => {
+            const active = index === currentIndex;
+            return <button key={step.type} onClick={() => selectPractice(index)} className="rounded-xl px-2 py-2 text-center transition-all" style={{background:active?'#EAF3FF':'#F5F6F8',border:`1px solid ${active?'#9BC8FF':BORDER}`,boxShadow:active?'0 4px 14px rgba(47,137,252,.12)':'none'}}>
+              <p className="text-[10px] font-bold" style={{color:active?BLUE:T3}}>{step.type}</p>
+              <p className="text-[8px] mt-0.5" style={{color:active?BLUE:T4}}>{step.purpose}</p>
+            </button>;
+          })}
+        </div>
       </div>
-      <div className="flex-1 rounded-2xl p-4 overflow-y-auto" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
-        <p className="text-[14px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
-        {!solved ? <>
-          {tab === '判断' ? <div className="grid grid-cols-2 gap-2 mb-3">{['正确','错误'].map(v => <button key={v} onClick={() => setDraft(v)} className="py-3 rounded-xl text-[12px]" style={{ background: draft === v ? '#FFFBDE' : '#F6F6F6', border: `1.5px solid ${draft === v ? PRIMARY : BORDER}` }}>{v}</button>)}</div>
-          : tab === '多选' ? <div className="space-y-2 mb-3">{['国家工作人员身份','职权或地位形成的影响','收受财物','仅靠普通私人交情'].map(v => {
-            const checked=multiSelected.has(v);
-            return <button key={v} onClick={() => { const next=new Set(multiSelected); checked?next.delete(v):next.add(v); setMultiSelected(next); setDraft([...next].join('、')); }} className="w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center gap-2" style={{ background:checked?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${checked?PRIMARY:BORDER}` }}><span className="w-4 h-4 rounded flex items-center justify-center" style={{background:checked?BLUE:CARD,border:`1px solid ${checked?BLUE:'#C9CDD3'}`}}>{checked&&<Check size={11} color="#fff" strokeWidth={3}/>}</span>{v}</button>})}</div>
-          : <textarea value={draft} onChange={e => setDraft(e.target.value)} placeholder={tab === '填空' ? '输入答案' : '写下你的回答'} className="w-full rounded-xl p-3 text-[12px] mb-3 resize-none" style={{ border: `1.5px solid ${BORDER}`, minHeight: 72 }} />}
-          <button onClick={() => { if (!draft) setDraft(current.user); setSolved(true); }} className="px-5 py-2 rounded-full text-[12px] font-semibold" style={{ background: BLUE, color: '#fff' }}>提交答案</button>
-        </> : <>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="rounded-xl p-3" style={{ background: '#FFF0EE' }}><p className="text-[10px] font-semibold mb-1" style={{ color: RED }}>你的答案</p><p className="text-[12px]" style={{ color: T2 }}>{draft || current.user}</p></div>
-            <div className="rounded-xl p-3" style={{ background: '#F6FEF9' }}><p className="text-[10px] font-semibold mb-1" style={{ color: GREEN }}>正确 / 参考答案</p><p className="text-[12px]" style={{ color: T2 }}>{current.answer}</p></div>
+      <div className="flex-1 rounded-2xl p-5 overflow-y-auto min-h-[280px]" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow:'0 10px 32px rgba(20,35,60,.06)' }}>
+        <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 rounded-lg text-[9px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>{currentType} · {journey[currentIndex].purpose}</span><span className="ml-auto flex items-center gap-1 text-[9px]" style={{color:T4}}><Sparkles size={11}/>{solved?'演示完成':'正在自动作答…'}</span></div>
+        <p className="text-[15px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
+        {currentType === '单选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员','一般公职人员','受托办事人员','任何自然人'].map(v => {
+          const selected = draft === v; const correct = v === '国家工作人员';
+          return <button key={v} disabled className="py-3 rounded-xl text-[11px] flex items-center justify-center gap-1.5" style={{background:solved&&correct?'#EAF9EF':solved&&selected&&!correct?'#FFF0EE':selected?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&selected&&!correct?RED:selected?PRIMARY:BORDER}`,color:solved&&correct?GREEN:T2}}>{v}{solved&&correct&&<Check size={12}/>} </button>})}</div>}
+        {currentType === '判断' && <div className="grid grid-cols-2 gap-2 mb-3">{['正确','错误'].map(v => {
+          const selected=draft===v; const correct=v==='错误';
+          return <button key={v} disabled className="py-3 rounded-xl text-[12px]" style={{background:solved&&correct?'#EAF9EF':solved&&selected&&!correct?'#FFF0EE':selected?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&selected&&!correct?RED:selected?PRIMARY:BORDER}`,color:solved&&correct?GREEN:T2}}>{v}{solved&&correct?' ✓':''}</button>})}</div>}
+        {currentType === '多选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员身份','职权或地位形成的影响','收受财物','仅靠普通私人交情'].map(v => {
+          const checked=multiSelected.has(v); const correct=v!=='仅靠普通私人交情';
+          return <button key={v} disabled className="w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center gap-2" style={{background:solved&&correct?'#EAF9EF':solved&&checked&&!correct?'#FFF0EE':checked?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&checked&&!correct?RED:checked?PRIMARY:BORDER}`}}><span className="w-4 h-4 rounded flex items-center justify-center" style={{background:(solved&&correct)?GREEN:checked?BLUE:CARD,border:`1px solid ${(solved&&correct)?GREEN:checked?BLUE:'#C9CDD3'}`}}>{(checked||solved&&correct)&&<Check size={11} color="#fff" strokeWidth={3}/>}</span>{v}</button>})}</div>}
+        {(currentType === '填空' || currentType === '简答') && <div className="relative mb-3"><textarea value={draft} readOnly onChange={e => setDraft(e.target.value)} className="w-full rounded-xl p-3 text-[12px] resize-none" style={{border:`1.5px solid ${solved?(isCorrect?GREEN:RED):BORDER}`,background:solved?(isCorrect?'#F1FBF5':'#FFF7F5'):'#FAFAFA',minHeight:68,color:T2}}/><span className="absolute right-3 bottom-2 text-[9px]" style={{color:T4}}>演示答案已自动填入</span></div>}
+        {!solved && <div className="rounded-xl px-3 py-2 flex items-center gap-2 text-[10px]" style={{background:'#F6F8FC',color:T3}}><Sparkles size={12} color={BLUE}/>预制答案正在自动完成，无需手动作答</div>}
+        {solved && <>
+          <div className="rounded-2xl p-4 relative" style={{background:isCorrect?'#F1FBF5':'#FFF8E7',border:`1px solid ${isCorrect?'#B7EFCF':'#F4D99A'}`}}>
+            <div className="flex items-center gap-2 mb-2"><div className="w-6 h-6 rounded-full flex items-center justify-center" style={{background:isCorrect?GREEN:'#E6A23C'}}>{isCorrect?<Check size={14} color="#fff"/>:<span className="text-white text-[12px]">!</span>}</div><p className="text-[13px] font-bold" style={{color:isCorrect?GREEN:'#9A6B00'}}>{isCorrect?'回答正确':'还差一点'}</p><span className="ml-auto px-2.5 py-1 rounded-full text-[10px] font-bold" style={{background:isCorrect?'#DDF6E6':'#F8E8BB',color:isCorrect?GREEN:'#8C6500'}}>{isCorrect?'掌握程度 +1':'掌握程度暂未提升'}</span></div>
+            <div className="flex items-center justify-between"><p className="text-[10px] font-semibold mb-1" style={{color:BLUE}}>解析</p><div className="relative"><button onClick={()=>{setShowSource(v=>!v);setShowSourceTip(false);}} className="flex items-center gap-1 text-[10px] font-semibold" style={{color:BLUE}}><BookOpen size={12}/>{showSource?'收起来源':'查看来源 →'}</button>{showSourceTip&&<div className="absolute right-0 bottom-[24px] z-20 w-[190px] px-3 py-2 rounded-xl text-[9px] leading-4" style={{background:'#20283A',color:'#fff',boxShadow:'0 8px 22px rgba(0,0,0,.2)'}}>对解析有疑问？可以查看教材原文<div className="absolute right-5 -bottom-1 w-2 h-2 rotate-45" style={{background:'#20283A'}}/></div>}</div></div>
+            <p className="text-[11px] leading-5" style={{color:T2}}>{current.analysis}</p>
+            <div className="mt-3 pt-2 flex items-center gap-2" style={{borderTop:`1px solid ${isCorrect?'#D7EFDF':'#EFE1B8'}`}}><Link2 size={12} color={T4}/><span className="text-[10px]" style={{color:T3}}>相关知识点：受贿罪构成要件</span></div>
+            {showSource&&<div className="mt-3 rounded-xl p-3 flex items-start gap-2" style={{background:'rgba(255,255,255,.72)',border:`1px solid ${BORDER}`}}><FileText size={14} color={BLUE} className="mt-0.5"/><div><p className="text-[9px] font-semibold" style={{color:T2}}>刑法分论讲义.pdf · 第 42 页</p><p className="text-[9px] leading-4 mt-1" style={{color:T3}}>“国家工作人员利用本人职权或者地位形成的便利条件……”</p><mark className="text-[9px]" style={{background:'#FFF09A'}}>主体必须具有国家工作人员身份</mark></div></div>}
           </div>
-          <div className="rounded-xl p-3" style={{ background: '#F3F4F6' }}><p className="text-[11px] font-semibold mb-1" style={{ color: T3 }}>解析</p><p className="text-[12px] leading-relaxed" style={{ color: T3 }}>{current.analysis}</p></div>
+          <div className="mt-2 rounded-xl px-3 py-2 text-[10px]" style={{background:'#EAF3FF',color:BLUE}}>{isCorrect ? `本题已掌握，下一题进入「${currentIndex < journey.length - 1 ? journey[currentIndex + 1].purpose : '智能讲解'}」` : '这个知识点仍需强化，系统会在后续练习中再次检查'}</div>
         </>}
       </div>
-      <p className="text-[11px] text-center mt-2" style={{ color: T4 }}>下一步，AI 会根据你的答案继续追问和讲解</p>
-      <div className="pb-5 pt-1">
-        <CTAButton onClick={onNext}>继续 →</CTAButton>
+      <div className="pb-5 pt-3 space-y-2">
+        <CTAButton onClick={nextPractice}>
+          {currentIndex < journey.length - 1 ? `下一题：${journey[currentIndex + 1].type} →` : '继续体验 AI 辅导 →'}
+        </CTAButton>
+        <button onClick={onNext} className="w-full text-center text-[11px] py-1" style={{color:T4}}>跳过练习演示 →</button>
       </div>
     </div>
   );
@@ -1475,43 +1757,29 @@ function ScratchpadDemo({ onNext }: { onNext: () => void }) {
 
 function TracebackDemo({ onNext }: { onNext: () => void }) {
   const [marked, setMarked] = useState(false);
-  const [openNote, setOpenNote] = useState(false);
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex-1 grid grid-cols-[42%_58%] rounded-2xl overflow-hidden" style={{ border: `1px solid ${BORDER}` }}>
-        <div className="p-4" style={{ background: CARD }}>
-          <p className="text-[11px] mb-2" style={{ color: T4 }}>练习已暂停</p>
-          <p className="text-[14px] font-semibold mb-3" style={{ color: T1 }}>斡旋受贿的影响力来自哪里？</p>
-          <div className="rounded-xl p-3 text-[12px]" style={{ background: '#F6FEF9', color: T2 }}>职权或地位形成的影响 ✓</div>
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[1040px] w-full mx-auto">
+      <div className="flex-1 grid grid-cols-[43%_57%] rounded-2xl overflow-hidden min-h-[360px]" style={{ border: `1px solid #DDE3EC`, boxShadow:'0 12px 36px rgba(24,42,70,.08)' }}>
+        <div className="p-5 flex flex-col" style={{ background: '#F8F9FB', borderRight:'1px solid #DDE3EC' }}>
+          <div className="flex items-center gap-2 mb-5"><span className="px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>原题</span><span className="text-[10px]" style={{color:T4}}>单选题 · 斡旋受贿</span></div>
+          <p className="text-[15px] font-bold leading-6 mb-5" style={{ color: T1 }}>甲系国家工作人员，利用本人职权形成的影响，通过其他国家工作人员为请托人谋取不正当利益并收受财物。甲的行为应如何认定？</p>
+          <div className="space-y-2.5">
+            {['A. 普通受贿罪','B. 斡旋受贿','C. 利用影响力受贿罪','D. 不构成犯罪'].map((v,i)=><div key={v} className="rounded-xl px-3 py-3 text-[12px] flex items-center gap-2.5" style={{background:i===1?'#EAF9EF':CARD,border:`1.5px solid ${i===1?'#8BD5A8':BORDER}`,color:i===1?GREEN:T2}}><span className="w-5 h-5 rounded-full flex items-center justify-center" style={{border:`1px solid ${i===1?GREEN:'#C8CDD5'}`,background:i===1?GREEN:CARD}}>{i===1&&<Check size={12} color="#fff"/>}</span>{v}</div>)}
+          </div>
+          <div className="mt-auto pt-4 flex items-center gap-2 text-[11px]" style={{color:GREEN}}><Check size={14}/>回答正确 · 已掌握</div>
         </div>
-        <div className="flex flex-col" style={{ background: '#FAFAFA', borderLeft: `1px solid ${BORDER}` }}>
-          <div className="flex px-3 pt-2 gap-4" style={{ borderBottom: `1px solid ${BORDER}` }}><span className="pb-2 text-[11px]" style={{ color: T4 }}>AI 对话</span><span className="pb-2 text-[11px] font-bold" style={{ color: BLUE, borderBottom: `2px solid ${BLUE}` }}>溯源</span></div>
-          {!openNote ? <div className="p-4 flex-1 overflow-y-auto">
-            <div className="flex items-center gap-2 mb-3"><FileText size={14} color={BLUE} /><span className="text-[11px]" style={{ color: T3 }}>刑法分论讲义.pdf · 第 42 页</span></div>
-            <p className="text-[12px] leading-7" style={{ color: T2 }}>斡旋受贿是指国家工作人员利用本人职权或者地位形成的便利条件，<mark style={{ background: '#FFF09A' }}>通过其他国家工作人员职务上的行为</mark>，为请托人谋取不正当利益。</p>
-            <div className="flex gap-2 mt-4"><button onClick={() => setMarked(true)} className="px-3 py-1.5 rounded-lg text-[11px]" style={{ background: PRIMARY, color: '#6B5900' }}>{marked ? '已同步标记 ✓' : '标记这段原文'}</button><button onClick={() => setOpenNote(true)} className="px-3 py-1.5 rounded-lg text-[11px]" style={{ background: '#EAF3FF', color: BLUE }}>打开原笔记（最新）</button></div>
-          </div> : <div className="flex flex-col flex-1 min-h-0" style={{background:CARD}}>
-            <div className="flex items-center gap-2 px-3 py-2" style={{background:'#5B4A6B',color:'#fff'}}>
-              <button onClick={() => setOpenNote(false)}><ArrowLeft size={14}/></button><BookOpen size={14}/><span className="text-[11px] font-bold flex-1">斡旋受贿专题笔记</span>
-              <Search size={13}/><PenLine size={13}/><MoreHorizontal size={14}/>
+        <div className="flex flex-col min-w-0" style={{ background: CARD }}>
+          <div className="flex items-center px-5 py-3.5 gap-3" style={{borderBottom:`1px solid ${BORDER}`}}><BookOpen size={16} color={BLUE}/><div className="flex-1"><p className="text-[12px] font-bold" style={{color:T1}}>刑法分论讲义.pdf</p><p className="text-[9px]" style={{color:T4}}>第 42 页 · 来源全文</p></div><button className="flex items-center gap-1 text-[10px]" style={{color:BLUE}}>打开原文 <ExternalLink size={12}/></button></div>
+          <div className="flex-1 overflow-y-auto px-7 py-5 text-[12px] leading-7" style={{color:T2}}>
+            <p className="font-bold text-[15px] mb-3" style={{color:T1}}>第三节　受贿罪的特殊形态</p>
+            <p className="mb-3">斡旋受贿是受贿罪的一种特殊表现形式。其主体必须为国家工作人员，行为人并非直接利用本人职务上的便利为请托人谋利，而是利用本人职权或者地位形成的便利条件实施相关行为。</p>
+            <div className="rounded-xl px-4 py-3 my-3" style={{background:'#FFF9D9',borderLeft:'3px solid #F0C800'}}>
+              <p><mark style={{background:'#FFE562'}}>通过其他国家工作人员职务上的行为，为请托人谋取不正当利益</mark>，并索取或者收受请托人财物的，以受贿罪论处。</p>
             </div>
-            <div className="flex items-center gap-2 px-3 py-2" style={{borderBottom:`1px solid ${BORDER}`}}>
-              <button className="w-6 h-6 rounded text-[11px] font-bold" style={{background:'#F3F4F6'}}>B</button>
-              <button className="w-6 h-6 rounded text-[11px] italic" style={{background:'#F3F4F6'}}>I</button>
-              <button className="px-2 h-6 rounded text-[10px]" style={{background:'#F3F4F6'}}>标题</button>
-              <span className="w-px h-5" style={{background:BORDER}}/>
-              <span className="w-4 h-4 rounded-full" style={{background:'#2D58B5'}}/><span className="w-4 h-4 rounded-full" style={{background:'#E74B52'}}/><span className="w-4 h-4 rounded-full" style={{background:'#111'}}/>
-              <span className="ml-auto text-[9px]" style={{color:GREEN}}>已自动保存</span>
-            </div>
-            <div className="flex-1 overflow-y-auto px-5 py-4" contentEditable suppressContentEditableWarning>
-              <p className="text-[16px] font-bold mb-1" style={{color:T1}}>斡旋受贿罪：构成与判断</p>
-              <p className="text-[9px] mb-4" style={{color:T4}}>更新于刚刚 · 刑法 / 贿赂犯罪</p>
-              <p className="text-[11px] leading-6 mb-3" style={{color:T2}}>斡旋受贿的核心，不是普通的“找人办事”，而是行为人利用本人职权或地位形成的影响力。</p>
-              <div className="rounded-r-lg px-3 py-2 mb-3 text-[11px] leading-5" style={{background:'#FFF8CC',borderLeft:`3px solid ${PRIMARY}`,color:T2}}>通过其他国家工作人员职务上的行为，为请托人谋取不正当利益，并索取或者收受财物。</div>
-              <p className="text-[11px] font-bold mb-2" style={{color:T2}}>判断要点</p>
-              <p className="text-[11px] leading-6" style={{color:T3}}>1. 主体是国家工作人员<br/>2. 影响力来自职权或地位<br/>3. 通过其他国家工作人员谋利<br/>4. 索取或收受财物</p>
-            </div>
-          </div>}
+            <p className="mb-3">判断时应特别区分普通私人交情与职权、地位形成的影响。若影响力仅来自亲友关系或一般社会交往，通常不能直接认定为本款规定的斡旋受贿。</p>
+            <p>因此，本题中甲具有国家工作人员身份，其影响力来源及行为方式均符合斡旋受贿的构成要求，应选择 B 项。</p>
+          </div>
+          <div className="px-5 py-3 flex gap-2" style={{borderTop:`1px solid ${BORDER}`}}><button onClick={()=>setMarked(true)} className="px-4 py-2 rounded-lg text-[11px] font-semibold" style={{background:marked?'#EAF9EF':PRIMARY,color:marked?GREEN:'#6B5900'}}>{marked?'已标记到原文 ✓':'标记这段原文'}</button><button className="px-4 py-2 rounded-lg text-[11px]" style={{background:'#EAF3FF',color:BLUE}}>打开原笔记</button></div>
         </div>
       </div>
       <div className="pb-5 pt-3"><CTAButton onClick={onNext}>继续看学习结果 →</CTAButton></div>
@@ -1522,37 +1790,74 @@ function TracebackDemo({ onNext }: { onNext: () => void }) {
 // ── B6 inner ──────────────────────────────────────────────────────────────────
 
 function B6Inner({ onNext }: { onNext: () => void }) {
-  const [answer, setAnswer] = useState('');
-  const [round, setRound] = useState(1);
+  const [stage, setStage] = useState<0 | 1 | 2 | 3 | 4>(0);
+  const [choice, setChoice] = useState('');
+  const [methodIndex, setMethodIndex] = useState(0);
+  useEffect(() => {
+    if (stage === 0) {
+      const id = setTimeout(() => setStage(1), 900);
+      return () => clearTimeout(id);
+    }
+    if (stage === 1) {
+      const id = setTimeout(() => setStage(2), 2400);
+      return () => clearTimeout(id);
+    }
+    if (stage === 3) {
+      const switcher = setInterval(() => setMethodIndex(index => Math.min(index + 1, 2)), 1500);
+      const done = setTimeout(() => setStage(4), 5000);
+      return () => { clearInterval(switcher); clearTimeout(done); };
+    }
+  }, [stage]);
+  const answerQuestion = (value: string) => {
+    setChoice(value);
+    setTimeout(() => setStage(3), 900);
+  };
+  const skipDemo = () => {
+    setChoice('主体身份');
+    setMethodIndex(2);
+    setStage(4);
+  };
+  const progressStage = stage <= 1 ? 1 : stage === 2 ? 2 : 3;
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-2 space-y-2.5">
-        <div className="rounded-lg px-3 py-2 text-[11px] flex items-center gap-2" style={{ background: '#FFFBDE', color: '#7A6400' }}><span>✨</span><span>AI 会根据你的回答继续追问，不是直接把答案念给你。</span><button onClick={() => { setAnswer('职权或地位形成的影响'); setRound(3); }} className="ml-auto underline">跳过动画</button></div>
-        <div className="rounded-xl p-3 ml-auto max-w-[72%]" style={{ background: '#F3F4F6' }}>
-          <p className="text-[10px] mb-1" style={{ color: T4 }}>你刚才的简答</p>
-          <p className="text-[12px]" style={{ color: T2 }}>“通过别人办事并收钱。”</p>
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[900px] w-full mx-auto">
+      <div className="flex-1 rounded-[22px] overflow-hidden flex flex-col min-h-[390px]" style={{background:CARD,border:'1px solid #DDE3EC',boxShadow:'0 14px 40px rgba(25,44,75,.09)'}}>
+        <div className="flex items-center gap-3 px-4 py-3" style={{borderBottom:`1px solid ${BORDER}`}}>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'linear-gradient(145deg,#347FFF,#765BFF)',color:'#fff'}}><Sparkles size={18}/></div>
+          <div className="flex-1"><p className="text-[13px] font-bold" style={{color:T1}}>云记 AI Tutor</p><p className="text-[10px]" style={{color:T4}}>AI 辅导演示 {progressStage} / 3 · 约 30 秒</p></div>
+          <div className="flex gap-1.5 mr-2">{[1,2,3].map(i=><span key={i} className="h-1.5 rounded-full transition-all" style={{width:i===progressStage?18:6,background:i<=progressStage?BLUE:'#D8DCE4'}}/>)}</div>
+          <button onClick={skipDemo} className="text-[10px]" style={{color:T4}}>跳过演示</button>
         </div>
-        <div className="rounded-xl p-3 max-w-[82%]" style={{ background: '#EAF3FF', border: '1px solid #C9E0FF' }}>
-          <p className="text-[10px] mb-1 font-semibold" style={{ color: BLUE }}>AI Tutor</p>
-          <p className="text-[12px] leading-relaxed" style={{ color: T2 }}>你已经抓到“通过他人办事”。再想一步：行为人为什么能影响另一名国家工作人员？</p>
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {['私人交情', '职权或地位形成的影响', '请托人支付报酬'].map(option => <button key={option} onClick={() => setAnswer(option)} className="p-2.5 rounded-xl text-[11px]" style={{ background: answer === option ? '#FFFBDE' : CARD, border: `1.5px solid ${answer === option ? PRIMARY : BORDER}`, color: T2 }}>{option}</button>)}
-        </div>
-        {answer && (
-          <div className="rounded-xl p-3 max-w-[88%]" style={{ background: answer === '职权或地位形成的影响' ? '#F6FEF9' : '#FFF8E7', border: `1px solid ${answer === '职权或地位形成的影响' ? '#B7EFCF' : '#F7D89A'}` }}>
-            <p className="text-[12px] leading-relaxed" style={{ color: T2 }}>{answer === '职权或地位形成的影响' ? '对。核心不是普通人情，而是职权或地位带来的影响力。你已完成一次强化引导。' : '这个因素可能存在，但不是法条核心。再看看“影响力”来自哪里。'}</p>
+        <div className="flex-1 overflow-y-auto px-5 py-4" style={{background:'linear-gradient(180deg,#F7F9FC,#F4F6FA)'}}>
+          <div className="grid grid-cols-[31%_1fr] gap-4 h-full">
+            <div className="space-y-3">
+              <div className="rounded-2xl rounded-tr-md p-3 ml-5" style={{background:'#2D8CFF',color:'#fff'}}>
+                <p className="text-[9px] opacity-70 mb-1">遇到困难</p><p className="text-[11px] leading-5">我还是不理解为什么这里构成受贿罪。</p>
+              </div>
+              {stage === 0 ? <div className="flex items-center gap-1.5 px-2 text-[10px]" style={{color:T4}}><span className="flex gap-1">{[0,1,2].map(i=><i key={i} className="w-1.5 h-1.5 rounded-full bg-[#8B97AA]" style={{animation:`pulse 1s ${i*.2}s infinite`}}/>)}</span>AI Tutor 正在思考</div>
+              : <div className="rounded-2xl rounded-tl-md p-3" style={{background:CARD,border:`1px solid ${BORDER}`}}><p className="text-[11px] leading-5" style={{color:T2}}>不用死记，我们先拆解三个关键条件。</p></div>}
+              {stage >= 2 && <div className="rounded-2xl p-3" style={{background:'#EEF5FF',border:'1px solid #CFE3FF'}}><p className="text-[10px] font-semibold mb-2" style={{color:BLUE}}>你认为最关键的是？</p><div className="space-y-1.5">{['主体身份','行为方式','收受结果'].map(option=><button key={option} disabled={!!choice} onClick={()=>answerQuestion(option)} className="w-full py-2 rounded-lg text-[10px] text-left px-3" style={{background:choice===option?PRIMARY:CARD,border:`1px solid ${choice===option?'#E7CA30':BORDER}`,color:T2}}>{option}</button>)}</div></div>}
+              {choice && <div className="rounded-xl p-2.5 text-[10px] leading-5" style={{background:choice==='主体身份'?'#F1FBF5':'#FFF8E7',color:T2,border:`1px solid ${choice==='主体身份'?'#B7EFCF':'#F1DBA7'}`}}>{choice==='主体身份'?'很好！关键首先在主体身份。普通人收钱和受贿罪的区别，就从这里开始。':'这个条件也重要，但还要先确认主体身份。普通人收钱并不会直接构成受贿罪。'}</div>}
+            </div>
+            <div className="rounded-2xl p-4 flex flex-col min-w-0" style={{background:CARD,border:`1px solid ${BORDER}`}}>
+              <div className="flex items-center justify-between mb-3"><p className="text-[11px] font-bold" style={{color:T1}}>{stage < 3 ? '正在建立知识关系' : stage === 3 ? '换一种方式继续理解' : '本次辅导结果'}</p><span className="text-[9px]" style={{color:T4}}>{stage < 3 ? '图示拆解' : stage === 3 ? ['图示','对比','来源'][methodIndex] : '已完成'}</span></div>
+              {stage < 3 && <div className="flex-1 flex items-center justify-center">
+                <div className="flex items-center gap-3 w-full">
+                  {[['主体','国家工作人员'],['行为','利用职务便利'],['结果','收受财物']].map(([label,value],i)=><React.Fragment key={label}><div className="flex-1 rounded-xl p-3 text-center transition-all" style={{background:stage>=1?'#F3F7FF':'#F6F6F6',border:`1px solid ${stage>=1?'#BCD8FF':BORDER}`,opacity:stage>=1?1:.35,transform:stage>=1?'translateY(0)':'translateY(8px)'}}><p className="text-[9px]" style={{color:BLUE}}>{label}</p><p className="text-[11px] font-bold mt-1" style={{color:T2}}>{value}</p></div>{i<2&&<span className="text-[14px]" style={{color:stage>=1?BLUE:'#DDD'}}>→</span>}</React.Fragment>)}
+                </div>
+              </div>}
+              {stage === 3 && <div className="flex-1">
+                <p className="text-[11px] mb-3" style={{color:T2}}>如果文字解释不够，我会换一种方式。</p>
+                {methodIndex===0&&<div className="rounded-xl p-4" style={{background:'#F3F7FF'}}><div className="flex items-center justify-between text-[10px]"><span>国家工作人员</span><span style={{color:BLUE}}>职务影响 →</span><span>谋取利益</span><span style={{color:BLUE}}>→</span><span>收受财物</span></div></div>}
+                {methodIndex===1&&<div className="grid grid-cols-2 gap-3"><div className="rounded-xl p-3" style={{background:'#F6F6F6'}}><p className="text-[9px]" style={{color:T4}}>普通人收钱</p><p className="text-[11px] mt-1">不直接构成受贿罪</p></div><div className="rounded-xl p-3" style={{background:'#F1FBF5',border:'1px solid #B7EFCF'}}><p className="text-[9px]" style={{color:GREEN}}>国家工作人员</p><p className="text-[11px] mt-1">利用职务便利收钱</p></div></div>}
+                {methodIndex===2&&<div className="rounded-xl p-3 flex items-center gap-3" style={{background:'#FFF9DD',border:'1px solid #F2DF8B'}}><BookOpen size={18} color="#9B7A00"/><div><p className="text-[10px] font-bold" style={{color:'#745D00'}}>教材第 42 页</p><p className="text-[9px] mt-1" style={{color:T3}}>引用原始依据，确认主体与行为条件</p></div><span className="ml-auto text-[10px]" style={{color:BLUE}}>下一步展开</span></div>}
+              </div>}
+              {stage === 4 && <div className="flex-1 flex flex-col items-center justify-center text-center"><div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#E8F8EE'}}><Check size={28} color={GREEN} strokeWidth={2.5}/></div><p className="text-[17px] font-bold" style={{color:T1}}>已理解：受贿罪主体判断</p><p className="text-[12px] font-bold mt-2" style={{color:GREEN}}>掌握程度 +1</p><p className="text-[10px] mt-2" style={{color:T4}}>AI Tutor 会继续强化这个知识点</p></div>}
+            </div>
           </div>
-        )}
-        {answer === '职权或地位形成的影响' && <>
-          <div className="rounded-xl p-3 ml-auto max-w-[72%]" style={{ background: '#F3F4F6' }}><p className="text-[12px]" style={{ color: T2 }}>因为他的职权或地位能影响其他国家工作人员。</p></div>
-          <div className="rounded-xl p-3 max-w-[86%]" style={{ background: '#EAF3FF', border: '1px solid #C9E0FF' }}><p className="text-[12px] leading-relaxed" style={{ color: T2 }}>{round < 3 ? '很好。最后判断一下：如果只是普通私人交情，没有这种影响力，是否成立斡旋受贿？' : '总结：关键不是“找别人办事”，而是影响力必须来自职权或地位。这个遗漏点已加入强化练习。'}</p></div>
-          {round < 3 && <div className="grid grid-cols-2 gap-2"><button onClick={() => setRound(3)} className="py-2 rounded-xl text-[11px]" style={{ background: '#F3F4F6' }}>成立</button><button onClick={() => setRound(3)} className="py-2 rounded-xl text-[11px]" style={{ background: '#FFFBDE', border: `1px solid ${PRIMARY}` }}>不成立</button></div>}
-          {round === 3 && <div className="flex items-center gap-2 text-[11px]" style={{ color: GREEN }}><Check size={13} />该知识点已加入强化练习</div>}
-        </>}
+        </div>
       </div>
-      <div className="pb-5 pt-1">
-        <CTAButton onClick={onNext} disabled={round !== 3}>继续：查看答案出处 →</CTAButton>
+      <div className="pb-5 pt-3">
+        <CTAButton onClick={onNext} disabled={stage !== 4}>看看这个结论来自哪里 →</CTAButton>
       </div>
     </div>
   );
@@ -1639,6 +1944,7 @@ function B1Screen({ onNext }: { onNext: () => void }) {
 
   return (
     <div className="flex flex-col h-full px-6">
+      <div className="pt-3"><StepBar active={2} /></div>
       <div className="pt-5 pb-2 flex items-end justify-between">
         <div>
           <h1 className="text-[22px] font-bold leading-tight mb-1" style={{ color: T1 }}>一堆资料，自动拆成可学习的知识点</h1>
@@ -1693,12 +1999,12 @@ const PLAN_DATA_FIT = [
 ];
 
 const PLAN_DATA_NOFIT = [
-  { name: '受贿罪构成（★★★）', priority: 3, kps: 13, keep: true  },
-  { name: '斡旋受贿罪（★★★）', priority: 3, kps: 6,  keep: true  },
-  { name: '渎职罪总论（★★☆）', priority: 2, kps: 12, keep: true  },
-  { name: '单位受贿（★★☆）',   priority: 2, kps: 4,  keep: false },
-  { name: '行贿罪体系（★☆☆）', priority: 1, kps: 8,  keep: false },
-  { name: '介绍贿赂罪（★☆☆）', priority: 1, kps: 3,  keep: false },
+  { name: '受贿罪构成', priority: 3, kps: 13, keep: true  },
+  { name: '斡旋受贿罪', priority: 3, kps: 6,  keep: true  },
+  { name: '渎职罪总论', priority: 2, kps: 12, keep: true  },
+  { name: '单位受贿',   priority: 2, kps: 4,  keep: true  },
+  { name: '行贿罪体系', priority: 1, kps: 8,  keep: false },
+  { name: '介绍贿赂罪', priority: 1, kps: 3,  keep: false },
 ];
 
 function A6Screen({ onNext }: { onNext: () => void }) {
@@ -1710,6 +2016,7 @@ function A6Screen({ onNext }: { onNext: () => void }) {
   const [noFitKeep, setNoFitKeep] = useState<Record<string, boolean>>(
     Object.fromEntries(PLAN_DATA_NOFIT.map(r => [r.name, r.keep]))
   );
+  const [planEdited, setPlanEdited] = useState(false);
 
   const totalKps     = PLAN_DATA_NOFIT.filter(r => noFitKeep[r.name]).reduce((a, r) => a + r.kps, 0);
   const canConfirmNoFit = totalKps <= 36;
@@ -1732,9 +2039,9 @@ function A6Screen({ onNext }: { onNext: () => void }) {
   return (
     <div className="flex flex-col h-full px-6">
       <div className="pt-6 pb-3">
-        <h1 className="text-[22px] font-bold leading-tight mb-1" style={{ color: T1 }}>确认你的学习计划</h1>
+        <h1 className="text-[22px] font-bold leading-tight mb-1" style={{ color: T1 }}>{mode === 'fit' ? '确认你的学习计划' : '距离考试还有 28 天'}</h1>
         <p className="text-[14px] font-medium" style={{ color: BLUE }}>
-          {mode === 'fit' ? '时间充裕，按此计划开始学习' : '时间有限，请筛选重点知识'}
+          {mode === 'fit' ? '时间充裕，按此计划开始学习' : 'AI 已根据考试时间和知识重要性，帮你优化学习范围'}
         </p>
       </div>
 
@@ -1793,45 +2100,44 @@ function A6Screen({ onNext }: { onNext: () => void }) {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto pb-4 space-y-3">
-          <div className="px-3 py-2.5 rounded-xl text-[13px]"
-            style={{ background: '#FFF0EE', border: `1px solid #FFD0CB` }}>
-            <p className="font-semibold mb-0.5" style={{ color: RED }}>按当前考试时间，无法学完全部知识点</p>
-            <p style={{ color: '#C0504A' }}>
-              可覆盖：三星 100% · 二星 82% · 一星暂缓 {PLAN_DATA_NOFIT.filter(r => r.priority === 1).length} 个章节
-            </p>
+          <div className="p-4 rounded-2xl" style={{ background:'linear-gradient(135deg,#EEF6FF,#F7FBFF)', border:'1px solid #C9E0FF' }}>
+            <div className="flex items-center gap-2 mb-3"><div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:BLUE,color:'#fff'}}><Sparkles size={14}/></div><p className="text-[13px] font-bold" style={{color:T1}}>AI 推荐方案</p><span className="ml-auto text-[10px]" style={{color:BLUE}}>已为你优先排序</span></div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-xl bg-white p-3"><p className="text-[10px]" style={{color:T4}}>⭐⭐⭐ 核心知识点</p><p className="text-[16px] font-bold mt-1" style={{color:GREEN}}>100% 完成</p></div>
+              <div className="rounded-xl bg-white p-3"><p className="text-[10px]" style={{color:T4}}>⭐⭐ 重要知识点</p><p className="text-[16px] font-bold mt-1" style={{color:BLUE}}>82% 完成</p></div>
+              <div className="rounded-xl bg-white p-3"><p className="text-[10px]" style={{color:T4}}>⭐ 低频知识点</p><p className="text-[13px] font-bold mt-1" style={{color:T3}}>自动延后学习</p></div>
+            </div>
+            <p className="text-[11px] mt-3" style={{color:T3}}>优先掌握高价值知识点，当前方案覆盖 4 / 6 个知识模块、35 / 46 个知识点，预计覆盖大部分考试重点。</p>
           </div>
-          {(!weekdays.includes(6) || !weekdays.includes(7)) && <button onClick={() => setWeekdays([1,2,3,4,5,6,7])} className="w-full py-2.5 rounded-xl text-[12px] font-semibold" style={{ background: '#FFFBDE', color: '#7A6400', border: `1px solid ${PRIMARY}` }}>把周末也设为学习日，可覆盖更多内容 →</button>}
-          <p className="text-[12px]" style={{ color: T3 }}>请勾选要保留的章节（压到考试时间内才可确认）：</p>
+          {(!weekdays.includes(6) || !weekdays.includes(7)) && <div className="rounded-2xl p-4 flex items-center gap-4" style={{background:'#FFFBDE',border:`1px solid ${PRIMARY}`}}><div className="flex-1"><p className="text-[13px] font-bold" style={{color:'#6B5900'}}>增加学习时间 <span className="ml-2 text-[9px] px-2 py-0.5 rounded-full" style={{background:PRIMARY}}>推荐</span></p><p className="text-[11px] mt-1" style={{color:'#8B7300'}}>开启周末学习，可再覆盖 1 个知识模块 · 预计增加 18% 内容覆盖</p></div><button onClick={() => {setWeekdays([1,2,3,4,5,6,7]);setPlanEdited(true);}} className="px-4 py-2 rounded-full text-[11px] font-semibold whitespace-nowrap" style={{background:PRIMARY,color:'#6B5900'}}>开启周末学习 →</button></div>}
+          <p className="text-[12px] font-semibold" style={{ color: T2 }}>AI 建议优先学习以下章节</p>
           {PLAN_DATA_NOFIT.map(r => (
             <button key={r.name}
-              onClick={() => setNoFitKeep(prev => ({ ...prev, [r.name]: !prev[r.name] }))}
+              onClick={() => {setNoFitKeep(prev => ({ ...prev, [r.name]: !prev[r.name] }));setPlanEdited(true);}}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all"
               style={{
                 background: noFitKeep[r.name] ? CARD : '#F8F8F8',
-                border: `1.5px solid ${noFitKeep[r.name] ? (r.priority === 3 ? GREEN : r.priority === 2 ? BLUE : '#DDD') : BORDER}`,
-                opacity: noFitKeep[r.name] ? 1 : 0.55,
+                border: `1.5px solid ${noFitKeep[r.name] ? GREEN : BORDER}`,
+                opacity: noFitKeep[r.name] ? 1 : 0.72,
               }}>
               <div className="w-5 h-5 rounded flex items-center justify-center flex-shrink-0"
                 style={{ background: noFitKeep[r.name] ? GREEN : '#F3F4F6', border: `1.5px solid ${noFitKeep[r.name] ? GREEN : BORDER}` }}>
                 {noFitKeep[r.name] && <Check size={11} color="#fff" strokeWidth={3} />}
               </div>
-              <span className="flex-1 text-[13px] font-medium" style={{ color: T2 }}>{r.name}</span>
+              <span className="flex-1"><span className="block text-[13px] font-semibold" style={{ color: T2 }}>{r.name}</span><span className="block text-[10px] mt-0.5" style={{color:T4}}>{'⭐'.repeat(r.priority)} {r.priority===3?'Core':r.priority===2?'Important':'Optional'}</span></span>
               <span className="text-[12px]" style={{ color: T4 }}>{r.kps} 个知识点</span>
             </button>
           ))}
           <div className="flex items-center justify-between px-1">
             <span className="text-[12px]" style={{ color: T3 }}>{totalKps} 个知识点</span>
-            {!canConfirmNoFit
-              ? <span className="text-[12px]" style={{ color: RED }}>超出时间，请再删减</span>
-              : <span className="text-[12px]" style={{ color: GREEN }}>✓ 在时间内</span>
-            }
+            <span className="text-[12px]" style={{ color: canConfirmNoFit ? GREEN : '#A88300' }}>{canConfirmNoFit ? '✓ 已匹配当前备考时间' : 'AI 将继续优化每日负荷'}</span>
           </div>
         </div>
       )}
 
       <div className="pb-6 pt-2">
-        <CTAButton onClick={onNext} disabled={mode === 'nofit' && !canConfirmNoFit}>
-          {mode === 'fit' ? '确认，开始学习 →' : '按此计划开始 →'}
+        <CTAButton onClick={onNext}>
+          {mode === 'fit' ? '确认，开始学习 →' : planEdited ? '创建我的学习计划 →' : '接受 AI 推荐方案 →'}
         </CTAButton>
       </div>
     </div>
@@ -1840,8 +2146,8 @@ function A6Screen({ onNext }: { onNext: () => void }) {
 
 // ── Main Onboarding Orchestrator ───────────────────────────────────────────────
 
-export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScreenProps) {
-  const [stepIdx, setStepIdx]       = useState(0);
+export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = onSkip, initialStep }: OnboardingScreenProps) {
+  const [stepIdx, setStepIdx]       = useState(() => initialStep ? Math.max(0, STEPS_WITH_SAMPLE.indexOf(initialStep)) : 0);
   const [goalType, setGoalType]     = useState<GoalType>('cert');
   const [goalDetail, setGoalDetail] = useState('法考·法律类');
   const [materialSource, setMaterialSource] = useState<'REAL_UPLOAD' | 'SAMPLE'>('SAMPLE');
@@ -1895,6 +2201,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
           isStem={goalDetail.includes('理工')}
           initialPhase={resumeDemoAtEnd ? 'C2' : 'loading'}
           onExit={spaceCreated ? onSkip : back}
+          onEnterSample={onEnterSample}
           onNext={() => {
             // After C2 (or simple loading for no-preset) → A6
             setResumeDemoAtEnd(false);
@@ -1910,7 +2217,7 @@ export default function OnboardingScreen({ onComplete, onSkip }: OnboardingScree
   // ScreenWrapper needs position:relative so A5's dark B3 overlay can cover it
   return (
     <div className="w-full h-full relative" style={{ background: BG }}>
-      <ScreenWrapper onBack={wrapperBack} totalSteps={total} currentStep={stepIdx}>
+      <ScreenWrapper onBack={wrapperBack}>
         {renderStep()}
       </ScreenWrapper>
     </div>
