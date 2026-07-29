@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
 
@@ -875,24 +875,63 @@ function A4Screen({ onNext, onBack }: { onNext: () => void; onBack: () => void }
 type A5SubPhase = 'loading' | 'B2' | 'B3' | 'B4' | 'B5' | 'B5S' | 'B6' | 'B65' | 'B7' | 'C1' | 'C2' | 'done';
 const DEMO_PHASES: A5SubPhase[] = ['B2', 'B3', 'B4', 'B5', 'B5S', 'B6', 'B65', 'B7', 'C1', 'C2'];
 
-function A5DemoBar({ phase, onBack, onSkip }: { phase: A5SubPhase; onBack: () => void; onSkip: () => void }) {
+// Product-intro chrome for B2→C2. The prominent top bar now foregrounds the REAL
+// plan-generation progress (what the user actually waits on); the product-intro
+// position is demoted to a faint dots row below. When generation completes, the
+// right action flips from「跳过产品介绍」to a「立刻查看学习计划」CTA (mutually
+// exclusive) so the moment-of-ready becomes a forward hand-off, not just a skip.
+function A5DemoBar({ phase, progress, onBack, onSkip, onViewPlan }: {
+  phase: A5SubPhase; progress: number; onBack: () => void; onSkip: () => void; onViewPlan: () => void;
+}) {
   const idx = DEMO_PHASES.indexOf(phase);
   if (idx < 0) return null;
+  const ready = progress >= 100;
   return (
-    <div className="relative z-[115] h-[52px] grid grid-cols-[1fr_auto_1fr] items-center px-7 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
-      <button onClick={onBack} className="justify-self-start flex items-center gap-1.5 text-[12px] font-medium" style={{color:T3}}>
-        <ArrowLeft size={15}/>{phase === 'B2' ? '退出学习空间' : '返回'}
-      </button>
-      <div className="w-[330px] flex items-center justify-center gap-3">
-        <span className="text-[13px] font-medium whitespace-nowrap" style={{color:T3}}>产品介绍 {idx + 1}/{DEMO_PHASES.length}</span>
-        <div className="flex-1 flex items-center gap-1.5">
-          {DEMO_PHASES.map((_, i) => (
-            <div key={i} className="h-1.5 flex-1 rounded-full transition-all" style={{background:i <= idx ? BLUE:'#D8DCE2'}}/>
-          ))}
+    <>
+      {/* Main bar — generation progress is the focal element */}
+      <div className="relative z-[115] h-[52px] grid grid-cols-[auto_1fr_auto] items-center gap-4 px-7 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
+        <button onClick={onBack} className="flex items-center gap-1.5 text-[12px] font-medium whitespace-nowrap" style={{color:T3}}>
+          <ArrowLeft size={15}/>{phase === 'B2' ? '退出学习空间' : '返回'}
+        </button>
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: ready ? GREEN : BLUE }}>
+            {ready ? '✓ 学习计划已生成' : '学习计划生成中'}
+          </span>
+          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#E3E9F2' }}>
+            <div className="h-full rounded-full transition-all duration-700"
+              style={{ width: `${progress}%`, background: ready ? GREEN : BLUE }} />
+          </div>
+          <span className="text-[12px] font-medium whitespace-nowrap tabular-nums" style={{ color: ready ? GREEN : T3 }}>
+            {ready ? '就绪，待你确认' : `${progress}%`}
+          </span>
         </div>
+        {ready ? (
+          <button onClick={onViewPlan} className="justify-self-end flex items-center gap-1 px-4 py-2 rounded-full text-[12px] font-bold whitespace-nowrap" style={{background:PRIMARY,color:'#7A6400'}}>
+            立刻查看学习计划 →
+          </button>
+        ) : (
+          <button onClick={onSkip} className="justify-self-end text-[12px] font-medium whitespace-nowrap" style={{color:BLUE}}>跳过产品介绍</button>
+        )}
       </div>
-      <button onClick={onSkip} className="justify-self-end text-[12px] font-medium whitespace-nowrap" style={{color:BLUE}}>跳过产品介绍</button>
-    </div>
+      {/* Product-intro position — demoted below the main bar, but keeps a clear
+          "where am I" read: passed / current (blue pill) / upcoming, plus N/10. */}
+      <div className="relative z-[114] flex items-center justify-center gap-2 py-1.5 flex-shrink-0" style={{background:CARD}}>
+        <div className="flex items-center gap-1.5">
+          {DEMO_PHASES.map((_, i) => {
+            const active = i === idx;
+            const passed = i < idx;
+            return (
+              <div key={i} className="rounded-full transition-all"
+                style={{
+                  width: active ? 16 : 6, height: 6,
+                  background: active ? BLUE : passed ? '#9AA4B2' : '#E6E9EE',
+                }}/>
+            );
+          })}
+        </div>
+        <span className="text-[11px] font-medium tabular-nums" style={{color:T4}}>{idx + 1}/{DEMO_PHASES.length}</span>
+      </div>
+    </>
   );
 }
 
@@ -900,7 +939,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   hasPreset: boolean; isStem: boolean; initialPhase?: A5SubPhase; onNext: () => void; onExit: () => void; onEnterSample: () => void;
 }) {
   const [subPhase, setSubPhase]   = useState<A5SubPhase>(initialPhase);
-  const [progress, setProgress]   = useState(0);
+  const [genProgress, setGenProgress] = useState(initialPhase === 'C2' ? 100 : 0);
   const [dotCount, setDotCount]   = useState(0);
   const [planChoice, setPlanChoice] = useState<'year' | 'month'>('year');
   const [showNotReadyModal, setShowNotReadyModal] = useState(false);
@@ -911,32 +950,29 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
     return () => clearInterval(id);
   }, []);
 
-  // Loading progress animation
+  // Real background extraction progress — keeps advancing across the whole A5
+  // lifetime (loading + B2→C2 product-intro chain). Surfaced as a persistent
+  // indicator so the user always sees the plan is still being generated and will
+  // be notified to confirm it when ready.
+  useEffect(() => {
+    if (genProgress >= 100) return;
+    const id = setInterval(() => {
+      setGenProgress(p => Math.min(100, p + 2 + Math.floor(Math.random() * 4)));
+    }, 900);
+    return () => clearInterval(id);
+  }, [genProgress]);
+
+  // Loading phase does NOT show the extraction process — it only previews the
+  // upcoming steps, then hands off to the product-value intro (preset) or
+  // straight to the plan-confirm step (no preset). Real generation runs in the
+  // background (genProgress above) and is announced via the persistent bar.
   useEffect(() => {
     if (subPhase !== 'loading') return;
-    const steps = [
-      { target: 20, delay: 350 }, { target: 38, delay: 600 },
-      { target: 55, delay: 500 }, { target: 72, delay: 700 },
-      { target: 88, delay: 500 }, { target: 100, delay: 500 },
-    ];
-    let cur = 0;
-    let tid: ReturnType<typeof setTimeout>;
-    const run = () => {
-      if (cur >= steps.length) {
-        // When loading completes: preset → show demo; no-preset → done
-        if (hasPreset) {
-          setTimeout(() => setSubPhase('B2'), 400);
-        } else {
-          setTimeout(() => onNext(), 600);
-        }
-        return;
-      }
-      const { target, delay } = steps[cur++];
-      setProgress(target);
-      tid = setTimeout(run, delay);
-    };
-    tid = setTimeout(run, 500);
-    return () => clearTimeout(tid);
+    const t = setTimeout(() => {
+      if (hasPreset) setSubPhase('B2');
+      else onNext();
+    }, 3600);
+    return () => clearTimeout(t);
   }, [subPhase]);
 
   const advanceDemo = () => {
@@ -963,7 +999,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
 
   const demoChrome = (
     <>
-      <A5DemoBar phase={subPhase} onBack={backAfterCreation} onSkip={() => setShowNotReadyModal(true)} />
+      <A5DemoBar phase={subPhase} progress={genProgress} onBack={backAfterCreation} onSkip={() => setShowNotReadyModal(true)} onViewPlan={onNext} />
       {showNotReadyModal && (
         <div className="absolute inset-0 z-[180] flex items-center justify-center p-6" style={{background:'rgba(20,24,32,.42)'}}>
           <div className="w-full max-w-[430px] rounded-3xl p-6" style={{background:CARD,boxShadow:'0 20px 60px rgba(0,0,0,.22)'}}>
@@ -1193,58 +1229,68 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
   }
 
   // ── Loading phase (default) ───────────────────────────────────────────────
+  // Not an extraction-process readout. It previews the steps ahead and tells the
+  // user the plan is being generated in the background — when it's ready we'll
+  // notify them to confirm the plan and start learning. This makes the handoff
+  // into the product-value intro feel intentional instead of abrupt.
+  const previewSteps = hasPreset
+    ? [
+        { icon: '🗺️', label: '思维导图' },
+        { icon: '✨', label: '知识星图' },
+        { icon: '🃏', label: '智能闪卡' },
+        { icon: '📊', label: '学习报告' },
+      ]
+    : [
+        { icon: '🔍', label: '解析资料' },
+        { icon: '🧩', label: '生成知识点' },
+        { icon: '📊', label: '排学习计划' },
+      ];
   return (
     <div className="flex flex-col h-full justify-between relative">
       <div className="h-[52px] flex items-center px-7 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
         <button onClick={onExit} className="flex items-center gap-1.5 text-[12px] font-medium" style={{color:T3}}><ArrowLeft size={15}/>退出学习空间</button>
       </div>
       <div />
-      <div className="flex flex-col items-center gap-6 py-8 px-6">
+      <div className="flex flex-col items-center gap-6 py-6 px-6">
         <div className="relative w-20 h-20 flex items-center justify-center">
           <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
             <circle cx="40" cy="40" r="34" fill="none" stroke="#EBEBEB" strokeWidth="5" />
             <circle cx="40" cy="40" r="34" fill="none" stroke={BLUE} strokeWidth="5"
-              strokeDasharray={`${2 * Math.PI * 34 * progress / 100} 999`}
+              strokeDasharray={`${2 * Math.PI * 34 * genProgress / 100} 999`}
               style={{ transition: 'stroke-dasharray 0.6s ease' }} />
           </svg>
           <span className="text-[28px] z-10"
             style={{ display: 'inline-block', animation: 'spin 2s linear infinite' }}>✦</span>
         </div>
-        <div className="text-center">
+        <div className="text-center max-w-sm">
           <h1 className="text-[20px] font-bold mb-2" style={{ color: T1 }}>
-            正在为你生成知识点{dots}
+            正在为你生成学习计划{dots}
           </h1>
-          <p className="text-[13px]" style={{ color: T3 }}>
-            {hasPreset ? '真实提取后台并行，先体验一下效果' : '正在分析资料结构，请稍候…'}
+          <p className="text-[13px] leading-relaxed" style={{ color: T3 }}>
+            {hasPreset
+              ? '这会花一点时间。生成期间，先带你看看云记怎么帮你学；计划就绪后会提醒你确认并开始学习。'
+              : '这会花一点时间，你可以先离开。计划就绪后会提醒你确认并开始学习。'}
           </p>
         </div>
-        <div className="w-full space-y-2 max-w-xs">
-          {[
-            { label: '解析文档结构',    pct: 20 },
-            { label: '提取核心概念',    pct: 38 },
-            { label: '生成知识点',      pct: 55 },
-            { label: '计算优先级权重',  pct: 72 },
-            { label: '构建知识关联图',  pct: 88 },
-            { label: '学习计划生成完毕', pct: 100 },
-          ].map((s, i) => (
-            <div key={i} className="flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all"
-              style={{
-                background: progress >= s.pct ? '#F6FEF9' : '#F3F4F6',
-                border: `1px solid ${progress >= s.pct ? '#B7EFCF' : BORDER}`,
-              }}>
-              <div className="w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0"
-                style={{ background: progress >= s.pct ? GREEN : '#DDD' }}>
-                {progress >= s.pct && <Check size={10} color="#fff" strokeWidth={3} />}
+        <div className="w-full max-w-sm">
+          <p className="text-[11px] font-semibold mb-2.5 text-center" style={{ color: T4 }}>
+            {hasPreset ? '接下来带你看看这些' : '正在为你做这些'}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {previewSteps.map((s, i) => (
+              <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+                style={{ background: '#F3F4F6', border: `1px solid ${BORDER}` }}>
+                <span className="text-[13px] flex-shrink-0">{s.icon}</span>
+                <span className="text-[12px] font-medium whitespace-nowrap" style={{ color: T2 }}>{s.label}</span>
               </div>
-              <span className="text-[13px]" style={{ color: progress >= s.pct ? T2 : T4 }}>{s.label}</span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-      <div className="pb-6">
+      <div className="pb-6 px-6">
         <button className="w-full py-3.5 rounded-full text-[15px] font-bold"
           style={{ background: '#F3F4F6', color: T4 }} disabled>
-          正在生成{dots}
+          {hasPreset ? `即将开始介绍${dots}` : `正在生成${dots}`}
         </button>
       </div>
     </div>
@@ -1774,31 +1820,98 @@ function ScratchpadDemo({ onNext }: { onNext: () => void }) {
 
 function TracebackDemo({ onNext }: { onNext: () => void }) {
   const [marked, setMarked] = useState(false);
+  const [selectedText, setSelectedText] = useState(false);
+  const [showNoteWindow, setShowNoteWindow] = useState(false);
+  const [noteTool, setNoteTool] = useState<'pen' | 'highlight' | 'eraser'>('pen');
+  const [notePage, setNotePage] = useState(7);
   return (
-    <div className="flex flex-col flex-1 overflow-hidden max-w-[1040px] w-full mx-auto">
-      <div className="flex-1 grid grid-cols-[43%_57%] rounded-2xl overflow-hidden min-h-[360px]" style={{ border: `1px solid #DDE3EC`, boxShadow:'0 12px 36px rgba(24,42,70,.08)' }}>
-        <div className="p-5 flex flex-col" style={{ background: '#F8F9FB', borderRight:'1px solid #DDE3EC' }}>
-          <div className="flex items-center gap-2 mb-5"><span className="px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>原题</span><span className="text-[10px]" style={{color:T4}}>单选题 · 斡旋受贿</span></div>
-          <p className="text-[15px] font-bold leading-6 mb-5" style={{ color: T1 }}>甲系国家工作人员，利用本人职权形成的影响，通过其他国家工作人员为请托人谋取不正当利益并收受财物。甲的行为应如何认定？</p>
-          <div className="space-y-2.5">
-            {['A. 普通受贿罪','B. 斡旋受贿','C. 利用影响力受贿罪','D. 不构成犯罪'].map((v,i)=><div key={v} className="rounded-xl px-3 py-3 text-[12px] flex items-center gap-2.5" style={{background:i===1?'#EAF9EF':CARD,border:`1.5px solid ${i===1?'#8BD5A8':BORDER}`,color:i===1?GREEN:T2}}><span className="w-5 h-5 rounded-full flex items-center justify-center" style={{border:`1px solid ${i===1?GREEN:'#C8CDD5'}`,background:i===1?GREEN:CARD}}>{i===1&&<Check size={12} color="#fff"/>}</span>{v}</div>)}
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[1040px] w-full mx-auto relative">
+      <div className="flex-1 grid grid-cols-[42%_58%] rounded-2xl overflow-hidden min-h-[350px]" style={{ border: `1px solid #DDE3EC`, boxShadow:'0 12px 36px rgba(24,42,70,.08)' }}>
+        <div className="p-4 flex flex-col" style={{ background: '#F8F9FB', borderRight:'1px solid #DDE3EC' }}>
+          <div className="flex items-center gap-2 mb-3"><span className="px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>当前题目</span><span className="text-[10px]" style={{color:T4}}>单选题 · 斡旋受贿</span></div>
+          <p className="text-[13px] font-bold leading-5 mb-3" style={{ color: T1 }}>甲利用本人职权形成的影响，通过其他国家工作人员为请托人谋利并收受财物，应如何认定？</p>
+          <div className="space-y-2">
+            {['A. 普通受贿罪','B. 斡旋受贿','C. 利用影响力受贿罪'].map((v,i)=><div key={v} className="rounded-xl px-3 py-2.5 text-[11px] flex items-center gap-2" style={{background:i===1?'#EAF9EF':CARD,border:`1.5px solid ${i===1?'#8BD5A8':BORDER}`,color:i===1?GREEN:T2}}><span className="w-4 h-4 rounded-full flex items-center justify-center" style={{border:`1px solid ${i===1?GREEN:'#C8CDD5'}`,background:i===1?GREEN:CARD}}>{i===1&&<Check size={10} color="#fff"/>}</span>{v}</div>)}
           </div>
-          <div className="mt-auto pt-4 flex items-center gap-2 text-[11px]" style={{color:GREEN}}><Check size={14}/>回答正确 · 已掌握</div>
+          <div className="mt-auto pt-3 flex items-center gap-2 text-[10px]" style={{color:GREEN}}><Check size={13}/>回答正确 · 解析可追溯</div>
         </div>
         <div className="flex flex-col min-w-0" style={{ background: CARD }}>
-          <div className="flex items-center px-5 py-3.5 gap-3" style={{borderBottom:`1px solid ${BORDER}`}}><BookOpen size={16} color={BLUE}/><div className="flex-1"><p className="text-[12px] font-bold" style={{color:T1}}>刑法分论讲义.pdf</p><p className="text-[9px]" style={{color:T4}}>第 42 页 · 来源全文</p></div><button className="flex items-center gap-1 text-[10px]" style={{color:BLUE}}>打开原文 <ExternalLink size={12}/></button></div>
-          <div className="flex-1 overflow-y-auto px-7 py-5 text-[12px] leading-7" style={{color:T2}}>
-            <p className="font-bold text-[15px] mb-3" style={{color:T1}}>第三节　受贿罪的特殊形态</p>
-            <p className="mb-3">斡旋受贿是受贿罪的一种特殊表现形式。其主体必须为国家工作人员，行为人并非直接利用本人职务上的便利为请托人谋利，而是利用本人职权或者地位形成的便利条件实施相关行为。</p>
-            <div className="rounded-xl px-4 py-3 my-3" style={{background:'#FFF9D9',borderLeft:'3px solid #F0C800'}}>
-              <p><mark style={{background:'#FFE562'}}>通过其他国家工作人员职务上的行为，为请托人谋取不正当利益</mark>，并索取或者收受请托人财物的，以受贿罪论处。</p>
-            </div>
-            <p className="mb-3">判断时应特别区分普通私人交情与职权、地位形成的影响。若影响力仅来自亲友关系或一般社会交往，通常不能直接认定为本款规定的斡旋受贿。</p>
-            <p>因此，本题中甲具有国家工作人员身份，其影响力来源及行为方式均符合斡旋受贿的构成要求，应选择 B 项。</p>
+          <div className="flex items-center px-4 py-3 gap-3" style={{borderBottom:`1px solid ${BORDER}`}}><BookOpen size={15} color={BLUE}/><div className="flex-1"><p className="text-[11px] font-bold" style={{color:T1}}>刑法分论讲义.pdf</p><p className="text-[9px]" style={{color:T4}}>第 42 页 · 以下为导入时的内容快照</p></div></div>
+          <div className="flex-1 overflow-y-auto px-5 py-4 text-[11px] leading-6" style={{color:T2}}>
+            <p className="font-bold text-[14px] mb-2" style={{color:T1}}>第三节　受贿罪的特殊形态</p>
+            <p className="mb-2">斡旋受贿是受贿罪的一种特殊表现形式，其主体必须为国家工作人员。</p>
+            <button onClick={()=>setSelectedText(true)} className="w-full text-left rounded-xl px-3 py-2.5 my-2 relative"
+              style={{background:marked?'#FFF2A8':selectedText?'#EAF3FF':'#FFF9D9',borderLeft:`3px solid ${marked?'#E1B800':selectedText?BLUE:'#F0C800'}`}}>
+              <span className="text-[11px] leading-6">通过其他国家工作人员职务上的行为，为请托人谋取不正当利益，并索取或者收受请托人财物的，以受贿罪论处。</span>
+              {selectedText && !marked && <span className="absolute -top-3 right-3 px-2 py-1 rounded-lg text-[9px] font-semibold" style={{background:'#20242D',color:'#fff'}}>已选中文字</span>}
+            </button>
+            <p>判断时应区分普通私人交情与职权、地位形成的影响。</p>
+            {marked && <p className="mt-2 text-[10px] font-semibold" style={{color:GREEN}}>✓ 高亮已写入原笔记</p>}
           </div>
-          <div className="px-5 py-3 flex gap-2" style={{borderTop:`1px solid ${BORDER}`}}><button onClick={()=>setMarked(true)} className="px-4 py-2 rounded-lg text-[11px] font-semibold" style={{background:marked?'#EAF9EF':PRIMARY,color:marked?GREEN:'#6B5900'}}>{marked?'已标记到原文 ✓':'标记这段原文'}</button><button className="px-4 py-2 rounded-lg text-[11px]" style={{background:'#EAF3FF',color:BLUE}}>打开原笔记</button></div>
+          <div className="px-4 py-3 flex gap-2" style={{borderTop:`1px solid ${BORDER}`}}>
+            <button onClick={()=>{setSelectedText(true);setMarked(true);}} className="px-3 py-2 rounded-lg text-[10px] font-semibold" style={{background:marked?'#EAF9EF':PRIMARY,color:marked?GREEN:'#6B5900'}}>{marked?'已标记 ✓':'标记所选文字'}</button>
+            <button onClick={()=>setShowNoteWindow(true)} className="px-3 py-2 rounded-lg text-[10px]" style={{background:'#EAF3FF',color:BLUE}}>打开原笔记（最新）</button>
+          </div>
         </div>
       </div>
+      {showNoteWindow && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl" style={{background:'rgba(20,25,35,.28)',backdropFilter:'blur(1px)'}}>
+          <div className="w-[90%] h-[86%] rounded-[18px] overflow-hidden flex flex-col" style={{background:'#ECEDEF',border:'1px solid #CDD2DA',boxShadow:'0 22px 64px rgba(13,22,38,.30)'}}>
+            <div className="h-12 flex items-center gap-3 px-4 cursor-move flex-shrink-0" style={{background:'#796B82',color:'#fff'}}>
+              <button onClick={()=>setShowNoteWindow(false)} className="p-1 rounded-lg hover:bg-white/10"><ArrowLeft size={18}/></button>
+              <div className="grid grid-cols-2 gap-0.5 p-1"><span className="w-2 h-2 bg-white rounded-[2px]"/><span className="w-2 h-2 bg-white rounded-[2px]"/><span className="w-2 h-2 bg-white rounded-[2px]"/><span className="w-2 h-2 bg-white rounded-[2px]"/></div>
+              <Bookmark size={18}/><Plus size={19}/><span className="text-[16px]">⌗</span>
+              <div className="flex-1 text-center min-w-0"><p className="text-[12px] font-semibold truncate">刑法分论讲义.pdf</p><p className="text-[8px] text-white/70">最新笔记 · 与练习内容可能有差异</p></div>
+              <Search size={18}/><span className="text-[17px]">☝</span><span className="text-[17px]">◉</span><MoreHorizontal size={19}/>
+              <button onClick={()=>setShowNoteWindow(false)} className="p-1.5 rounded-lg bg-white/10"><X size={17}/></button>
+            </div>
+            <div className="h-14 px-4 flex items-center gap-2 flex-shrink-0 overflow-x-auto" style={{background:CARD,borderBottom:`1px solid #D4D7DC`}}>
+              <span className="text-[18px] text-gray-400 mr-1">↶</span><span className="text-[18px] text-gray-400 mr-2">↷</span>
+              {[
+                {id:'pen',label:'✎',title:'钢笔'},
+                {id:'highlight',label:'▰',title:'荧光笔'},
+                {id:'eraser',label:'▱',title:'橡皮'},
+              ].map(tool=><button key={tool.id} title={tool.title} onClick={()=>setNoteTool(tool.id as 'pen'|'highlight'|'eraser')} className="w-9 h-9 rounded-xl text-[20px] flex items-center justify-center" style={{background:noteTool===tool.id?'#FFF2A8':'#F5F6F7',border:`1px solid ${noteTool===tool.id?'#E4C73D':'#E1E3E6'}`}}>{tool.label}</button>)}
+              <button className="w-9 h-9 rounded-xl border bg-gray-50 text-[18px]">◌</button>
+              <button className="w-9 h-9 rounded-xl border bg-gray-50"><Image size={17} className="mx-auto"/></button>
+              <button className="w-9 h-9 rounded-xl border bg-gray-50 font-serif text-[17px]">T</button>
+              <button className="w-9 h-9 rounded-xl border bg-gray-50 text-[17px]">○△</button>
+              <span className="h-7 w-px bg-gray-200 mx-1"/>
+              <span className="w-6 h-6 rounded-full bg-[#273C67] border-2 border-white shadow"/>
+              <span className="w-6 h-6 rounded-full bg-[#F02F47] border-2 border-white shadow"/>
+              <span className="w-6 h-6 rounded-full bg-black border-2 border-white shadow"/>
+              <div className="flex items-center gap-2 ml-2"><span className="w-6 h-[2px] bg-black"/><span className="w-6 h-1 bg-black rounded"/><span className="w-6 h-2 bg-black rounded"/></div>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto p-5 relative" style={{background:'#E9EAEC'}}>
+              <div className="sticky top-0 z-20 ml-auto mb-2 w-fit flex items-center rounded-full overflow-hidden shadow bg-white text-[11px]" style={{color:T3}}>
+                <button onClick={()=>setNotePage(p=>Math.max(1,p-1))} className="px-3 py-2">‹</button><span className="px-3">{notePage} / 249</span><button onClick={()=>setNotePage(p=>Math.min(249,p+1))} className="px-3 py-2">›</button>
+              </div>
+              <article className="relative mx-auto w-[82%] min-h-[1020px] px-[8%] py-[6%] shadow-sm" style={{background:'#FFF',color:'#2D3035'}}>
+                <p className="text-right text-[11px] font-semibold mb-8">刑法｜授课精要</p>
+                <h2 className="text-[21px] font-bold mb-6" style={{color:'#2BAE8A'}}>二、解释理由：论证结论的合理性</h2>
+                <h3 className="text-[17px] font-bold mb-3" style={{color:'#2BAE8A'}}>（一）体系解释</h3>
+                <div className="space-y-3 text-[14px] leading-8">
+                  <p>1．“同一用语的含义相对化”（一词多义）。体系解释并不意味着同一用语在不同条文中需要保持同一含义。相反，同一用语在不同语境中可以保持不同含义。</p>
+                  <p><span style={{color:'#2BAE8A'}}>［练习 1］</span>（2016 年第 51 题），强制猥亵、侮辱罪与侮辱罪，二者中的“侮辱”含义是否相同？</p>
+                  <p><span style={{color:'#2BAE8A'}}>［练习 2］</span>甲开设洗浴中心，组织服务员只提供色情按摩服务，不提供性交服务。甲是否构成组织卖淫罪？</p>
+                  <p>2．“不同用语的含义同一化”（多词一义）。刑法中几个不同的用语也可以保持同一个含义。</p>
+                  <p className="rounded px-2 -mx-2" style={{background:marked?'#FFF1A6':'transparent'}}><span style={{color:'#2BAE8A'}}>［问题］</span>刑法条文中的“出售”“销售”“倒卖”“贩卖”的含义是否相同？</p>
+                </div>
+                <h3 className="text-[17px] font-bold mt-6 mb-3" style={{color:'#2BAE8A'}}>（二）当然解释</h3>
+                <div className="space-y-3 text-[14px] leading-8">
+                  <p><span style={{color:'#2BAE8A'}}>［问题］</span>可否主张“强制猥亵都是犯罪，强奸更应是犯罪”？</p>
+                  <p><span style={{color:'#2BAE8A'}}>［考点］</span>当然解释，是指在论证无罪时“举重以明轻”，在论证有罪时“举轻以明重”。</p>
+                  <p><span style={{color:'#2BAE8A'}}>［注意］</span>当然解释所比较的两个事项必须是性质相同、程度不同的关系。</p>
+                </div>
+                <h3 className="text-[17px] font-bold mt-6 mb-3" style={{color:'#2BAE8A'}}>（三）目的解释</h3>
+                <p className="text-[14px] leading-8"><span style={{color:'#2BAE8A'}}>［考点］</span>目的解释，是指根据刑法的保护目的为解释的结论提供理由。刑法的保护目的就是法益。</p>
+                <svg className="absolute inset-0 w-full h-full pointer-events-none"><path d="M205 480 C300 468 390 490 515 474" fill="none" stroke={noteTool==='highlight'?'#F1D73A':'#2D8CFF'} strokeWidth={noteTool==='highlight'?12:3} strokeLinecap="round" opacity=".55"/><path d="M650 690 q45 -30 88 12" fill="none" stroke="#F02F47" strokeWidth="3" strokeLinecap="round"/></svg>
+                <span className="absolute bottom-5 right-6 text-[14px]" style={{color:'#2BAE8A'}}>{notePage}</span>
+              </article>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="pb-5 pt-3"><CTAButton onClick={onNext}>继续看学习结果 →</CTAButton></div>
     </div>
   );
@@ -1807,74 +1920,64 @@ function TracebackDemo({ onNext }: { onNext: () => void }) {
 // ── B6 inner ──────────────────────────────────────────────────────────────────
 
 function B6Inner({ onNext }: { onNext: () => void }) {
-  const [stage, setStage] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [choice, setChoice] = useState('');
-  const [methodIndex, setMethodIndex] = useState(0);
+  const [showTeaching, setShowTeaching] = useState(false);
+  const [chatAtBottom, setChatAtBottom] = useState(true);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (stage === 0) {
-      const id = setTimeout(() => setStage(1), 900);
-      return () => clearTimeout(id);
-    }
-    if (stage === 1) {
-      const id = setTimeout(() => setStage(2), 2400);
-      return () => clearTimeout(id);
-    }
-    if (stage === 3) {
-      const switcher = setInterval(() => setMethodIndex(index => Math.min(index + 1, 2)), 1500);
-      const done = setTimeout(() => setStage(4), 5000);
-      return () => { clearInterval(switcher); clearTimeout(done); };
-    }
-  }, [stage]);
+    const id = setTimeout(() => setShowTeaching(true), 700);
+    return () => clearTimeout(id);
+  }, []);
+  useEffect(() => {
+    if (!showTeaching && !choice) return;
+    requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }, [showTeaching, choice]);
   const answerQuestion = (value: string) => {
     setChoice(value);
-    setTimeout(() => setStage(3), 900);
   };
-  const skipDemo = () => {
-    setChoice('主体身份');
-    setMethodIndex(2);
-    setStage(4);
-  };
-  const progressStage = stage <= 1 ? 1 : stage === 2 ? 2 : 3;
+  const scrollToLatest = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   return (
-    <div className="flex flex-col flex-1 overflow-hidden max-w-[900px] w-full mx-auto">
-      <div className="flex-1 rounded-[22px] overflow-hidden flex flex-col min-h-[390px]" style={{background:CARD,border:'1px solid #DDE3EC',boxShadow:'0 14px 40px rgba(25,44,75,.09)'}}>
-        <div className="flex items-center gap-3 px-4 py-3" style={{borderBottom:`1px solid ${BORDER}`}}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{background:'linear-gradient(145deg,#347FFF,#765BFF)',color:'#fff'}}><Sparkles size={18}/></div>
-          <div className="flex-1"><p className="text-[13px] font-bold" style={{color:T1}}>云记 AI Tutor</p><p className="text-[10px]" style={{color:T4}}>AI 辅导演示 {progressStage} / 3 · 约 30 秒</p></div>
-          <div className="flex gap-1.5 mr-2">{[1,2,3].map(i=><span key={i} className="h-1.5 rounded-full transition-all" style={{width:i===progressStage?18:6,background:i<=progressStage?BLUE:'#D8DCE4'}}/>)}</div>
-          <button onClick={skipDemo} className="text-[10px]" style={{color:T4}}>跳过演示</button>
+    <div className="flex flex-col flex-1 overflow-hidden max-w-[980px] w-full mx-auto">
+      <div className="flex-1 grid grid-cols-[44%_56%] rounded-2xl overflow-hidden min-h-[360px]" style={{background:CARD,border:'1px solid #DDE3EC',boxShadow:'0 12px 36px rgba(25,44,75,.09)'}}>
+        <div className="p-4 flex flex-col" style={{background:'#F8F9FB',borderRight:`1px solid ${BORDER}`}}>
+          <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 rounded-full text-[9px] font-semibold" style={{background:'#FFF0EE',color:RED}}>回答错误</span><span className="text-[9px]" style={{color:T4}}>Practice Mode · 单选题</span></div>
+          <p className="text-[13px] font-bold leading-5 mb-3" style={{color:T1}}>判断斡旋受贿罪时，最先需要确认哪个条件？</p>
+          {['A. 收受财物数额','B. 主体是否为国家工作人员','C. 是否存在私人交情'].map((item,index)=><div key={item} className="rounded-xl px-3 py-2.5 mb-2 text-[10px]" style={{background:index===0?'#FFF0EE':CARD,border:`1px solid ${index===0?'#FFC6BF':BORDER}`,color:index===0?RED:T2}}>{item}</div>)}
+          <div className="mt-auto rounded-xl p-3 text-[10px] leading-5" style={{background:'#EAF3FF',color:BLUE}}>AI Tutor 已根据这道错题，在右侧继续引导学习。</div>
         </div>
-        <div className="flex-1 overflow-y-auto px-5 py-4" style={{background:'linear-gradient(180deg,#F7F9FC,#F4F6FA)'}}>
-          <div className="grid grid-cols-[31%_1fr] gap-4 h-full">
-            <div className="space-y-3">
-              <div className="rounded-2xl rounded-tr-md p-3 ml-5" style={{background:'#2D8CFF',color:'#fff'}}>
-                <p className="text-[9px] opacity-70 mb-1">遇到困难</p><p className="text-[11px] leading-5">我还是不理解为什么这里构成受贿罪。</p>
+        <div className="flex flex-col min-w-0 min-h-0">
+          <div className="flex items-center gap-2 px-4 py-2.5" style={{borderBottom:`1px solid ${BORDER}`}}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'linear-gradient(145deg,#347FFF,#765BFF)',color:'#fff'}}><Sparkles size={14}/></div>
+            <div className="flex-1"><p className="text-[11px] font-bold" style={{color:T1}}>AI Tutor</p><p className="text-[8px]" style={{color:T4}}>对话里也能完整练习与讲解</p></div>
+            <span className="text-[9px]" style={{color:T4}}>可展开全屏</span>
+          </div>
+          <div className="relative flex-1 min-h-0 overflow-hidden">
+          <div ref={chatScrollRef} onScroll={(event)=>{
+            const el=event.currentTarget;
+            setChatAtBottom(el.scrollHeight-el.scrollTop-el.clientHeight<24);
+          }} className="absolute inset-0 overflow-y-scroll p-4 pr-3 space-y-2.5" style={{background:'#F6F8FC',scrollbarGutter:'stable'}}>
+            <div className="ml-auto max-w-[78%] rounded-2xl rounded-tr-md px-3 py-2 text-[10px]" style={{background:BLUE,color:'#fff'}}>我总是分不清斡旋受贿和利用影响力受贿。</div>
+            {showTeaching && <div className="max-w-[92%] rounded-2xl rounded-tl-md p-3" style={{background:CARD,border:`1px solid ${BORDER}`}}>
+              <p className="text-[10px] leading-5" style={{color:T2}}>先不用背结论，我们在对话里练一下。最关键的起点是：</p>
+              <div className="mt-2 space-y-1.5">{['主体身份','财物数额','请托关系'].map(option=><button key={option} onClick={()=>answerQuestion(option)} className="w-full text-left px-3 py-2 rounded-lg text-[9px]" style={{background:choice===option?'#FFFBDE':'#F7F8FA',border:`1px solid ${choice===option?'#E8CF45':BORDER}`,color:T2}}>{option}{choice===option&&<Check size={10} className="inline ml-2" color={GREEN}/>}</button>)}</div>
+            </div>}
+            {choice && <div className="max-w-[92%] rounded-2xl rounded-tl-md p-3" style={{background:CARD,border:`1px solid ${BORDER}`}}>
+              <p className="text-[10px] font-semibold" style={{color:choice==='主体身份'?GREEN:'#A57400'}}>{choice==='主体身份'?'答对了。先确认主体，再判断行为方式。':'接近了，但第一步应先确认主体身份。'}</p>
+              <div className="mt-2 rounded-xl overflow-hidden" style={{background:'linear-gradient(135deg,#EAF3FF,#F3EEFF)',border:'1px solid #D6E3FA'}}>
+                <div className="h-16 flex items-center justify-center gap-2 px-3"><span className="text-[9px] px-2 py-1 rounded-lg bg-white">国家工作人员</span><span style={{color:BLUE}}>→</span><span className="text-[9px] px-2 py-1 rounded-lg bg-white">利用职权影响</span><span style={{color:BLUE}}>→</span><span className="text-[9px] px-2 py-1 rounded-lg bg-white">请托谋利</span></div>
+                <div className="px-3 py-1.5 flex items-center text-[8px]" style={{background:'rgba(255,255,255,.7)',color:T4}}><Image size={10} className="mr-1"/>AI 生成说明图 · 仅供理解，以教材为准</div>
               </div>
-              {stage === 0 ? <div className="flex items-center gap-1.5 px-2 text-[10px]" style={{color:T4}}><span className="flex gap-1">{[0,1,2].map(i=><i key={i} className="w-1.5 h-1.5 rounded-full bg-[#8B97AA]" style={{animation:`pulse 1s ${i*.2}s infinite`}}/>)}</span>AI Tutor 正在思考</div>
-              : <div className="rounded-2xl rounded-tl-md p-3" style={{background:CARD,border:`1px solid ${BORDER}`}}><p className="text-[11px] leading-5" style={{color:T2}}>不用死记，我们先拆解三个关键条件。</p></div>}
-              {stage >= 2 && <div className="rounded-2xl p-3" style={{background:'#EEF5FF',border:'1px solid #CFE3FF'}}><p className="text-[10px] font-semibold mb-2" style={{color:BLUE}}>你认为最关键的是？</p><div className="space-y-1.5">{['主体身份','行为方式','收受结果'].map(option=><button key={option} disabled={!!choice} onClick={()=>answerQuestion(option)} className="w-full py-2 rounded-lg text-[10px] text-left px-3" style={{background:choice===option?PRIMARY:CARD,border:`1px solid ${choice===option?'#E7CA30':BORDER}`,color:T2}}>{option}</button>)}</div></div>}
-              {choice && <div className="rounded-xl p-2.5 text-[10px] leading-5" style={{background:choice==='主体身份'?'#F1FBF5':'#FFF8E7',color:T2,border:`1px solid ${choice==='主体身份'?'#B7EFCF':'#F1DBA7'}`}}>{choice==='主体身份'?'很好！关键首先在主体身份。普通人收钱和受贿罪的区别，就从这里开始。':'这个条件也重要，但还要先确认主体身份。普通人收钱并不会直接构成受贿罪。'}</div>}
-            </div>
-            <div className="rounded-2xl p-4 flex flex-col min-w-0" style={{background:CARD,border:`1px solid ${BORDER}`}}>
-              <div className="flex items-center justify-between mb-3"><p className="text-[11px] font-bold" style={{color:T1}}>{stage < 3 ? '正在建立知识关系' : stage === 3 ? '换一种方式继续理解' : '本次辅导结果'}</p><span className="text-[9px]" style={{color:T4}}>{stage < 3 ? '图示拆解' : stage === 3 ? ['图示','对比','来源'][methodIndex] : '已完成'}</span></div>
-              {stage < 3 && <div className="flex-1 flex items-center justify-center">
-                <div className="flex items-center gap-3 w-full">
-                  {[['主体','国家工作人员'],['行为','利用职务便利'],['结果','收受财物']].map(([label,value],i)=><React.Fragment key={label}><div className="flex-1 rounded-xl p-3 text-center transition-all" style={{background:stage>=1?'#F3F7FF':'#F6F6F6',border:`1px solid ${stage>=1?'#BCD8FF':BORDER}`,opacity:stage>=1?1:.35,transform:stage>=1?'translateY(0)':'translateY(8px)'}}><p className="text-[9px]" style={{color:BLUE}}>{label}</p><p className="text-[11px] font-bold mt-1" style={{color:T2}}>{value}</p></div>{i<2&&<span className="text-[14px]" style={{color:stage>=1?BLUE:'#DDD'}}>→</span>}</React.Fragment>)}
-                </div>
-              </div>}
-              {stage === 3 && <div className="flex-1">
-                <p className="text-[11px] mb-3" style={{color:T2}}>如果文字解释不够，我会换一种方式。</p>
-                {methodIndex===0&&<div className="rounded-xl p-4" style={{background:'#F3F7FF'}}><div className="flex items-center justify-between text-[10px]"><span>国家工作人员</span><span style={{color:BLUE}}>职务影响 →</span><span>谋取利益</span><span style={{color:BLUE}}>→</span><span>收受财物</span></div></div>}
-                {methodIndex===1&&<div className="grid grid-cols-2 gap-3"><div className="rounded-xl p-3" style={{background:'#F6F6F6'}}><p className="text-[9px]" style={{color:T4}}>普通人收钱</p><p className="text-[11px] mt-1">不直接构成受贿罪</p></div><div className="rounded-xl p-3" style={{background:'#F1FBF5',border:'1px solid #B7EFCF'}}><p className="text-[9px]" style={{color:GREEN}}>国家工作人员</p><p className="text-[11px] mt-1">利用职务便利收钱</p></div></div>}
-                {methodIndex===2&&<div className="rounded-xl p-3 flex items-center gap-3" style={{background:'#FFF9DD',border:'1px solid #F2DF8B'}}><BookOpen size={18} color="#9B7A00"/><div><p className="text-[10px] font-bold" style={{color:'#745D00'}}>教材第 42 页</p><p className="text-[9px] mt-1" style={{color:T3}}>引用原始依据，确认主体与行为条件</p></div><span className="ml-auto text-[10px]" style={{color:BLUE}}>下一步展开</span></div>}
-              </div>}
-              {stage === 4 && <div className="flex-1 flex flex-col items-center justify-center text-center"><div className="w-14 h-14 rounded-full flex items-center justify-center mb-3" style={{background:'#E8F8EE'}}><Check size={28} color={GREEN} strokeWidth={2.5}/></div><p className="text-[17px] font-bold" style={{color:T1}}>已理解：受贿罪主体判断</p><p className="text-[12px] font-bold mt-2" style={{color:GREEN}}>掌握程度 +1</p><p className="text-[10px] mt-2" style={{color:T4}}>AI Tutor 会继续强化这个知识点</p></div>}
-            </div>
+              <div className="flex gap-1 mt-2 flex-wrap">{['闪卡','单选','判断','填空','多选','简答'].map(type=><span key={type} className="px-2 py-1 rounded-full text-[8px]" style={{background:'#F3F4F6',color:T3}}>{type}</span>)}</div>
+            </div>}
+            <div ref={chatEndRef} className="h-1"/>
+          </div>
+          {!chatAtBottom && <button onClick={scrollToLatest} className="absolute right-4 bottom-3 px-2.5 py-1.5 rounded-full text-[9px] shadow-md" style={{background:CARD,color:BLUE,border:`1px solid #D8E6FA`}}>回到最新 ↓</button>}
           </div>
         </div>
       </div>
       <div className="pb-5 pt-3">
-        <CTAButton onClick={onNext} disabled={stage !== 4}>看看这个结论来自哪里 →</CTAButton>
+        <CTAButton onClick={onNext} disabled={!choice}>继续：查看每道题的来源 →</CTAButton>
       </div>
     </div>
   );
