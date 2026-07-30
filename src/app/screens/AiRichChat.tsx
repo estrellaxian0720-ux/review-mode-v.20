@@ -4,6 +4,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send, ChevronRight, RotateCcw, Maximize2, Minimize2, Check, AlertCircle, GripVertical, BookOpen } from 'lucide-react';
+import { CloudMascot } from '../assets/CloudMascot';
 
 // ─── Block Protocol Types ─────────────────────────────────────────────────────
 
@@ -561,19 +562,7 @@ function BlockRenderer({
 // ─── Cloud Avatar ─────────────────────────────────────────────────────────────
 
 function CloudAvatar({ size = 28 }: { size?: number }) {
-  return (
-    <div
-      className="shrink-0 flex items-center justify-center rounded-full text-white font-bold select-none"
-      style={{
-        width: size, height: size,
-        background: 'linear-gradient(135deg, #6EA8FF 0%, #9B7CFF 100%)',
-        fontSize: size * 0.38,
-        boxShadow: '0 2px 8px rgba(110,168,255,0.4)',
-      }}
-    >
-      AI
-    </div>
-  );
+  return <CloudMascot size={size} className="shrink-0" />;
 }
 
 // ─── Message Bubbles ──────────────────────────────────────────────────────────
@@ -629,10 +618,20 @@ export function AiChatThread({
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-        <div className="mb-4"><CloudAvatar size={48} /></div>
-        <p className="text-[15px] font-semibold text-gray-600 mb-1">AI 助教</p>
-        <p className="text-[13px] text-gray-400 max-w-[220px]">随时问我这道题的任何问题</p>
+      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-6 py-8 text-center">
+        <div className="mb-5"><CloudAvatar size={64} /></div>
+        <p className="text-[17px] font-bold text-gray-700 mb-2">AI 助教准备好了</p>
+        <p className="text-[13px] leading-relaxed text-gray-400 max-w-[260px] mb-6">
+          选择一个答案即可获得即时反馈，也可以在下方随时向我提问。
+        </p>
+        <div className="w-full max-w-[300px] space-y-2.5">
+          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left text-[12.5px] leading-relaxed text-gray-500">
+            <span className="mr-1">💡</span><span className="font-semibold text-gray-700">提示：</span>用「溯源」可以看到知识点在资料中的出处
+          </div>
+          <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-left text-[12.5px] leading-relaxed text-gray-500">
+            <span className="mr-1">🎯</span><span className="font-semibold text-gray-700">重点：</span>反复出错的题会在后续复习里优先出现
+          </div>
+        </div>
       </div>
     );
   }

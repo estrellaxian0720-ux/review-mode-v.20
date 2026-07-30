@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
+import { CloudMascot } from '../assets/CloudMascot';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -139,9 +140,9 @@ function CTAButton({ children, onClick, disabled }: { children: React.ReactNode;
 
 function ScreenTitle({ title, sub, subColor = BLUE }: { title: string; sub: string; subColor?: string }) {
   return (
-    <div className="pb-4 px-0">
-      <h1 className="text-[23px] font-bold leading-tight mb-1.5" style={{ color: T1 }}>{title}</h1>
-      <p className="text-[14px] font-medium leading-relaxed" style={{ color: subColor }}>{sub}</p>
+    <div className="pb-3 px-0">
+      <h1 className="text-[18px] font-bold leading-tight mb-1" style={{ color: T1 }}>{title}</h1>
+      <p className="text-[12.5px] font-medium leading-relaxed" style={{ color: subColor }}>{sub}</p>
     </div>
   );
 }
@@ -894,16 +895,20 @@ function A5DemoBar({ phase, progress, onBack, onSkip, onViewPlan }: {
           <ArrowLeft size={15}/>{phase === 'B2' ? '退出学习空间' : '返回'}
         </button>
         <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: ready ? GREEN : BLUE }}>
-            {ready ? '✓ 学习计划已生成' : '学习计划生成中'}
-          </span>
+          {!ready && (
+            <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: BLUE }}>
+              学习计划生成中
+            </span>
+          )}
           <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: '#E3E9F2' }}>
             <div className="h-full rounded-full transition-all duration-700"
               style={{ width: `${progress}%`, background: ready ? GREEN : BLUE }} />
           </div>
-          <span className="text-[12px] font-medium whitespace-nowrap tabular-nums" style={{ color: ready ? GREEN : T3 }}>
-            {ready ? '就绪，待你确认' : `${progress}%`}
-          </span>
+          {!ready && (
+            <span className="text-[12px] font-medium whitespace-nowrap tabular-nums" style={{ color: T3 }}>
+              {progress}%
+            </span>
+          )}
         </div>
         {ready ? (
           <button onClick={onViewPlan} className="justify-self-end flex items-center gap-1 px-4 py-2 rounded-full text-[12px] font-bold whitespace-nowrap" style={{background:PRIMARY,color:'#7A6400'}}>
@@ -913,25 +918,34 @@ function A5DemoBar({ phase, progress, onBack, onSkip, onViewPlan }: {
           <button onClick={onSkip} className="justify-self-end text-[12px] font-medium whitespace-nowrap" style={{color:BLUE}}>跳过产品介绍</button>
         )}
       </div>
-      {/* Product-intro position — demoted below the main bar, but keeps a clear
-          "where am I" read: passed / current (blue pill) / upcoming, plus N/10. */}
-      <div className="relative z-[114] flex items-center justify-center gap-2 py-1.5 flex-shrink-0" style={{background:CARD}}>
-        <div className="flex items-center gap-1.5">
-          {DEMO_PHASES.map((_, i) => {
-            const active = i === idx;
-            const passed = i < idx;
-            return (
-              <div key={i} className="rounded-full transition-all"
-                style={{
-                  width: active ? 16 : 6, height: 6,
-                  background: active ? BLUE : passed ? '#9AA4B2' : '#E6E9EE',
-                }}/>
-            );
-          })}
-        </div>
-        <span className="text-[11px] font-medium tabular-nums" style={{color:T4}}>{idx + 1}/{DEMO_PHASES.length}</span>
-      </div>
     </>
+  );
+}
+
+/**
+ * 产品介绍进度指示（弱化版）：无背底、放在各子页介绍模块与底部 CTA 之间，
+ * 只做轻量「我在第几步」的定位，不抢主进度条与内容的视觉权重。
+ */
+function DemoDots({ phase }: { phase: A5SubPhase }) {
+  const idx = DEMO_PHASES.indexOf(phase);
+  if (idx < 0) return null;
+  return (
+    <div className="flex items-center justify-center gap-2 pt-1 pb-1.5">
+      <div className="flex items-center gap-1.5">
+        {DEMO_PHASES.map((_, i) => {
+          const active = i === idx;
+          const passed = i < idx;
+          return (
+            <div key={i} className="rounded-full transition-all"
+              style={{
+                width: active ? 14 : 5, height: 5,
+                background: active ? BLUE : passed ? '#B7BEC9' : '#E6E9EE',
+              }}/>
+          );
+        })}
+      </div>
+      <span className="text-[10px] font-medium tabular-nums" style={{color:T4}}>{idx + 1}/{DEMO_PHASES.length}</span>
+    </div>
   );
 }
 
@@ -1024,7 +1038,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="杂乱的资料，自动梳理成思维导图" sub="章节、知识点和关联关系，一眼看清并梳理知识关系" />
-          <B2Inner onNext={advanceDemo} />
+          <B2Inner onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1035,7 +1049,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
     return (
       <div className="flex flex-col h-full relative" style={{ background: CARD }}>
         {demoChrome}
-        <B3Inner onNext={advanceDemo} />
+        <B3Inner onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
       </div>
     );
   }
@@ -1047,7 +1061,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="不是让你背，是先问你会不会" sub="每个知识点，先给你一张闪卡" />
-          <B4Inner onNext={advanceDemo} />
+          <B4Inner onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1060,7 +1074,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="一个知识点，多种练习方式，直到真正掌握" sub="根据每次作答结果，逐步从记忆、辨析走向理解与应用" />
-          <B5Inner onNext={advanceDemo} />
+          <B5Inner onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1072,7 +1086,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="计算题，也能随手打草稿" sub="草稿本跟着练习走，不遮挡题目" />
-          <ScratchpadDemo onNext={advanceDemo} />
+          <ScratchpadDemo onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1085,7 +1099,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="不只给答案，像老师一样带你学会" sub="遇到不会的知识点，AI 会换种方式带你一步步理解" />
-          <B6Inner onNext={advanceDemo} />
+          <B6Inner onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1097,7 +1111,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="每个答案，都能找到出处" sub="直接标记来源，也能打开最新原笔记继续补记" />
-          <TracebackDemo onNext={advanceDemo} />
+          <TracebackDemo onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1110,7 +1124,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         {demoChrome}
         <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
           <ScreenTitle title="知道学到哪，也知道接下来补什么" sub="学习报告与模考结果，自动变成下一步行动" />
-          <B7Inner onNext={advanceDemo} />
+          <B7Inner onNext={advanceDemo} dots={<DemoDots phase={subPhase} />} />
         </div>
       </div>
     );
@@ -1121,7 +1135,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
     return (
       <div className="flex flex-col h-full">
         {demoChrome}
-        <div className="flex flex-col flex-1 px-7 pt-5 overflow-y-auto">
+        <div className="flex flex-col flex-1 px-7 pt-5 overflow-hidden">
+          <div className="flex-1 overflow-y-auto min-h-0">
           <div className="pb-4 text-center">
             <h1 className="text-[22px] font-bold mb-1" style={{ color: T1 }}>很多人，已经用云记把资料真正学会</h1>
             <p className="text-[14px] font-medium" style={{ color: BLUE }}>从大学课程到考研、法考和职业考试</p>
@@ -1163,7 +1178,9 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
             </div>
             <button className="w-full text-center text-[11px]" style={{ color: BLUE }}>隐私与 AI 服务说明</button>
           </div>
-          <div className="pb-5 pt-1">
+          </div>
+          <div className="pt-1 flex-shrink-0">
+            <DemoDots phase={subPhase} />
             <CTAButton onClick={advanceDemo}>继续 →</CTAButton>
           </div>
         </div>
@@ -1217,7 +1234,8 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
               ))}
             </div>
           </div>
-          <div className="pb-4 pt-2 space-y-2">
+          <div className="pb-4 pt-1 space-y-2 flex-shrink-0">
+            <DemoDots phase={subPhase} />
             <CTAButton onClick={advanceDemo}>立刻购买</CTAButton>
             <button onClick={advanceDemo} className="w-full text-center text-[13px]" style={{ color: T4 }}>
               先开始体验
@@ -1237,7 +1255,7 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
     ? [
         { icon: '🗺️', label: '思维导图' },
         { icon: '✨', label: '知识星图' },
-        { icon: '🃏', label: '智能闪卡' },
+        { icon: '📝', label: '多种题型' },
         { icon: '📊', label: '学习报告' },
       ]
     : [
@@ -1246,12 +1264,11 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
         { icon: '📊', label: '排学习计划' },
       ];
   return (
-    <div className="flex flex-col h-full justify-between relative">
+    <div className="flex flex-col h-full relative">
       <div className="h-[52px] flex items-center px-7 flex-shrink-0" style={{background:CARD,borderBottom:`1px solid ${BORDER}`}}>
         <button onClick={onExit} className="flex items-center gap-1.5 text-[12px] font-medium" style={{color:T3}}><ArrowLeft size={15}/>退出学习空间</button>
       </div>
-      <div />
-      <div className="flex flex-col items-center gap-6 py-6 px-6">
+      <div className="flex-1 flex flex-col items-center justify-center gap-6 py-6 px-6">
         <div className="relative w-20 h-20 flex items-center justify-center">
           <svg viewBox="0 0 80 80" className="absolute inset-0 w-full h-full" style={{ transform: 'rotate(-90deg)' }}>
             <circle cx="40" cy="40" r="34" fill="none" stroke="#EBEBEB" strokeWidth="5" />
@@ -1268,15 +1285,15 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
           </h1>
           <p className="text-[13px] leading-relaxed" style={{ color: T3 }}>
             {hasPreset
-              ? '这会花一点时间。生成期间，先带你看看云记怎么帮你学；计划就绪后会提醒你确认并开始学习。'
+              ? '生成需要一点时间，先花 1 分钟看看云记怎么帮你学。'
               : '这会花一点时间，你可以先离开。计划就绪后会提醒你确认并开始学习。'}
           </p>
         </div>
-        <div className="w-full max-w-sm">
+        <div className="w-full max-w-2xl">
           <p className="text-[11px] font-semibold mb-2.5 text-center" style={{ color: T4 }}>
             {hasPreset ? '接下来带你看看这些' : '正在为你做这些'}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-2">
+          <div className="flex flex-nowrap items-center justify-center gap-2">
             {previewSteps.map((s, i) => (
               <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
                 style={{ background: '#F3F4F6', border: `1px solid ${BORDER}` }}>
@@ -1286,12 +1303,6 @@ function A5Screen({ hasPreset, isStem, initialPhase = 'loading', onNext, onExit,
             ))}
           </div>
         </div>
-      </div>
-      <div className="pb-6 px-6">
-        <button className="w-full py-3.5 rounded-full text-[15px] font-bold"
-          style={{ background: '#F3F4F6', color: T4 }} disabled>
-          {hasPreset ? `即将开始介绍${dots}` : `正在生成${dots}`}
-        </button>
       </div>
     </div>
   );
@@ -1304,7 +1315,7 @@ function lcgRng(seed: number) {
   return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-function B2Inner({ onNext }: { onNext: () => void }) {
+function B2Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   const [branches, setBranches] = useState([
     { title: '受贿罪构成', color:'#6C8CFF', x:24, y:25, items: ['主体身份', '职务便利', '财物控制'] },
     { title: '斡旋受贿', color:'#8C6BFF', x:76, y:24, items: ['地位影响', '第三人谋利', '收受财物'] },
@@ -1356,13 +1367,11 @@ function B2Inner({ onNext }: { onNext: () => void }) {
   };
   return (
     <div className="flex flex-col flex-1 overflow-hidden max-w-[920px] w-full mx-auto">
-      <div className="flex items-center gap-2 mb-3 text-[11px]">
-        <span className="px-3 py-1.5 rounded-full font-semibold" style={{background:'#EAF3FF',color:BLUE}}>已整理 {branches.length} 个章节</span>
-        <span className="px-3 py-1.5 rounded-full font-semibold" style={{background:'#F6FEF9',color:GREEN}}>提取 {itemCount} 个核心知识点</span>
-        <span className="px-3 py-1.5 rounded-full" style={{background:'#F3F4F6',color:T3}}>关系已自动归类</span>
-        <span className="ml-auto flex items-center gap-1" style={{color:T4}}><MousePointer2 size={12}/>点击节点可继续调整</span>
-      </div>
-      <div className="flex-1 relative rounded-2xl overflow-hidden mx-auto w-full" style={{ background:'linear-gradient(135deg,#FBFCFF,#F5F8FF)', border:`1px solid ${BORDER}`, minHeight: 300 }}>
+      <div className="flex-1 relative rounded-2xl overflow-hidden mx-auto w-full" style={{ background:'linear-gradient(135deg,#FBFCFF,#F5F8FF)', border:`1px solid ${BORDER}`, minHeight: 0 }}>
+        <div className="absolute left-3 top-3 z-20 flex items-center gap-2 text-[11px]">
+          <span className="px-2.5 py-1 rounded-full font-semibold" style={{background:'rgba(234,243,255,.92)',color:BLUE}}>已整理 {branches.length} 个章节</span>
+          <span className="px-2.5 py-1 rounded-full font-semibold" style={{background:'rgba(246,254,249,.92)',color:GREEN}}>提取 {itemCount} 个核心知识点</span>
+        </div>
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
           <defs><filter id="mapShadow"><feDropShadow dx="0" dy="1" stdDeviation="1" floodOpacity=".12"/></filter></defs>
           {branches.map(b => <path key={b.title} d={`M50 50 C${b.x<50?38:62} 50 ${b.x<50?32:68} ${b.y} ${b.x} ${b.y}`} fill="none" stroke={b.color} strokeWidth=".7" opacity=".55"/>)}
@@ -1401,14 +1410,14 @@ function B2Inner({ onNext }: { onNext: () => void }) {
           <button onClick={deleteSelected} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px]" style={{color:RED}}><Trash2 size={12}/>删除</button>
         </div>}
       </div>
-      <div className="pb-5 pt-3"><CTAButton onClick={onNext}>查看这批知识点的掌握状态 →</CTAButton></div>
+      <div className="pb-5 pt-2 flex-shrink-0">{dots}<CTAButton onClick={onNext}>查看这批知识点的掌握状态 →</CTAButton></div>
     </div>
   );
 }
 
 // ── B3 inner (used inside A5 demo chain) ──────────────────────────────────────
 
-function B3Inner({ onNext }: { onNext: () => void }) {
+function B3Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   const [newLit, setNewLit] = useState(0);
   const [playback, setPlayback] = useState(0);
   const [isPlaying, setIsPlaying] = useState(true);
@@ -1603,7 +1612,8 @@ function B3Inner({ onNext }: { onNext: () => void }) {
         {newLit >= 3 && newLit < 6 && <div className="absolute left-1/2 top-[46%] -translate-x-1/2 px-3 py-1.5 rounded-full text-[10px] font-medium" style={{background:'rgba(9,19,45,.88)',border:'1px solid rgba(154,196,255,.35)',color:'#BBD8FF'}}>新的知识关联正在展开…</div>}
         {newLit >= 6 && newLit < 8 && <div className="absolute left-1/2 top-[46%] -translate-x-1/2 px-3 py-1.5 rounded-full text-[10px] font-medium" style={{background:'rgba(13,35,34,.9)',border:'1px solid rgba(139,220,177,.4)',color:'#BDF3D5'}}>学习路径已建立 ✓</div>}
       </div>
-      <div className="pb-4 pt-3 max-w-[1080px] w-full mx-auto">
+      <div className="pb-4 pt-2 max-w-[1080px] w-full mx-auto">
+        {dots}
         <CTAButton onClick={onNext}>继续查看知识点 →</CTAButton>
       </div>
     </div>
@@ -1612,7 +1622,7 @@ function B3Inner({ onNext }: { onNext: () => void }) {
 
 // ── B4 inner ──────────────────────────────────────────────────────────────────
 
-function B4Inner({ onNext }: { onNext: () => void }) {
+function B4Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   const [flipped, setFlipped] = useState(false);
   const [saved, setSaved] = useState(false);
   const [mastered, setMastered] = useState(false);
@@ -1657,6 +1667,7 @@ function B4Inner({ onNext }: { onNext: () => void }) {
         </div>
       </div>
       <div className="pb-5 pt-1 max-w-[620px] w-full mx-auto">
+        {dots}
         <CTAButton onClick={onNext}>下一题 →</CTAButton>
       </div>
     </div>
@@ -1665,7 +1676,7 @@ function B4Inner({ onNext }: { onNext: () => void }) {
 
 // ── B5 inner ──────────────────────────────────────────────────────────────────
 
-function B5Inner({ onNext }: { onNext: () => void }) {
+function B5Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   type PracticeType = '单选' | '填空' | '判断' | '多选' | '简答';
   const journey: Array<{ type: PracticeType; purpose: string }> = [
     { type: '单选', purpose: '识别概念' },
@@ -1681,6 +1692,7 @@ function B5Inner({ onNext }: { onNext: () => void }) {
   const [showSource, setShowSource] = useState(false);
   const [showSourceTip, setShowSourceTip] = useState(true);
   const [replayKey, setReplayKey] = useState(0);
+  const [typeHintDismissed, setTypeHintDismissed] = useState(false);
   const contents = {
     单选: { question: '斡旋受贿罪的行为主体必须是？', answer: '国家工作人员', analysis: '斡旋受贿属于受贿罪的特殊形态，行为主体必须具有国家工作人员身份。' },
     填空: { question: '斡旋受贿罪的行为主体必须是 ______。', user: '公职人员', answer: '国家工作人员', analysis: '“公职人员”范围过宽，法条要求行为人具有国家工作人员身份。' },
@@ -1731,6 +1743,7 @@ function B5Inner({ onNext }: { onNext: () => void }) {
   const selectPractice = (index: number) => {
     setCurrentIndex(index);
     setReplayKey(key => key + 1);
+    setTypeHintDismissed(true);
   };
   const nextPractice = () => {
     if (currentIndex >= journey.length - 1) {
@@ -1745,9 +1758,16 @@ function B5Inner({ onNext }: { onNext: () => void }) {
       <div className="mb-3">
         <div className="flex items-center justify-between mb-2">
           <p className="text-[11px] font-semibold" style={{color:T3}}>5 种题型 · 当前演示 {currentIndex + 1} / 5</p>
-          <p className="text-[10px]" style={{color:T4}}>点击题型，可查看不同练习方式</p>
+          <button onClick={onNext} className="text-[11px] font-medium whitespace-nowrap" style={{color:T4}}>跳过练习演示 →</button>
         </div>
-        <div className="grid grid-cols-5 gap-1.5">
+        <div className="grid grid-cols-5 gap-1.5 relative">
+          {!typeHintDismissed && (
+            <div className="absolute z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold whitespace-nowrap pointer-events-none"
+              style={{left:'30%',top:'-30px',transform:'translateX(-50%)',background:'#2D8CFF',color:'#fff',boxShadow:'0 6px 16px rgba(45,140,255,.32)',animation:'pulse 1.5s ease-in-out infinite'}}>
+              <MousePointer2 size={13}/>点击题型可切换练习方式
+              <span className="absolute left-1/2 -bottom-1 w-2 h-2 rotate-45" style={{transform:'translateX(-50%)',background:'#2D8CFF'}}/>
+            </div>
+          )}
           {journey.map((step, index) => {
             const active = index === currentIndex;
             return <button key={step.type} onClick={() => selectPractice(index)} className="rounded-xl px-2 py-2 text-center transition-all" style={{background:active?'#EAF3FF':'#F5F6F8',border:`1px solid ${active?'#9BC8FF':BORDER}`,boxShadow:active?'0 4px 14px rgba(47,137,252,.12)':'none'}}>
@@ -1757,7 +1777,7 @@ function B5Inner({ onNext }: { onNext: () => void }) {
           })}
         </div>
       </div>
-      <div className="flex-1 rounded-2xl p-5 overflow-y-auto min-h-[280px]" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow:'0 10px 32px rgba(20,35,60,.06)' }}>
+      <div className="flex-1 rounded-2xl p-5 overflow-y-auto min-h-0" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow:'0 10px 32px rgba(20,35,60,.06)' }}>
         <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 rounded-lg text-[9px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>{currentType} · {journey[currentIndex].purpose}</span><span className="ml-auto flex items-center gap-1 text-[9px]" style={{color:T4}}><Sparkles size={11}/>{solved?'演示完成':'正在自动作答…'}</span></div>
         <p className="text-[15px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
         {currentType === '单选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员','一般公职人员','受托办事人员','任何自然人'].map(v => {
@@ -1782,17 +1802,17 @@ function B5Inner({ onNext }: { onNext: () => void }) {
           <div className="mt-2 rounded-xl px-3 py-2 text-[10px]" style={{background:'#EAF3FF',color:BLUE}}>{isCorrect ? `本题已掌握，下一题进入「${currentIndex < journey.length - 1 ? journey[currentIndex + 1].purpose : '智能讲解'}」` : '这个知识点仍需强化，系统会在后续练习中再次检查'}</div>
         </>}
       </div>
-      <div className="pb-5 pt-3 space-y-2">
+      <div className="pb-5 pt-2 flex-shrink-0">
+        {dots}
         <CTAButton onClick={nextPractice}>
           {currentIndex < journey.length - 1 ? `下一题：${journey[currentIndex + 1].type} →` : '继续体验 AI 辅导 →'}
         </CTAButton>
-        <button onClick={onNext} className="w-full text-center text-[11px] py-1" style={{color:T4}}>跳过练习演示 →</button>
       </div>
     </div>
   );
 }
 
-function ScratchpadDemo({ onNext }: { onNext: () => void }) {
+function ScratchpadDemo({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   const [cleared, setCleared] = useState(false);
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -1813,12 +1833,12 @@ function ScratchpadDemo({ onNext }: { onNext: () => void }) {
         </div>
       </div>
       <p className="text-[11px] text-center py-2" style={{ color: T4 }}>草稿不会被识别或判分，只帮你保留解题过程</p>
-      <div className="pb-5"><CTAButton onClick={onNext}>继续：看看 AI 如何讲解 →</CTAButton></div>
+      <div className="pb-5 pt-1">{dots}<CTAButton onClick={onNext}>继续：看看 AI 如何讲解 →</CTAButton></div>
     </div>
   );
 }
 
-function TracebackDemo({ onNext }: { onNext: () => void }) {
+function TracebackDemo({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   const [marked, setMarked] = useState(false);
   const [selectedText, setSelectedText] = useState(false);
   const [showNoteWindow, setShowNoteWindow] = useState(false);
@@ -1826,7 +1846,7 @@ function TracebackDemo({ onNext }: { onNext: () => void }) {
   const [notePage, setNotePage] = useState(7);
   return (
     <div className="flex flex-col flex-1 overflow-hidden max-w-[1040px] w-full mx-auto relative">
-      <div className="flex-1 grid grid-cols-[42%_58%] rounded-2xl overflow-hidden min-h-[350px]" style={{ border: `1px solid #DDE3EC`, boxShadow:'0 12px 36px rgba(24,42,70,.08)' }}>
+      <div className="flex-1 grid grid-cols-[42%_58%] rounded-2xl overflow-hidden min-h-0" style={{ border: `1px solid #DDE3EC`, boxShadow:'0 12px 36px rgba(24,42,70,.08)' }}>
         <div className="p-4 flex flex-col" style={{ background: '#F8F9FB', borderRight:'1px solid #DDE3EC' }}>
           <div className="flex items-center gap-2 mb-3"><span className="px-2.5 py-1 rounded-full text-[10px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>当前题目</span><span className="text-[10px]" style={{color:T4}}>单选题 · 斡旋受贿</span></div>
           <p className="text-[13px] font-bold leading-5 mb-3" style={{ color: T1 }}>甲利用本人职权形成的影响，通过其他国家工作人员为请托人谋利并收受财物，应如何认定？</p>
@@ -1912,72 +1932,147 @@ function TracebackDemo({ onNext }: { onNext: () => void }) {
           </div>
         </div>
       )}
-      <div className="pb-5 pt-3"><CTAButton onClick={onNext}>继续看学习结果 →</CTAButton></div>
+      <div className="pb-5 pt-2 flex-shrink-0">{dots}<CTAButton onClick={onNext}>继续看学习结果 →</CTAButton></div>
     </div>
   );
 }
 
 // ── B6 inner ──────────────────────────────────────────────────────────────────
 
-function B6Inner({ onNext }: { onNext: () => void }) {
-  const [choice, setChoice] = useState('');
-  const [showTeaching, setShowTeaching] = useState(false);
-  const [chatAtBottom, setChatAtBottom] = useState(true);
-  const chatScrollRef = useRef<HTMLDivElement>(null);
+// B6 对话脚本：回合制自动演示（用户提问 → AI 讲解 → 内嵌判断题 → 内嵌填空题 → 掌握收尾）
+type B6Item =
+  | { role: 'user'; text: string }
+  | { role: 'ai'; text: string }
+  | { role: 'done'; text: string }
+  | { role: 'quiz'; kind: 'judgment' | 'blank'; stem: string; options: { key: string; label: string }[]; answer: string; autoKey: string; explanation: string };
+
+const B6_SCRIPT: B6Item[] = [
+  { role: 'user', text: '我总是搞混光合作用到底在哪里进行。' },
+  { role: 'ai', text: '没关系，我们不背结论，做两道小题就懂了。先判断一下 👇' },
+  { role: 'quiz', kind: 'judgment', stem: '光合作用主要在叶绿体中进行。', options: [{ key: 'T', label: '✓ 正确' }, { key: 'F', label: '✗ 错误' }], answer: 'T', autoKey: 'T', explanation: '对。叶绿体里含有叶绿素，是植物进行光合作用的主要场所。' },
+  { role: 'ai', text: '很好！再补一道填空，看看能量最后去了哪里。' },
+  { role: 'quiz', kind: 'blank', stem: '光合作用把光能转化为储存在 ___ 中的化学能。', options: [{ key: '有机物', label: '有机物' }, { key: '水', label: '水' }, { key: '氧气', label: '氧气' }], answer: '有机物', autoKey: '有机物', explanation: '正确。光能最终被固定在有机物（如葡萄糖）里，成为可储存的化学能。' },
+  { role: 'done', text: '🎉 两道全对！你已经掌握【光合作用的场所与能量转化】。' },
+];
+
+function B6QuizInChat({ item, picked, onPick }: { item: Extract<B6Item, { role: 'quiz' }>; picked?: string; onPick: (key: string) => void }) {
+  const answered = picked !== undefined;
+  const correct = answered && picked === item.answer;
+  const isBlank = item.kind === 'blank';
+  return (
+    <div className="max-w-[92%] rounded-2xl rounded-tl-md p-3" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
+      <p className="text-[10px] font-semibold leading-5 mb-2" style={{ color: T1 }}>
+        {isBlank
+          ? <>光合作用把光能转化为储存在 <span className="px-1.5 py-0.5 rounded" style={{ background: answered ? '#EAF9EF' : '#FFF7DB', color: answered ? GREEN : '#A57400', fontWeight: 700 }}>{answered ? picked : '＿＿'}</span> 中的化学能。</>
+          : item.stem}
+      </p>
+      {item.kind === 'judgment' ? (
+        <div className="flex gap-2">
+          {item.options.map(o => {
+            // 仅高亮用户实际所选：对→绿 / 错→红；未选中的一律留白。可再次点击取消。
+            const sel = picked === o.key;
+            let bg = '#F7F8FA', bd = BORDER, fg = T2;
+            if (sel) {
+              if (o.key === item.answer) { bg = '#EAF9EF'; bd = GREEN; fg = GREEN; }
+              else { bg = '#FFF0EE'; bd = RED; fg = RED; }
+            }
+            return <button key={o.key} onClick={() => onPick(o.key)} className="flex-1 py-2 rounded-lg text-[10px] font-semibold transition-colors" style={{ background: bg, border: `1px solid ${bd}`, color: fg }}>{o.label}</button>;
+          })}
+        </div>
+      ) : (
+        <div className="flex gap-1.5">
+          {item.options.map(o => {
+            const sel = picked === o.key;
+            let bg = '#F7F8FA', bd = BORDER, fg = T2;
+            if (sel) {
+              if (o.key === item.answer) { bg = '#EAF9EF'; bd = GREEN; fg = GREEN; }
+              else { bg = '#FFF0EE'; bd = RED; fg = RED; }
+            }
+            return <button key={o.key} onClick={() => onPick(o.key)} className="flex-1 py-1.5 rounded-lg text-[9px] font-semibold transition-colors" style={{ background: bg, border: `1px solid ${bd}`, color: fg }}>{o.label}</button>;
+          })}
+        </div>
+      )}
+      {answered && (
+        <div className="mt-2 rounded-lg p-2.5 text-[9px] leading-5" style={{ background: correct ? '#EAF9EF' : '#FFF0EE' }}>
+          <span className="font-semibold" style={{ color: correct ? GREEN : RED }}>{correct ? '✓ 正确！' : '✗ 再想想'}</span>
+          <span style={{ color: T2 }}> {item.explanation}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function B6Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
+  const [visible, setVisible] = useState(0);              // 已揭示的脚本条数
+  const [typing, setTyping] = useState<{ idx: number; n: number } | null>(null); // 当前逐字打印
+  const [picked, setPicked] = useState<Record<number, string>>({});             // 各题所选
+  const [autoDone, setAutoDone] = useState(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const id = setTimeout(() => setShowTeaching(true), 700);
-    return () => clearTimeout(id);
-  }, []);
-  useEffect(() => {
-    if (!showTeaching && !choice) return;
-    requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
-  }, [showTeaching, choice]);
-  const answerQuestion = (value: string) => {
-    setChoice(value);
+
+  const clearTimers = () => { timers.current.forEach(clearTimeout); timers.current = []; };
+  const schedule = (fn: () => void, ms: number) => { const id = setTimeout(fn, ms); timers.current.push(id); };
+
+  const play = () => {
+    clearTimers();
+    setVisible(0); setTyping(null); setPicked({}); setAutoDone(false);
+    const typewrite = (idx: number, text: string, done: () => void) => {
+      setTyping({ idx, n: 0 });
+      let n = 0;
+      const stepChar = () => { n++; setTyping({ idx, n }); if (n < text.length) schedule(stepChar, 26); else { setTyping(null); done(); } };
+      schedule(stepChar, 26);
+    };
+    const runFrom = (i: number) => {
+      if (i >= B6_SCRIPT.length) { setAutoDone(true); return; }
+      const item = B6_SCRIPT[i];
+      setVisible(i + 1);
+      if (item.role === 'user') { schedule(() => runFrom(i + 1), 750); }
+      else if (item.role === 'ai') { typewrite(i, item.text, () => schedule(() => runFrom(i + 1), 550)); }
+      else if (item.role === 'done') { typewrite(i, item.text, () => setAutoDone(true)); }
+      else if (item.role === 'quiz') {
+        schedule(() => { setPicked(p => ({ ...p, [i]: item.autoKey })); schedule(() => runFrom(i + 1), 1500); }, 900);
+      }
+    };
+    schedule(() => runFrom(0), 400);
   };
-  const scrollToLatest = () => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  useEffect(() => { play(); return clearTimers; }, []);
+  useEffect(() => { requestAnimationFrame(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })); }, [visible, typing, picked]);
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden max-w-[980px] w-full mx-auto">
-      <div className="flex-1 grid grid-cols-[44%_56%] rounded-2xl overflow-hidden min-h-[360px]" style={{background:CARD,border:'1px solid #DDE3EC',boxShadow:'0 12px 36px rgba(25,44,75,.09)'}}>
-        <div className="p-4 flex flex-col" style={{background:'#F8F9FB',borderRight:`1px solid ${BORDER}`}}>
-          <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 rounded-full text-[9px] font-semibold" style={{background:'#FFF0EE',color:RED}}>回答错误</span><span className="text-[9px]" style={{color:T4}}>Practice Mode · 单选题</span></div>
-          <p className="text-[13px] font-bold leading-5 mb-3" style={{color:T1}}>判断斡旋受贿罪时，最先需要确认哪个条件？</p>
-          {['A. 收受财物数额','B. 主体是否为国家工作人员','C. 是否存在私人交情'].map((item,index)=><div key={item} className="rounded-xl px-3 py-2.5 mb-2 text-[10px]" style={{background:index===0?'#FFF0EE':CARD,border:`1px solid ${index===0?'#FFC6BF':BORDER}`,color:index===0?RED:T2}}>{item}</div>)}
-          <div className="mt-auto rounded-xl p-3 text-[10px] leading-5" style={{background:'#EAF3FF',color:BLUE}}>AI Tutor 已根据这道错题，在右侧继续引导学习。</div>
+      <div className="flex-1 grid grid-cols-[44%_56%] rounded-2xl overflow-hidden min-h-0" style={{ background: CARD, border: '1px solid #DDE3EC', boxShadow: '0 12px 36px rgba(25,44,75,.09)' }}>
+        {/* 左：触发辅导的错题（上下文） */}
+        <div className="p-4 flex flex-col" style={{ background: '#F8F9FB', borderRight: `1px solid ${BORDER}` }}>
+          <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 rounded-full text-[9px] font-semibold" style={{ background: '#FFF0EE', color: RED }}>回答错误</span><span className="text-[9px]" style={{ color: T4 }}>练习 · 单选题</span></div>
+          <p className="text-[13px] font-bold leading-5 mb-3" style={{ color: T1 }}>光合作用主要发生在植物细胞的哪个结构中？</p>
+          {[{ t: 'A. 线粒体', wrong: true }, { t: 'B. 叶绿体' }, { t: 'C. 细胞核' }].map(o => <div key={o.t} className="rounded-xl px-3 py-2.5 mb-2 text-[10px]" style={{ background: o.wrong ? '#FFF0EE' : CARD, border: `1px solid ${o.wrong ? '#FFC6BF' : BORDER}`, color: o.wrong ? RED : T2 }}>{o.t}</div>)}
         </div>
+        {/* 右：AI 对话（回合制自动演示） */}
         <div className="flex flex-col min-w-0 min-h-0">
-          <div className="flex items-center gap-2 px-4 py-2.5" style={{borderBottom:`1px solid ${BORDER}`}}>
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{background:'linear-gradient(145deg,#347FFF,#765BFF)',color:'#fff'}}><Sparkles size={14}/></div>
-            <div className="flex-1"><p className="text-[11px] font-bold" style={{color:T1}}>AI Tutor</p><p className="text-[8px]" style={{color:T4}}>对话里也能完整练习与讲解</p></div>
-            <span className="text-[9px]" style={{color:T4}}>可展开全屏</span>
+          <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${BORDER}` }}>
+            <CloudMascot size={22} />
+            <p className="flex-1 text-[11px] font-bold" style={{ color: T1 }}>AI 助教</p>
+            {autoDone && <button onClick={play} className="flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-medium" style={{ background: '#EAF3FF', color: BLUE }}><RotateCcw size={10} />重播</button>}
           </div>
           <div className="relative flex-1 min-h-0 overflow-hidden">
-          <div ref={chatScrollRef} onScroll={(event)=>{
-            const el=event.currentTarget;
-            setChatAtBottom(el.scrollHeight-el.scrollTop-el.clientHeight<24);
-          }} className="absolute inset-0 overflow-y-scroll p-4 pr-3 space-y-2.5" style={{background:'#F6F8FC',scrollbarGutter:'stable'}}>
-            <div className="ml-auto max-w-[78%] rounded-2xl rounded-tr-md px-3 py-2 text-[10px]" style={{background:BLUE,color:'#fff'}}>我总是分不清斡旋受贿和利用影响力受贿。</div>
-            {showTeaching && <div className="max-w-[92%] rounded-2xl rounded-tl-md p-3" style={{background:CARD,border:`1px solid ${BORDER}`}}>
-              <p className="text-[10px] leading-5" style={{color:T2}}>先不用背结论，我们在对话里练一下。最关键的起点是：</p>
-              <div className="mt-2 space-y-1.5">{['主体身份','财物数额','请托关系'].map(option=><button key={option} onClick={()=>answerQuestion(option)} className="w-full text-left px-3 py-2 rounded-lg text-[9px]" style={{background:choice===option?'#FFFBDE':'#F7F8FA',border:`1px solid ${choice===option?'#E8CF45':BORDER}`,color:T2}}>{option}{choice===option&&<Check size={10} className="inline ml-2" color={GREEN}/>}</button>)}</div>
-            </div>}
-            {choice && <div className="max-w-[92%] rounded-2xl rounded-tl-md p-3" style={{background:CARD,border:`1px solid ${BORDER}`}}>
-              <p className="text-[10px] font-semibold" style={{color:choice==='主体身份'?GREEN:'#A57400'}}>{choice==='主体身份'?'答对了。先确认主体，再判断行为方式。':'接近了，但第一步应先确认主体身份。'}</p>
-              <div className="mt-2 rounded-xl overflow-hidden" style={{background:'linear-gradient(135deg,#EAF3FF,#F3EEFF)',border:'1px solid #D6E3FA'}}>
-                <div className="h-16 flex items-center justify-center gap-2 px-3"><span className="text-[9px] px-2 py-1 rounded-lg bg-white">国家工作人员</span><span style={{color:BLUE}}>→</span><span className="text-[9px] px-2 py-1 rounded-lg bg-white">利用职权影响</span><span style={{color:BLUE}}>→</span><span className="text-[9px] px-2 py-1 rounded-lg bg-white">请托谋利</span></div>
-                <div className="px-3 py-1.5 flex items-center text-[8px]" style={{background:'rgba(255,255,255,.7)',color:T4}}><Image size={10} className="mr-1"/>AI 生成说明图 · 仅供理解，以教材为准</div>
-              </div>
-              <div className="flex gap-1 mt-2 flex-wrap">{['闪卡','单选','判断','填空','多选','简答'].map(type=><span key={type} className="px-2 py-1 rounded-full text-[8px]" style={{background:'#F3F4F6',color:T3}}>{type}</span>)}</div>
-            </div>}
-            <div ref={chatEndRef} className="h-1"/>
-          </div>
-          {!chatAtBottom && <button onClick={scrollToLatest} className="absolute right-4 bottom-3 px-2.5 py-1.5 rounded-full text-[9px] shadow-md" style={{background:CARD,color:BLUE,border:`1px solid #D8E6FA`}}>回到最新 ↓</button>}
+            <div className="absolute inset-0 overflow-y-auto p-4 pr-3 space-y-2.5" style={{ background: '#F6F8FC', scrollbarGutter: 'stable' }}>
+              {B6_SCRIPT.slice(0, visible).map((item, i) => {
+                if (item.role === 'user') return <div key={i} className="ml-auto max-w-[78%] rounded-2xl rounded-tr-md px-3 py-2 text-[10px]" style={{ background: BLUE, color: '#fff' }}>{item.text}</div>;
+                if (item.role === 'quiz') return <B6QuizInChat key={i} item={item} picked={picked[i]} onPick={(key) => setPicked(p => { const cur = p[i]; const next = { ...p }; if (cur === key) delete next[i]; else next[i] = key; return next; })} />;
+                // ai / done：逐字打印
+                const shown = typing && typing.idx === i ? item.text.slice(0, typing.n) : item.text;
+                const isTyping = typing != null && typing.idx === i;
+                return <div key={i} className="max-w-[92%] rounded-2xl rounded-tl-md px-3 py-2 text-[10px] leading-5" style={{ background: item.role === 'done' ? '#EAF9EF' : CARD, border: `1px solid ${item.role === 'done' ? '#BFEBCF' : BORDER}`, color: item.role === 'done' ? GREEN : T2, fontWeight: item.role === 'done' ? 600 : 400 }}>{shown}{isTyping && <span className="inline-block w-1 h-3 ml-0.5 align-middle" style={{ background: BLUE, animation: 'pulse 1s ease-in-out infinite' }} />}</div>;
+              })}
+              <div ref={chatEndRef} className="h-1" />
+            </div>
           </div>
         </div>
       </div>
-      <div className="pb-5 pt-3">
-        <CTAButton onClick={onNext} disabled={!choice}>继续：查看每道题的来源 →</CTAButton>
+      <div className="pb-5 pt-2 flex-shrink-0">
+        {dots}
+        <CTAButton onClick={onNext} disabled={!autoDone}>继续：查看每道题的来源 →</CTAButton>
       </div>
     </div>
   );
@@ -1985,7 +2080,7 @@ function B6Inner({ onNext }: { onNext: () => void }) {
 
 // ── B7 inner ──────────────────────────────────────────────────────────────────
 
-function B7Inner({ onNext }: { onNext: () => void }) {
+function B7Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode }) {
   const [added, setAdded] = useState(false);
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
@@ -2035,6 +2130,7 @@ function B7Inner({ onNext }: { onNext: () => void }) {
         </div>
       </div>
       <div className="pb-5 pt-1">
+        {dots}
         <CTAButton onClick={onNext}>我准备好了 →</CTAButton>
       </div>
     </div>
