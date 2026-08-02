@@ -44,7 +44,6 @@ import MockTestSetupScreen from './screens/MockTestSetupScreen';
 import PostExamReportScreen from './screens/PostExamReportScreen';
 import ResourcesScreen from './screens/ResourcesScreen';
 import ResourceCollectionScreen from './screens/ResourceCollectionScreen';
-import SetupScreen from './screens/SetupScreen';
 import PriorityTriageScreen from './screens/PriorityTriageScreen';
 import PlanGenerationLoadingScreen from './screens/PlanGenerationLoadingScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
@@ -53,7 +52,7 @@ import PlanFrameworkScreen, { type PlanDemoScenario } from './screens/PlanFramew
 /**
  * 定义哪些屏幕需要隐藏顶部Tab和侧边栏（全屏模式）
  */
-const FULLSCREEN_SCREENS = ['practice', 'mock-exam', 'setup', 'resource-collection', 'priority-triage', 'plan-loading', 'plan-framework', 'course-progress', 'knowledge-map', 'favorites'];
+const FULLSCREEN_SCREENS = ['practice', 'mock-exam', 'resource-collection', 'priority-triage', 'plan-loading', 'plan-framework', 'course-progress', 'knowledge-map', 'favorites'];
 
 /**
  * 定义哪些屏幕需要隐藏侧边栏
@@ -211,20 +210,11 @@ function AppContent() {
           />
         );
 
-      case 'setup':
-        return (
-          <SetupScreen
-              onNext={() => navigateTo('resource-collection')}
-              onBack={() => navigateTo('space-selector')}
-              onNavigateHome={() => navigateTo('dashboard')}
-            />
-        );
-
       case 'resource-collection':
         return (
           <ResourceCollectionScreen
               onNext={() => navigateTo('priority-triage')}
-              onBack={() => navigateTo('setup')}
+              onBack={() => navigateTo('resources')}
               onNavigateHome={() => navigateTo('dashboard')}
             />
         );
