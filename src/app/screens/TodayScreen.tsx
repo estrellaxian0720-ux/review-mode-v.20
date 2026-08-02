@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   ChevronDown, ChevronRight, ChevronLeft, ChevronUp, Play, Star, Check,
-  Maximize2,
+  Maximize2, List, LayoutGrid, CheckSquare, Flame, Clock, CalendarClock, AlarmClock,
 } from 'lucide-react';
 import { useApp } from '../contexts/AppContext';
 
@@ -18,6 +18,8 @@ const C = {
   bg: '#F6F6F6', panel: '#F3F4F6', card: '#FFFFFF', border: '#EBEBEB', borderSoft: '#EFEFEF',
   dark: '#1A1D2E', // 深色 CTA / 进度环（令牌允许「主色/深色」作 CTA）
 };
+
+const PENCIL = '#2A2A2A';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -84,12 +86,22 @@ const CURRENT_SPACE_TITLE = '刑法';
 
 type QuizMode = 'operator' | 'quiz' | 'fallback';
 
-const QUIZ_TEXT = '还记得吗：斡旋受贿罪的行为主体是谁？';
 const OPERATOR_CONTENT: { text: string; url?: string } | null = null;
-
-const QUIZ_KP: KP = { id: 'kp-quiz', name: '斡旋受贿罪的行为主体', status: 'mastered', importance: 3, mastery: 100 };
-const QUIZ_MODULE_NAME = '受贿罪专题';
 const FALLBACK_TEXT = '稳住节奏，离上岸又近一天';
+
+function pickQuizKP(coldStart: boolean): { kp: KP; modName: string } | null {
+  const pool: { kp: KP; modName: string }[] = [];
+  MODULES.forEach(m => m.kps.forEach(kp => {
+    const learned = kp.status === 'mastered' || kp.status === 'learning';
+    if (coldStart || learned) pool.push({ kp, modName: m.name });
+  }));
+  if (pool.length === 0) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function quizTextFor(coldStart: boolean, kpName: string): string {
+  return coldStart ? `第一个知识点你会不会：${kpName}？` : `还记得吗：${kpName}？`;
+}
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 
@@ -146,11 +158,14 @@ const REMAINING_KPS = TOTAL_KPS - DONE_KPS;
 const STREAK = 7;
 const STUDIED_MIN = 25;
 const DAYS_TO_EXAM = 72;
-const PLAN_TOTAL_DAYS = 220; // 72/220 ≈ 32.7% → 中性灰
-const IS_COLD_START = false;
+const PLAN_TOTAL_DAYS = 220;
+const DAYS_TO_EXAM_SOON = 5;
 
-const REMAINING_PCT = DAYS_TO_EXAM / PLAN_TOTAL_DAYS;
-const examTagColor = REMAINING_PCT > 0.30 ? C.tertiary : REMAINING_PCT > 0.07 ? '#E17100' : C.weak;
+function examColorFor(days: number) {
+  if (days <= 7) return C.weak;
+  const pct = days / PLAN_TOTAL_DAYS;
+  return pct > 0.30 ? C.tertiary : '#E17100';
+}
 
 const FLASHCARD_ANSWERS: Record<string, string> = {
   'kp-quiz': '斡旋受贿罪的行为主体是国家工作人员，利用本人职权或地位形成的便利条件，通过其他国家工作人员职务行为为请托人谋取不正当利益，索取或收受财物。与一般受贿罪的关键区别在于：行为人本人不直接利用职务便利，而是借助与其他国家工作人员的关系实施。',
@@ -215,6 +230,189 @@ function ProgressRing({ pct, size = 108 }: { pct: number; size?: number }) {
 }
 
 // ── Mastery bar (掌握度横进度条，带数字) ────────────────────────────────────────
+
+// ── Doodle runner (涂鸦手绘小人) ──────────────────────────────────────────────
+
+function DoodleBody() {
+  return (
+    <>
+      {/* wild hair */}
+      <path d="M14 4.5c-.8-1.5-1.5-2.8-.5-3.5s3-.3 4.2.8c1 .9 2.2.4 2.5-.2" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round" fill="none"/>
+      <path d="M12.8 5c-1-.6-1.8-1.2-1-2.2s2.5-.2 3 .6" stroke={PENCIL} strokeWidth={1.2} strokeLinecap="round" fill="none"/>
+      {/* head */}
+      <circle cx={17.5} cy={8} r={4.4} fill="#FFF5E0" stroke={PENCIL} strokeWidth={1.5}/>
+      {/* eyes */}
+      <circle cx={16} cy={7.5} r={0.7} fill={PENCIL}/>
+      <circle cx={19} cy={7.5} r={0.7} fill={PENCIL}/>
+      {/* mouth */}
+      <path d="M16.2 9.5c.6.5 1.8.5 2.4 0" stroke={PENCIL} strokeWidth={0.8} strokeLinecap="round" fill="none"/>
+      {/* shirt */}
+      <path d="M13 13c.5-1 2-1.8 4.5-1.8s4 .8 4.5 1.8v5H13z" fill={C.learning} stroke={PENCIL} strokeWidth={1.3} strokeLinejoin="round"/>
+      {/* shorts */}
+      <path d="M13 18h9v3.5c0 .5-.5 1-1 1h-2.5l-.5-2-.5 2H15c-.5 0-1-.5-1-1z" fill={C.dark} stroke={PENCIL} strokeWidth={1.1} strokeLinejoin="round"/>
+    </>
+  );
+}
+
+function RunPoseA() {
+  return (
+    <svg width={30} height={38} viewBox="0 0 30 38" fill="none" style={{ display: 'block' }}>
+      <DoodleBody/>
+      {/* left arm back */}
+      <path d="M13 14c-2 1.5-4 4-3.5 5" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* right arm forward */}
+      <path d="M22 14c1.5 1 3.5 2 4 3.5" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* left leg forward */}
+      <path d="M15 22.5c-1 2.5-2 5-1.5 7" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <ellipse cx={13} cy={30} rx={2} ry={1} fill={PENCIL}/>
+      {/* right leg back */}
+      <path d="M18 22.5c1.5 2 3 4.5 4 6" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <ellipse cx={22.5} cy={29} rx={1.8} ry={0.9} fill={PENCIL}/>
+    </svg>
+  );
+}
+
+function RunPoseB() {
+  return (
+    <svg width={30} height={38} viewBox="0 0 30 38" fill="none" style={{ display: 'block' }}>
+      <DoodleBody/>
+      {/* right arm back */}
+      <path d="M22 14c2 1.5 4 4 3.5 5" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* left arm forward */}
+      <path d="M13 14c-1.5 1-3.5 2-4 3.5" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* right leg forward */}
+      <path d="M18 22.5c1 2.5 2 5 1.5 7" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <ellipse cx={20} cy={30} rx={2} ry={1} fill={PENCIL}/>
+      {/* left leg back */}
+      <path d="M15 22.5c-1.5 2-3 4.5-4 6" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <ellipse cx={10.5} cy={29} rx={1.8} ry={0.9} fill={PENCIL}/>
+    </svg>
+  );
+}
+
+function CheerPose() {
+  return (
+    <svg width={30} height={38} viewBox="0 0 30 38" fill="none" style={{ display: 'block' }}>
+      <DoodleBody/>
+      {/* arms up */}
+      <path d="M13 14c-3-2-5-5-4-7" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      <path d="M22 14c3-2 5-5 4-7" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* joy lines */}
+      <line x1={7} y1={5} x2={5} y2={3} stroke={C.gold} strokeWidth={1.5} strokeLinecap="round"/>
+      <line x1={27} y1={5} x2={29} y2={3} stroke={C.gold} strokeWidth={1.5} strokeLinecap="round"/>
+      <line x1={17.5} y1={1} x2={17.5} y2={-1} stroke={C.gold} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* legs standing */}
+      <path d="M15 22.5c-.5 3-1 6-.5 8" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <path d="M18 22.5c.5 3 1 6 .5 8" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <ellipse cx={14} cy={31} rx={2.2} ry={1} fill={PENCIL}/>
+      <ellipse cx={19} cy={31} rx={2.2} ry={1} fill={PENCIL}/>
+    </svg>
+  );
+}
+
+function StandPose() {
+  return (
+    <svg width={30} height={38} viewBox="0 0 30 38" fill="none" style={{ display: 'block' }}>
+      <DoodleBody/>
+      {/* arms at sides, slightly bent */}
+      <path d="M13 14c-1 2-1.5 4-1 6" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      <path d="M22 14c1 2 1.5 4 1 6" stroke={PENCIL} strokeWidth={1.5} strokeLinecap="round"/>
+      {/* legs standing */}
+      <path d="M15 22.5c-.3 3-.5 6 0 8" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <path d="M18 22.5c.3 3 .5 6 0 8" stroke={PENCIL} strokeWidth={1.6} strokeLinecap="round"/>
+      <ellipse cx={14.5} cy={31} rx={2.2} ry={1} fill={PENCIL}/>
+      <ellipse cx={18.5} cy={31} rx={2.2} ry={1} fill={PENCIL}/>
+    </svg>
+  );
+}
+
+function DoodleRunner({ pose }: { pose: 'run' | 'cheer' | 'stand' }) {
+  const W = 30, H = 38;
+  if (pose === 'cheer') return <div style={{ width: W, height: H, lineHeight: 0 }}><CheerPose /></div>;
+  if (pose === 'stand') return <div style={{ width: W, height: H, lineHeight: 0 }}><StandPose /></div>;
+  return (
+    <div style={{ position: 'relative', width: W, height: H }}>
+      <style>{`
+        @keyframes yj-stride-a { 0%,48% { opacity:1 } 52%,100% { opacity:0 } }
+        @keyframes yj-stride-b { 0%,48% { opacity:0 } 52%,100% { opacity:1 } }
+        @keyframes yj-speed { 0% { opacity:.15; transform:translateX(2px) } 50% { opacity:.6; transform:translateX(-2px) } 100% { opacity:.15; transform:translateX(2px) } }
+      `}</style>
+      <svg width={12} height={10} viewBox="0 0 12 10" style={{ position: 'absolute', left: -10, top: 16, animation: 'yj-speed 0.4s ease-in-out infinite' }}>
+        <line x1={0} y1={2} x2={8} y2={2} stroke={PENCIL} strokeWidth={1.2} strokeLinecap="round" opacity={0.3}/>
+        <line x1={2} y1={5} x2={10} y2={5} stroke={PENCIL} strokeWidth={1} strokeLinecap="round" opacity={0.2}/>
+        <line x1={1} y1={8} x2={7} y2={8} stroke={PENCIL} strokeWidth={1.2} strokeLinecap="round" opacity={0.25}/>
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, animation: 'yj-stride-a 0.42s steps(1) infinite', lineHeight: 0 }}><RunPoseA /></div>
+      <div style={{ position: 'absolute', inset: 0, animation: 'yj-stride-b 0.42s steps(1) infinite', lineHeight: 0 }}><RunPoseB /></div>
+    </div>
+  );
+}
+
+function FinishFlag({ big }: { big?: boolean }) {
+  const w = big ? 24 : 16, h = big ? 33 : 22;
+  return (
+    <svg width={w} height={h} viewBox="0 0 24 33" fill="none" style={{ display: 'block' }}>
+      <path d="M4.5 2.5V23" stroke={PENCIL} strokeWidth={2} strokeLinecap="round"/>
+      <circle cx={4.5} cy={2.5} r={1.8} fill={C.gold} stroke={PENCIL} strokeWidth={1}/>
+      <path d="M5 5c4-1 7 2 11 0v8c-4 2-7-1-11 0z" fill={C.weak} stroke={PENCIL} strokeWidth={1.2} strokeLinejoin="round"/>
+      <line x1={19} y1={3} x2={21} y2={1} stroke={C.gold} strokeWidth={1.3} strokeLinecap="round"/>
+      <line x1={20} y1={6} x2={22.5} y2={5} stroke={C.gold} strokeWidth={1.3} strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+function StartMarker() {
+  return (
+    <svg width={16} height={22} viewBox="0 0 16 22" fill="none" style={{ display: 'block' }}>
+      <path d="M4 2v18" stroke={PENCIL} strokeWidth={2} strokeLinecap="round"/>
+      <path d="M4.5 3c3-.8 5 1 8 0v6c-3 1-5-.8-8 0z" fill={C.muted} stroke={PENCIL} strokeWidth={1} strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
+function RunnerBar({ pct, finished }: { pct: number; finished: boolean }) {
+  const NODES = [0.25, 0.5, 0.75, 1];
+  return (
+    <div style={{ position: 'relative', height: 40, marginTop: 2 }}>
+      {/* track */}
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 6, height: 4, background: '#EFEFEF', borderRadius: 2 }}>
+        <div style={{ height: '100%', width: `${Math.min(pct, 1) * 100}%`, background: C.dark, borderRadius: 2, transition: 'width 0.5s ease' }}/>
+      </div>
+      {/* milestone nodes */}
+      {NODES.map(n => (
+        <div key={n} style={{
+          position: 'absolute', bottom: 3, left: `${n * 100}%`, transform: 'translateX(-50%)',
+          width: 8, height: 8, borderRadius: '50%',
+          background: pct >= n ? C.gold : '#DDD',
+          border: `1.5px solid ${pct >= n ? '#E5B800' : '#CCC'}`,
+          transition: 'background 0.3s',
+        }}/>
+      ))}
+      {/* runner */}
+      <div style={{ position: 'absolute', bottom: 2, left: `${Math.min(pct, 0.95) * 100}%`, transform: 'translateX(-50%)' }}>
+        <DoodleRunner pose={finished ? 'cheer' : 'run'} />
+      </div>
+      {/* finish flag */}
+      <div style={{ position: 'absolute', bottom: 3, right: 0, transform: 'translateX(40%)' }}>
+        <FinishFlag />
+      </div>
+    </div>
+  );
+}
+
+function ColdStartTrack() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', maxWidth: 360, margin: '0 auto', padding: '16px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+        <StartMarker />
+        <DoodleRunner pose="stand" />
+      </div>
+      <div style={{ flex: 1, margin: '0 12px', borderTop: `2px dashed ${C.muted}`, alignSelf: 'center' }}/>
+      <FinishFlag big />
+    </div>
+  );
+}
+
 
 function MasteryBar({ status, mastery, full }: { status: KPStatus; mastery: number; full?: boolean }) {
   const label = status === 'mastered' ? '已掌握'
@@ -641,16 +839,16 @@ function KPRow({
         <BubbleTip
           text="点 ☆ 收藏重点知识点，稍后在 Overview 集中回看"
           onDismiss={onDismissStarBubble}
-          tailSide="bottom" tailOffset="80%"
-          style={{ bottom: '100%', right: 0, marginBottom: 10 }}
+          tailSide="top" tailOffset="calc(100% - 40px)"
+          style={{ top: '100%', right: 8, marginTop: 6 }}
         />
       )}
       {showPriorityBubble && (
         <BubbleTip
           text="彩条=考试重要度，红=高频考点、优先学；点色条看理由"
           onDismiss={onDismissPriorityBubble}
-          tailSide="bottom" tailOffset="14%"
-          style={{ bottom: '100%', left: 24, marginBottom: 10 }}
+          tailSide="top" tailOffset="24px"
+          style={{ top: '100%', left: 32, marginTop: 6 }}
         />
       )}
     </div>
@@ -874,16 +1072,16 @@ function ModuleSection({
         <BubbleTip
           text="点开看这个模块今天学哪些 ▸"
           onDismiss={onDismissExpandBubble}
-          tailSide="top" tailOffset="30px"
-          style={{ top: '100%', left: 12, marginTop: 8 }}
+          tailSide="top" tailOffset="37px"
+          style={{ top: '100%', left: 12, marginTop: 6 }}
         />
       )}
       {showStartBubble && (
         <BubbleTip
           text="点击「开始」直接练习该模块，已跳过的会自动略过"
           onDismiss={onDismissStartBubble}
-          tailSide="top" tailOffset="88%"
-          style={{ top: '100%', right: 12, marginTop: 8 }}
+          tailSide="top" tailOffset="calc(100% - 34px)"
+          style={{ top: '100%', right: 8, marginTop: 6 }}
         />
       )}
 
@@ -977,8 +1175,12 @@ export default function TodayScreen({
   onStartPractice, onViewResources, onStartMockExam, onViewKnowledgeMap, onViewPlan, onViewAllSpaces,
 }: TodayScreenProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const { orientation } = useApp();
+  const { orientation, todayDemoScenario } = useApp();
   const portrait = orientation === 'portrait';
+
+  const daysToExam = todayDemoScenario === 'exam-soon' ? DAYS_TO_EXAM_SOON : DAYS_TO_EXAM;
+  const examTagColor = examColorFor(daysToExam);
+  const isColdStart = todayDemoScenario === 'no-record';
 
   const [spaceMenuOpen, setSpaceMenuOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -1081,14 +1283,15 @@ export default function TodayScreen({
     setFlashcard({ kps: mod.kps, idx: Math.max(0, idx), modName: mod.name, origin: rect });
   }, []);
 
-  // 考考你
-  const quizMode: QuizMode = OPERATOR_CONTENT ? 'operator' : QUIZ_TEXT ? 'quiz' : 'fallback';
+  // 考考你（每次 mount 随机换一题）
+  const quizPick = useRef(pickQuizKP(isColdStart)).current;
+  const quizMode: QuizMode = OPERATOR_CONTENT ? 'operator' : quizPick ? 'quiz' : 'fallback';
   const quizLabel = quizMode === 'operator' ? '📢' : quizMode === 'quiz' ? '考考你' : null;
   const quizText = quizMode === 'operator' ? OPERATOR_CONTENT!.text
-    : quizMode === 'quiz' ? QUIZ_TEXT : FALLBACK_TEXT;
+    : quizMode === 'quiz' ? quizTextFor(isColdStart, quizPick!.kp.name) : FALLBACK_TEXT;
   const handleQuizClick = () => {
     if (quizMode === 'operator' && OPERATOR_CONTENT?.url) window.open(OPERATOR_CONTENT.url, '_blank');
-    else if (quizMode === 'quiz') setFlashcard({ kps: [QUIZ_KP], idx: 0, modName: QUIZ_MODULE_NAME, origin: null });
+    else if (quizMode === 'quiz' && quizPick) setFlashcard({ kps: [quizPick.kp], idx: 0, modName: quizPick.modName, origin: null });
   };
   const isQuizClickable = quizMode === 'operator' || quizMode === 'quiz';
 
@@ -1163,7 +1366,7 @@ export default function TodayScreen({
             <button
               onClick={isQuizClickable ? handleQuizClick : undefined}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                display: 'inline-flex', alignItems: 'center', gap: 8, maxWidth: '100%',
                 background: 'transparent', border: 'none',
                 cursor: isQuizClickable ? 'pointer' : 'default', padding: 0, textAlign: 'left',
               }}
@@ -1177,7 +1380,8 @@ export default function TodayScreen({
                   {quizLabel}
                 </span>
               )}
-              <span style={{ fontSize: 13, color: C.sub, lineHeight: 1.4, flex: 1 }}>{quizText}</span>
+              <span style={{ fontSize: 13, color: C.sub, lineHeight: 1.4,
+                minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{quizText}</span>
               {isQuizClickable && <ChevronRight size={13} color={C.muted} style={{ flexShrink: 0 }} />}
             </button>
           </div>
@@ -1186,126 +1390,148 @@ export default function TodayScreen({
           <div style={{ position: 'relative', marginBottom: 12 }}>
             <div style={{ background: '#fff', borderRadius: 16, overflow: 'visible',
               boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
-              {IS_COLD_START ? (
-                <div style={{ padding: '28px 20px', textAlign: 'center' }}>
-                  <p style={{ fontSize: 20, fontWeight: 700, color: C.dark, marginBottom: 8 }}>
+              {isColdStart ? (
+                <div style={{ padding: '26px 20px 30px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 20, fontWeight: 700, color: C.dark, marginBottom: 4 }}>
                     欢迎来到刑法的第一天
                   </p>
-                  <p style={{ fontSize: 14, color: C.tertiary, marginBottom: 24 }}>计划已就绪，从第一个知识点出发</p>
+                  <p style={{ fontSize: 14, color: C.tertiary, marginBottom: 8 }}>计划已就绪，从起点出发</p>
+                  <ColdStartTrack />
                   <button onClick={handleStart} style={{
                     padding: '13px 36px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                    background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700,
+                    background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700, marginTop: 8,
                   }}>
                     开始你的第一天 →
                   </button>
                 </div>
               ) : (
                 <>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 24,
-                    flexWrap: portrait ? 'wrap' : 'nowrap', padding: '22px 24px 0' }}>
-                    {/* 左·状态区：环形（主角）+ 情绪/动机文案 */}
-                    <ProgressRing pct={DONE_KPS / TOTAL_KPS} size={112} />
-
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ padding: '22px 24px 0' }}>
+                    {/* Headline row */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
                       <button onClick={onViewPlan} style={{
                         fontSize: 21, fontWeight: 800, color: C.dark,
-                        margin: '0 0 5px', letterSpacing: '-0.3px', background: 'none',
+                        margin: 0, letterSpacing: '-0.3px', background: 'none',
                         border: 'none', cursor: onViewPlan ? 'pointer' : 'default',
-                        padding: 0, textAlign: 'left', display: 'block',
+                        padding: 0, textAlign: 'left',
                       }}>
                         {heroHeadline(DONE_KPS, TOTAL_KPS)}
                       </button>
-                      {/* 收尾动机文案（可点，进计划概览页 Prompt 1a） */}
-                      <button onClick={onViewPlan} style={{
-                        fontSize: 13, color: C.sub, background: 'none', border: 'none',
-                        cursor: 'pointer', padding: 0, margin: 0,
-                        display: 'flex', alignItems: 'center', gap: 3,
-                      }}>
-                        再 {REMAINING_KPS} 个，今天就能收尾
-                        <ChevronRight size={12} color={C.muted} />
-                      </button>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: C.sub }}>
+                        已完成 {DONE_KPS}/{TOTAL_KPS} 知识点
+                      </span>
                     </div>
 
-                    {/* 右·行动区：CTA（主角）+ 约45min，位于卡片右侧（竖屏时换行占满） */}
-                    <div style={{ position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column',
-                      alignItems: 'center', width: portrait ? '100%' : 'auto' }}>
-                      <button onClick={handleStart} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        padding: '15px 32px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                        background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700,
-                        width: portrait ? '100%' : 'auto',
-                      }}>
-                        <Play size={14} fill="#fff" strokeWidth={0} />
-                        开始今日学习
-                      </button>
-                      <p style={{ fontSize: 11, color: C.tertiary, margin: '6px 0 0' }}>约 45 min</p>
+                    {/* Runner progress bar */}
+                    <RunnerBar pct={DONE_KPS / TOTAL_KPS} finished={DONE_KPS >= TOTAL_KPS} />
 
-                      {/* 练习模式（题型）下拉 —— 挂 Hero CTA 正下方 */}
-                      <div style={{ position: 'relative', marginTop: 8 }}>
-                        <button
-                          onClick={() => setPracticeMenuOpen(o => !o)}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 5,
-                            padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
-                            border: `1px solid ${C.border}`, background: '#fff',
-                            fontSize: 11, fontWeight: 600, color: C.sub, whiteSpace: 'nowrap',
-                          }}>
-                          {PRACTICE_TYPE_OPTIONS.find(o => o.key === practiceType)!.label}
-                          <ChevronDown size={12} color={C.muted}
-                            style={{ transform: practiceMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                    {/* Subtitle + CTA row */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 24,
+                      flexWrap: portrait ? 'wrap' : 'nowrap', marginTop: 12 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <button onClick={onViewPlan} style={{
+                          fontSize: 13, color: C.sub, background: 'none', border: 'none',
+                          cursor: 'pointer', padding: 0, margin: 0,
+                          display: 'flex', alignItems: 'center', gap: 3,
+                        }}>
+                          还剩约 26min · 上次学习至 渎职罪
+                          <ChevronRight size={12} color={C.muted} />
                         </button>
-                        {practiceMenuOpen && (
-                          <div style={{
-                            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 40,
-                            background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`,
-                            boxShadow: '0 6px 20px rgba(0,0,0,0.14)', overflow: 'hidden', minWidth: 148,
-                          }}>
-                            {PRACTICE_TYPE_OPTIONS.map(opt => (
-                              <button key={opt.key}
-                                onClick={() => { setPracticeType(opt.key); setPracticeMenuOpen(false); }}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                  fontSize: 12, fontWeight: opt.key === practiceType ? 700 : 500,
-                                  background: opt.key === practiceType ? '#F1F6FF' : '#fff',
-                                  color: opt.key === practiceType ? C.learning : C.ink,
-                                }}>
-                                {opt.key === practiceType && <Check size={11} color={C.learning} strokeWidth={3} />}
-                                <span style={{ marginLeft: opt.key === practiceType ? 0 : 17 }}>{opt.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
 
-                      {showHeroCTA && (
-                        <BubbleTip
-                          text="点这里开始今天的学习"
-                          onDismiss={() => dismiss('hero-cta')}
-                          tailSide="top" tailOffset="56px"
-                          style={{ top: '100%', left: 0, marginTop: 14 }}
-                        />
-                      )}
+                      {/* CTA */}
+                      <div style={{ position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column',
+                        alignItems: 'center', width: portrait ? '100%' : 'auto' }}>
+                        <button onClick={handleStart} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          padding: '15px 32px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                          background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700,
+                          width: portrait ? '100%' : 'auto',
+                        }}>
+                          <Play size={14} fill="#fff" strokeWidth={0} />
+                          继续今日学习
+                        </button>
+
+                        {/* 练习模式下拉 */}
+                        <div style={{ position: 'relative', marginTop: 8 }}>
+                          <button
+                            onClick={() => setPracticeMenuOpen(o => !o)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 5,
+                              padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+                              border: `1px solid ${C.border}`, background: '#fff',
+                              fontSize: 11, fontWeight: 600, color: C.sub, whiteSpace: 'nowrap',
+                            }}>
+                            {PRACTICE_TYPE_OPTIONS.find(o => o.key === practiceType)!.label}
+                            <ChevronDown size={12} color={C.muted}
+                              style={{ transform: practiceMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                          </button>
+                          {practiceMenuOpen && (
+                            <div style={{
+                              position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 40,
+                              background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`,
+                              boxShadow: '0 6px 20px rgba(0,0,0,0.14)', overflow: 'hidden', minWidth: 148,
+                            }}>
+                              {PRACTICE_TYPE_OPTIONS.map(opt => (
+                                <button key={opt.key}
+                                  onClick={() => { setPracticeType(opt.key); setPracticeMenuOpen(false); }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                    padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                    fontSize: 12, fontWeight: opt.key === practiceType ? 700 : 500,
+                                    background: opt.key === practiceType ? '#F1F6FF' : '#fff',
+                                    color: opt.key === practiceType ? C.learning : C.ink,
+                                  }}>
+                                  {opt.key === practiceType && <Check size={11} color={C.learning} strokeWidth={3} />}
+                                  <span style={{ marginLeft: opt.key === practiceType ? 0 : 17 }}>{opt.label}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {showHeroCTA && (
+                          <BubbleTip
+                            text="点这里开始今天的学习"
+                            onDismiss={() => dismiss('hero-cta')}
+                            tailSide="top" tailOffset="50%"
+                            style={{ top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 8 }}
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  {/* 三小标：横向铺满卡片底部 */}
+                  {/* 三小标 */}
                   <div style={{
                     display: 'flex', gap: 8, padding: '14px 24px 16px',
                     borderTop: `1px solid ${C.borderSoft}`, marginTop: 18,
                   }}>
-                    <span style={{ flex: 1, textAlign: 'center', fontSize: 12, padding: '5px 11px', borderRadius: 20,
-                      background: '#FFF3E0', color: '#B86000' }}>
-                      🔥 {STREAK} 天连续
+                    <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                      fontSize: 12, color: '#B86000' }}>
+                      <Flame size={15} color="#B86000" strokeWidth={2} /> {STREAK} 天连续
                     </span>
-                    <span style={{ flex: 1, textAlign: 'center', fontSize: 12, padding: '5px 11px', borderRadius: 20,
-                      background: C.panel, color: C.sub }}>
-                      ⏱ 今日已学 {STUDIED_MIN}min
+                    <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                      fontSize: 12, color: C.sub }}>
+                      <Clock size={15} color={C.learning} strokeWidth={2} /> 今日已学 {STUDIED_MIN}min
                     </span>
-                    <span style={{ flex: 1, textAlign: 'center', fontSize: 12, padding: '5px 11px', borderRadius: 20,
-                      background: C.panel, color: examTagColor }}>
-                      ⏳ 距考试 {DAYS_TO_EXAM} 天
-                    </span>
+                    {daysToExam <= 7 ? (
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        fontSize: 12, fontWeight: 700, color: '#fff',
+                        background: C.weak, padding: '3px 10px 3px 8px', borderRadius: 999,
+                        boxShadow: '0 0 0 0 rgba(255,98,82,0.55)',
+                        animation: 'yj-urgent-pulse 1.5s ease-out infinite',
+                      }}>
+                        <style>{`@keyframes yj-urgent-pulse { 0%{box-shadow:0 0 0 0 rgba(255,98,82,0.5)} 70%{box-shadow:0 0 0 7px rgba(255,98,82,0)} 100%{box-shadow:0 0 0 0 rgba(255,98,82,0)} }`}</style>
+                        <AlarmClock size={14} color="#fff" strokeWidth={2.6} /> 仅剩 {daysToExam} 天
+                      </span>
+                    ) : (
+                      <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                        fontSize: 12, color: examTagColor }}>
+                        <CalendarClock size={15} color={examTagColor} strokeWidth={2} /> 距考试 {daysToExam} 天
+                      </span>
+                    )}
                   </div>
                 </>
               )}

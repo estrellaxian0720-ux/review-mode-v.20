@@ -71,6 +71,7 @@ function AppContent() {
     reviewModeTab,
     isSidebarCollapsed,
     orientation,
+    todayDemoScenario,
     practiceStartingPoint,
     dailyStudyHours,
     overallMastery,
@@ -89,6 +90,7 @@ function AppContent() {
     setReviewModeTab,
     toggleSidebar,
     toggleOrientation,
+    setTodayDemoScenario,
     setSelectedSpaceId,
     setPracticeStartingPoint,
     setShowPivotPopup,
@@ -410,20 +412,37 @@ function AppContent() {
         >
         {/* 全局横竖屏切换按钮（练习页强制横屏时隐藏） */}
         {!forceLandscape && (
-          <button
-            onClick={toggleOrientation}
-            title={isPortrait ? '切换到横屏' : '切换到竖屏'}
-            style={{
-              position: 'absolute', top: 8, right: 8, zIndex: 300,
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '5px 9px', borderRadius: 8, cursor: 'pointer',
-              border: '1px solid rgba(0,0,0,0.12)', background: 'rgba(255,255,255,0.92)',
-              fontSize: 11, fontWeight: 600, color: '#555',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-            }}
-          >
-            {isPortrait ? '🖥 横屏' : '📱 竖屏'}
-          </button>
+          <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 300, display: 'flex', gap: 4 }}>
+            {currentScreen === 'dashboard' && (
+              <select
+                value={todayDemoScenario}
+                onChange={e => setTodayDemoScenario(e.target.value as any)}
+                style={{
+                  padding: '5px 6px', borderRadius: 8, cursor: 'pointer',
+                  border: '1px solid rgba(0,0,0,0.12)', background: 'rgba(255,255,255,0.92)',
+                  fontSize: 11, fontWeight: 600, color: '#555',
+                  boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+                }}
+              >
+                <option value="normal">常规</option>
+                <option value="exam-soon">距考≤7天</option>
+                <option value="no-record">冷启动</option>
+              </select>
+            )}
+            <button
+              onClick={toggleOrientation}
+              title={isPortrait ? '切换到横屏' : '切换到竖屏'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '5px 9px', borderRadius: 8, cursor: 'pointer',
+                border: '1px solid rgba(0,0,0,0.12)', background: 'rgba(255,255,255,0.92)',
+                fontSize: 11, fontWeight: 600, color: '#555',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
+              }}
+            >
+              {isPortrait ? '🖥 横屏' : '📱 竖屏'}
+            </button>
+          </div>
         )}
 
         {/* 左侧边栏 */}
