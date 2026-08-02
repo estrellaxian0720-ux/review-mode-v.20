@@ -22,8 +22,18 @@ const LANGUAGE_OPTIONS = [
   { value: 'ar', label: 'العربية' },
 ];
 
+const WEEK_DAYS = [
+  { value: 1, label: 'Mon' },
+  { value: 2, label: 'Tue' },
+  { value: 3, label: 'Wed' },
+  { value: 4, label: 'Thu' },
+  { value: 5, label: 'Fri' },
+  { value: 6, label: 'Sat' },
+  { value: 7, label: 'Sun' },
+];
+
 export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps) {
-  const { orientation } = useApp();
+  const { orientation, weeklyStudyDays, setWeeklyStudyDays } = useApp();
   const portrait = orientation === 'portrait';
   const gridCols = portrait ? 'grid-cols-1' : 'grid-cols-2';
   const [spaceName, setSpaceName] = useState('');
@@ -33,6 +43,9 @@ export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps
   const [familiarity, setFamiliarity] = useState(50);
   const [outputLanguage, setOutputLanguage] = useState('');
   const [nameError, setNameError] = useState('');
+  const [rhythmMode, setRhythmMode] = useState<'weekdays' | 'everyday' | 'custom'>(() =>
+    weeklyStudyDays.length === 7 ? 'everyday' : 'weekdays'
+  );
 
   const isFormValid = spaceName.trim().length >= 3 && spaceName.trim().length <= 50;
 
@@ -54,6 +67,23 @@ export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps
       setNameError('');
     }
   };
+
+  const selectStudyRhythm = (mode: 'weekdays' | 'everyday', days: number[]) => {
+    setRhythmMode(mode);
+    setWeeklyStudyDays(days);
+  };
+  const toggleStudyDay = (day: number) => {
+    const next = weeklyStudyDays.includes(day)
+      ? weeklyStudyDays.filter(value => value !== day)
+      : [...weeklyStudyDays, day].sort((a, b) => a - b);
+    // 至少保留一个学习日，避免生成计划时出现除零或无可用日期。
+    if (next.length > 0) {
+      setRhythmMode('custom');
+      setWeeklyStudyDays(next);
+    }
+  };
+  const isWeekdays = rhythmMode === 'weekdays';
+  const isEveryDay = rhythmMode === 'everyday';
 
   const inputBase =
     "w-full h-[38px] px-3 border border-[#D1D5DC] rounded-[8px] text-[13px] text-[#111827] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[#111827] transition-all font-['Inter'] bg-white";
@@ -113,7 +143,7 @@ export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps
                   onChange={(e) => setExamDate(e.target.value)}
                   className={inputBase}
                 />
-                <p className="text-[11px] text-[#9CA3AF] mt-1 font-['Inter']">Daily workload auto-calculated from this date.</p>
+                <p className="text-[11px] text-[#9CA3AF] mt-1 font-['Inter']">Your plan will be scheduled through the day before the exam.</p>
               </div>
               <div>
                 <label className={labelBase}>Output Language</label>
@@ -136,6 +166,50 @@ export function SetupScreen({ onNext, onBack, onNavigateHome }: SetupScreenProps
                 </div>
                 <p className="text-[11px] text-[#9CA3AF] mt-1 font-['Inter']">For practice questions and AI Tutor responses.</p>
               </div>
+            </div>
+
+            {/* Weekly study rhythm: recurring availability only, not a full calendar. */}
+            <div className="pt-4 border-t border-[#E5E7EB]">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div>
+                  <label className={labelBase}>Weekly Study Rhythm</label>
+                  <p className="text-[11px] text-[#9CA3AF] font-['Inter']">Which days are you usually available to study?</p>
+                </div>
+                <span className="text-[11px] font-semibold text-[#2563EB] whitespace-nowrap font-['Inter']">
+                  {weeklyStudyDays.length} days / week
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 mb-3">
+                <button type="button" onClick={() => selectStudyRhythm('weekdays', [1, 2, 3, 4, 5])}
+                  className={`h-8 px-4 rounded-full text-[11px] font-semibold border transition-colors font-['Inter'] ${isWeekdays ? 'bg-[#FFF8CC] border-[#FDEA3B] text-[#705D00]' : 'bg-white border-[#D1D5DC] text-[#6B7280]'}`}>
+                  Weekdays
+                </button>
+                <button type="button" onClick={() => selectStudyRhythm('everyday', [1, 2, 3, 4, 5, 6, 7])}
+                  className={`h-8 px-4 rounded-full text-[11px] font-semibold border transition-colors font-['Inter'] ${isEveryDay ? 'bg-[#FFF8CC] border-[#FDEA3B] text-[#705D00]' : 'bg-white border-[#D1D5DC] text-[#6B7280]'}`}>
+                  Every day
+                </button>
+                <button type="button" onClick={() => setRhythmMode('custom')} aria-pressed={rhythmMode === 'custom'}
+                  className={`h-8 px-4 rounded-full text-[11px] font-semibold border font-['Inter'] ${rhythmMode === 'custom' ? 'bg-[#EEF6FF] border-[#93C5FD] text-[#2563EB]' : 'bg-white border-[#D1D5DC] text-[#6B7280]'}`}>
+                  Custom
+                </button>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {WEEK_DAYS.map(day => {
+                  const selected = weeklyStudyDays.includes(day.value);
+                  return (
+                    <button key={day.value} type="button" onClick={() => toggleStudyDay(day.value)}
+                      aria-pressed={selected}
+                      className={`h-9 rounded-[8px] text-[11px] font-semibold border transition-all font-['Inter'] ${selected ? 'bg-[#FDEA3B] border-[#EBCB00] text-[#4D4200]' : 'bg-[#F7F8FA] border-[#E5E7EB] text-[#9CA3AF]'}`}>
+                      {day.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-[#9CA3AF] mt-2 font-['Inter']">
+                {isWeekdays ? '5 days per week · weekends off by default' : `${weeklyStudyDays.length} recurring study days selected`}
+              </p>
             </div>
 
             {/* Row: Target Score | Current Familiarity */}
