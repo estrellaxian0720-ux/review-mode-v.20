@@ -14,6 +14,12 @@ export type TopTabMode = 'all-notes' | 'review-mode' | 'resource-center';
 export type ReviewModeTab = 'dashboard' | 'overview' | 'mock-exam';
 
 /**
+ * 首页（Today）演示场景（仅 demo 用途，非产品功能）：
+ * normal=常规 / exam-soon=距考≤7天(红) / no-record=无学习记录(冷启动)
+ */
+export type TodayDemoScenario = 'normal' | 'exam-soon' | 'no-record';
+
+/**
  * 应用全局状态接口
  */
 interface AppState {
@@ -28,7 +34,10 @@ interface AppState {
 
   // 全局横竖屏朝向（练习页强制横屏除外）
   orientation: 'landscape' | 'portrait';
-  
+
+  // 首页演示场景（demo-only）
+  todayDemoScenario: TodayDemoScenario;
+
   // 学习计划状态
   selectedSpaceId: string | null;
   practiceStartingPoint: string | undefined;
@@ -68,7 +77,10 @@ interface AppActions {
   // 朝向操作
   toggleOrientation: () => void;
   setOrientation: (o: 'landscape' | 'portrait') => void;
-  
+
+  // 首页演示场景操作（demo-only）
+  setTodayDemoScenario: (s: TodayDemoScenario) => void;
+
   // 学习计划操作
   setSelectedSpaceId: (id: string | null) => void;
   setPracticeStartingPoint: (id: string | undefined) => void;
@@ -203,7 +215,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // 全局横竖屏朝向
   const [orientation, setOrientationState] = useState<'landscape' | 'portrait'>('landscape');
-  
+
+  // 首页演示场景（demo-only）
+  const [todayDemoScenario, setTodayDemoScenario] = useState<TodayDemoScenario>('normal');
+
   // 学习计划状态
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [practiceStartingPoint, setPracticeStartingPoint] = useState<string | undefined>(undefined);
@@ -303,6 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     previousScreen,
     isSidebarCollapsed,
     orientation,
+    todayDemoScenario,
     selectedSpaceId,
     practiceStartingPoint,
     dailyStudyHours,
@@ -324,6 +340,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSidebarCollapsed: setIsSidebarCollapsed,
     toggleOrientation: () => setOrientationState(prev => (prev === 'landscape' ? 'portrait' : 'landscape')),
     setOrientation: setOrientationState,
+    setTodayDemoScenario,
     setSelectedSpaceId,
     setPracticeStartingPoint,
     setDailyStudyHours,

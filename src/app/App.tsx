@@ -71,6 +71,7 @@ function AppContent() {
     reviewModeTab,
     isSidebarCollapsed,
     orientation,
+    todayDemoScenario,
     practiceStartingPoint,
     dailyStudyHours,
     overallMastery,
@@ -89,6 +90,7 @@ function AppContent() {
     setReviewModeTab,
     toggleSidebar,
     toggleOrientation,
+    setTodayDemoScenario,
     setSelectedSpaceId,
     setPracticeStartingPoint,
     setShowPivotPopup,
@@ -453,6 +455,24 @@ function AppContent() {
                   border: 0, borderRadius: 6, padding: '5px 7px', textAlign: 'left', cursor: 'pointer',
                   background: 'transparent', color: '#555', fontSize: 10, fontWeight: 600,
                 }}>{isPortrait ? '🖥 切换到横屏' : '📱 切换到竖屏'}</button>
+                {currentScreen === 'dashboard' && (
+                  <>
+                    <div style={{ height: 1, background: '#ECEEF2', margin: '2px 0' }} />
+                    <div style={{ fontSize: 9, color: '#999', padding: '3px 7px 1px', fontWeight: 600 }}>首页演示场景</div>
+                    {([
+                      ['normal', '常规'],
+                      ['exam-soon', '距考试 ≤7 天（红）'],
+                      ['no-record', '无学习记录（冷启动）'],
+                    ] as [import('./contexts/AppContext').TodayDemoScenario, string][]).map(([id, label]) => (
+                      <button key={id} onClick={() => setTodayDemoScenario(id)} style={{
+                        border: 0, borderRadius: 6, padding: '5px 7px', textAlign: 'left', cursor: 'pointer',
+                        background: todayDemoScenario === id ? '#EEF6FF' : 'transparent',
+                        color: todayDemoScenario === id ? '#2D8CFF' : '#555', fontSize: 10,
+                        fontWeight: todayDemoScenario === id ? 700 : 500,
+                      }}>{label}</button>
+                    ))}
+                  </>
+                )}
                 {(currentScreen === 'plan-framework' || (currentScreen === 'onboarding' && onboardingActiveStep === 'A6')) && (
                   <>
                     <div style={{ height: 1, background: '#ECEEF2', margin: '2px 0' }} />
