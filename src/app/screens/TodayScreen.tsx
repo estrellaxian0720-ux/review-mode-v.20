@@ -1389,132 +1389,132 @@ export default function TodayScreen({
                 </div>
               ) : (
                 <>
-                  <div style={{ padding: '22px 24px 0' }}>
-                    {/* Headline row */}
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
-                      <button onClick={onViewPlan} style={{
-                        fontSize: 21, fontWeight: 800, color: C.dark,
-                        margin: 0, letterSpacing: '-0.3px', background: 'none',
-                        border: 'none', cursor: onViewPlan ? 'pointer' : 'default',
-                        padding: 0, textAlign: 'left',
-                      }}>
-                        {heroHeadline(DONE_KPS, TOTAL_KPS)}
-                      </button>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: C.sub }}>
-                        已完成 {DONE_KPS}/{TOTAL_KPS} 知识点
-                      </span>
-                    </div>
-
-                    {/* Runner progress bar */}
-                    <RunnerBar pct={DONE_KPS / TOTAL_KPS} finished={DONE_KPS >= TOTAL_KPS} />
-
-                    {/* Subtitle + CTA row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 24,
-                      flexWrap: portrait ? 'wrap' : 'nowrap', marginTop: 12 }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', padding: '22px 24px 18px',
+                    flexDirection: portrait ? 'column' : 'row', gap: portrait ? 16 : 24 }}>
+                    {/* 左侧：数据区 */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Headline row */}
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 6 }}>
                         <button onClick={onViewPlan} style={{
-                          fontSize: 13, color: C.sub, background: 'none', border: 'none',
-                          cursor: 'pointer', padding: 0, margin: 0,
-                          display: 'flex', alignItems: 'center', gap: 3,
+                          fontSize: 21, fontWeight: 800, color: C.dark,
+                          margin: 0, letterSpacing: '-0.3px', background: 'none',
+                          border: 'none', cursor: onViewPlan ? 'pointer' : 'default',
+                          padding: 0, textAlign: 'left',
                         }}>
-                          还剩约 26min · 上次学习至 渎职罪
-                          <ChevronRight size={12} color={C.muted} />
+                          {heroHeadline(DONE_KPS, TOTAL_KPS)}
                         </button>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: C.sub }}>
+                          已完成 {DONE_KPS}/{TOTAL_KPS} 知识点
+                        </span>
                       </div>
 
-                      {/* CTA */}
-                      <div style={{ position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column',
-                        alignItems: 'center', width: portrait ? '100%' : 'auto' }}>
-                        <button onClick={handleStart} style={{
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                          padding: '15px 32px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                          background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700,
-                          width: portrait ? '100%' : 'auto',
-                        }}>
-                          <Play size={14} fill="#fff" strokeWidth={0} />
-                          继续今日学习
-                        </button>
+                      {/* 还剩约（进度条上方） */}
+                      <button onClick={onViewPlan} style={{
+                        fontSize: 13, color: C.sub, background: 'none', border: 'none',
+                        cursor: 'pointer', padding: 0, margin: '0 0 4px',
+                        display: 'flex', alignItems: 'center', gap: 3,
+                      }}>
+                        还剩约 26min · 上次学习至 渎职罪
+                        <ChevronRight size={12} color={C.muted} />
+                      </button>
 
-                        {/* 练习模式下拉 */}
-                        <div style={{ position: 'relative', marginTop: 8 }}>
-                          <button
-                            onClick={() => setPracticeMenuOpen(o => !o)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 5,
-                              padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
-                              border: `1px solid ${C.border}`, background: '#fff',
-                              fontSize: 11, fontWeight: 600, color: C.sub, whiteSpace: 'nowrap',
-                            }}>
-                            {PRACTICE_TYPE_OPTIONS.find(o => o.key === practiceType)!.label}
-                            <ChevronDown size={12} color={C.muted}
-                              style={{ transform: practiceMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
-                          </button>
-                          {practiceMenuOpen && (
-                            <div style={{
-                              position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 40,
-                              background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`,
-                              boxShadow: '0 6px 20px rgba(0,0,0,0.14)', overflow: 'hidden', minWidth: 148,
-                            }}>
-                              {PRACTICE_TYPE_OPTIONS.map(opt => (
-                                <button key={opt.key}
-                                  onClick={() => { setPracticeType(opt.key); setPracticeMenuOpen(false); }}
-                                  style={{
-                                    display: 'flex', alignItems: 'center', gap: 6, width: '100%',
-                                    padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                    fontSize: 12, fontWeight: opt.key === practiceType ? 700 : 500,
-                                    background: opt.key === practiceType ? '#F1F6FF' : '#fff',
-                                    color: opt.key === practiceType ? C.learning : C.ink,
-                                  }}>
-                                  {opt.key === practiceType && <Check size={11} color={C.learning} strokeWidth={3} />}
-                                  <span style={{ marginLeft: opt.key === practiceType ? 0 : 17 }}>{opt.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                      {/* Runner progress bar */}
+                      <RunnerBar pct={DONE_KPS / TOTAL_KPS} finished={DONE_KPS >= TOTAL_KPS} />
 
-                        {showHeroCTA && (
-                          <BubbleTip
-                            text="点这里开始今天的学习"
-                            onDismiss={() => dismiss('hero-cta')}
-                            tailSide="top" tailOffset="50%"
-                            style={{ top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 8 }}
-                          />
+                      {/* 三小标（靠左聚拢） */}
+                      <div style={{
+                        display: 'flex', gap: 16, marginTop: 14,
+                        justifyContent: 'flex-start',
+                      }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5,
+                          fontSize: 12, color: '#B86000' }}>
+                          <Flame size={15} color="#B86000" strokeWidth={2} /> {STREAK} 天连续
+                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5,
+                          fontSize: 12, color: C.sub }}>
+                          <Clock size={15} color={C.learning} strokeWidth={2} /> 今日已学 {STUDIED_MIN}min
+                        </span>
+                        {daysToExam <= 7 ? (
+                          <span style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 5,
+                            fontSize: 12, fontWeight: 700, color: '#fff',
+                            background: C.weak, padding: '3px 10px 3px 8px', borderRadius: 999,
+                            boxShadow: '0 0 0 0 rgba(255,98,82,0.55)',
+                            animation: 'yj-urgent-pulse 1.5s ease-out infinite',
+                          }}>
+                            <style>{`@keyframes yj-urgent-pulse { 0%{box-shadow:0 0 0 0 rgba(255,98,82,0.5)} 70%{box-shadow:0 0 0 7px rgba(255,98,82,0)} 100%{box-shadow:0 0 0 0 rgba(255,98,82,0)} }`}</style>
+                            <AlarmClock size={14} color="#fff" strokeWidth={2.6} /> 仅剩 {daysToExam} 天
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 5,
+                            fontSize: 12, color: examTagColor }}>
+                            <CalendarClock size={15} color={examTagColor} strokeWidth={2} /> 距考试 {daysToExam} 天
+                          </span>
                         )}
                       </div>
                     </div>
-                  </div>
 
-                  {/* 三小标 */}
-                  <div style={{
-                    display: 'flex', gap: 8, padding: '14px 24px 16px',
-                    borderTop: `1px solid ${C.borderSoft}`, marginTop: 18,
-                  }}>
-                    <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                      fontSize: 12, color: '#B86000' }}>
-                      <Flame size={15} color="#B86000" strokeWidth={2} /> {STREAK} 天连续
-                    </span>
-                    <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                      fontSize: 12, color: C.sub }}>
-                      <Clock size={15} color={C.learning} strokeWidth={2} /> 今日已学 {STUDIED_MIN}min
-                    </span>
-                    {daysToExam <= 7 ? (
-                      <span style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 5,
-                        fontSize: 12, fontWeight: 700, color: '#fff',
-                        background: C.weak, padding: '3px 10px 3px 8px', borderRadius: 999,
-                        boxShadow: '0 0 0 0 rgba(255,98,82,0.55)',
-                        animation: 'yj-urgent-pulse 1.5s ease-out infinite',
+                    {/* 右侧：CTA */}
+                    <div style={{ position: 'relative', flexShrink: 0, display: 'flex', flexDirection: 'column',
+                      alignItems: 'center', justifyContent: 'center',
+                      width: portrait ? '100%' : 'auto' }}>
+                      <button onClick={handleStart} style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                        padding: '15px 32px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                        background: C.dark, color: '#fff', fontSize: 15, fontWeight: 700,
+                        width: portrait ? '100%' : 'auto',
                       }}>
-                        <style>{`@keyframes yj-urgent-pulse { 0%{box-shadow:0 0 0 0 rgba(255,98,82,0.5)} 70%{box-shadow:0 0 0 7px rgba(255,98,82,0)} 100%{box-shadow:0 0 0 0 rgba(255,98,82,0)} }`}</style>
-                        <AlarmClock size={14} color="#fff" strokeWidth={2.6} /> 仅剩 {daysToExam} 天
-                      </span>
-                    ) : (
-                      <span style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                        fontSize: 12, color: examTagColor }}>
-                        <CalendarClock size={15} color={examTagColor} strokeWidth={2} /> 距考试 {daysToExam} 天
-                      </span>
-                    )}
+                        <Play size={14} fill="#fff" strokeWidth={0} />
+                        继续今日学习
+                      </button>
+
+                      {/* 练习模式下拉 */}
+                      <div style={{ position: 'relative', marginTop: 8 }}>
+                        <button
+                          onClick={() => setPracticeMenuOpen(o => !o)}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            padding: '5px 10px', borderRadius: 8, cursor: 'pointer',
+                            border: `1px solid ${C.border}`, background: '#fff',
+                            fontSize: 11, fontWeight: 600, color: C.sub, whiteSpace: 'nowrap',
+                          }}>
+                          {PRACTICE_TYPE_OPTIONS.find(o => o.key === practiceType)!.label}
+                          <ChevronDown size={12} color={C.muted}
+                            style={{ transform: practiceMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />
+                        </button>
+                        {practiceMenuOpen && (
+                          <div style={{
+                            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 40,
+                            background: '#fff', borderRadius: 10, border: `1px solid ${C.border}`,
+                            boxShadow: '0 6px 20px rgba(0,0,0,0.14)', overflow: 'hidden', minWidth: 148,
+                          }}>
+                            {PRACTICE_TYPE_OPTIONS.map(opt => (
+                              <button key={opt.key}
+                                onClick={() => { setPracticeType(opt.key); setPracticeMenuOpen(false); }}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                  fontSize: 12, fontWeight: opt.key === practiceType ? 700 : 500,
+                                  background: opt.key === practiceType ? '#F1F6FF' : '#fff',
+                                  color: opt.key === practiceType ? C.learning : C.ink,
+                                }}>
+                                {opt.key === practiceType && <Check size={11} color={C.learning} strokeWidth={3} />}
+                                <span style={{ marginLeft: opt.key === practiceType ? 0 : 17 }}>{opt.label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {showHeroCTA && (
+                        <BubbleTip
+                          text="点这里开始今天的学习"
+                          onDismiss={() => dismiss('hero-cta')}
+                          tailSide="top" tailOffset="50%"
+                          style={{ top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: 8 }}
+                        />
+                      )}
+                    </div>
                   </div>
                 </>
               )}
@@ -1533,13 +1533,19 @@ export default function TodayScreen({
                 <span style={{ fontSize: 12, color: C.tertiary }}>
                   共 {MODULES.length} 块 · {TOTAL_KPS} 知识点 · 约 {MODULES.reduce((a, m) => a + m.minEst, 0)}min
                 </span>
+                <button onClick={onViewPlan} style={{
+                  fontSize: 12, color: C.learning, background: 'none', border: 'none',
+                  cursor: 'pointer', padding: 0, fontWeight: 600, flexShrink: 0,
+                }}>
+                  查看完整计划 →
+                </button>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 {/* [列表 | 闪卡] icon toggle */}
                 <button onClick={() => setViewMode(viewMode === 'list' ? 'flashcard' : 'list')} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`,
-                  background: '#fff', cursor: 'pointer', color: C.sub,
+                  width: 28, height: 28, borderRadius: 7, border: 'none',
+                  background: 'transparent', cursor: 'pointer', color: C.sub,
                 }}>
                   {viewMode === 'list' ? <LayoutGrid size={14} /> : <List size={14} />}
                 </button>
@@ -1552,19 +1558,12 @@ export default function TodayScreen({
                 ) : (
                   <button onClick={() => { setBatchMode(true); if (showBatchBubble) dismiss('batch-ops'); }} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`,
-                    background: '#fff', cursor: 'pointer', color: C.sub,
+                    width: 28, height: 28, borderRadius: 7, border: 'none',
+                    background: 'transparent', cursor: 'pointer', color: C.sub,
                   }}>
                     <CheckSquare size={14} />
                   </button>
                 )}
-                {/* 查看完整计划 link */}
-                <button onClick={onViewPlan} style={{
-                  fontSize: 12, color: C.learning, background: 'none', border: 'none',
-                  cursor: 'pointer', padding: 0, fontWeight: 600, flexShrink: 0,
-                }}>
-                  查看完整计划 →
-                </button>
               </div>
             </div>
 
