@@ -39,7 +39,7 @@ const PRACTICE_TYPE_OPTIONS: { key: PracticeType; label: string }[] = [
   { key: 'multi', label: '仅多选' },
   { key: 'essay', label: '仅简答' },
 ];
-type BubbleId = 'hero-cta' | 'type-new' | 'type-review' | 'module-expand'
+type BubbleId = 'hero-cta' | 'module-expand'
   | 'module-start' | 'batch-ops' | 'star-bookmark' | 'priority-bar';
 
 interface KP {
@@ -190,11 +190,6 @@ function heroHeadline(done: number, total: number): string {
   if (pct > 0) return '已经开始了';
   return '今天还没开始';
 }
-
-const newModules = MODULES.filter(m => m.type === 'new');
-const reviewModules = MODULES.filter(m => m.type === 'review');
-const newKPTotal = newModules.reduce((a, m) => a + m.total, 0);
-const reviewKPTotal = reviewModules.reduce((a, m) => a + m.total, 0);
 
 const importanceColor = (imp: Importance) => imp === 3 ? C.weak : imp === 2 ? C.gold : C.newGray;
 const importanceReason = (imp: Importance) =>
@@ -957,6 +952,7 @@ function KPTile({ kp, batchMode, selected, bookmarked, portrait, onTap, onLongPr
 
 interface ModuleSectionProps {
   mod: Module;
+  seq: number;
   viewMode: ViewMode;
   batchMode: boolean;
   portrait?: boolean;
@@ -986,7 +982,7 @@ interface ModuleSectionProps {
 }
 
 function ModuleSection({
-  mod, viewMode, batchMode, portrait, isExpanded, onToggle,
+  mod, seq, viewMode, batchMode, portrait, isExpanded, onToggle,
   selected, onSelect, onSelectModule, bookmarked, onBookmark, expandedKP, onToggleKP,
   onOpenFullscreen, onEnterBatch, onStartModule,
   showExpandBubble, onDismissExpandBubble,
@@ -1031,6 +1027,13 @@ function ModuleSection({
           </button>
         )}
 
+        {/* 序号 */}
+        {!batchMode && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: C.muted, flexShrink: 0, width: 20, textAlign: 'center' }}>
+            {String(seq).padStart(2, '0')}
+          </span>
+        )}
+
         {/* 独立展开箭头热区 ▸ */}
         <button onClick={onToggle} style={{
           width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -1038,6 +1041,16 @@ function ModuleSection({
         }}>
           {isExpanded ? <ChevronUp size={14} /> : <ChevronRight size={14} />}
         </button>
+
+        {/* 行内类型标签 */}
+        <span style={{
+          fontSize: 10, fontWeight: 700, flexShrink: 0,
+          padding: '2px 6px', borderRadius: 4,
+          color: mod.type === 'new' ? C.learning : '#E17100',
+          background: mod.type === 'new' ? '#EAF3FF' : '#FFF3E4',
+        }}>
+          {mod.type === 'new' ? '新学' : '待复习'}
+        </span>
 
         {/* 行主体点击=展开预览 */}
         <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={onToggle}>
@@ -1148,27 +1161,6 @@ function ModuleSection({
   );
 }
 
-// ── L1 type header ──────────────────────────────────────────────────────────
-
-function TypeHeader({
-  label, blocks, kpTotal, done, expanded, onToggle,
-}: { label: string; blocks: number; kpTotal: number; done: number; expanded: boolean; onToggle: () => void }) {
-  return (
-    <button onClick={onToggle} style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      width: '100%', padding: '11px 16px', border: 'none', cursor: 'pointer',
-      background: C.panel, textAlign: 'left', gap: 10,
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {expanded ? <ChevronUp size={13} color={C.sub} /> : <ChevronRight size={13} color={C.sub} />}
-        <span style={{ fontSize: 13, fontWeight: 700, color: C.dark }}>{label}</span>
-        <span style={{ fontSize: 12, color: C.tertiary }}>{blocks} 块 · {kpTotal} 知识点</span>
-      </div>
-      <span style={{ fontSize: 11, color: C.muted }}>{done}/{kpTotal}</span>
-    </button>
-  );
-}
-
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function TodayScreen({
@@ -1189,7 +1181,6 @@ export default function TodayScreen({
   const [practiceType, setPracticeType] = useState<PracticeType>('default');
   const [practiceMenuOpen, setPracticeMenuOpen] = useState(false);
 
-  const [l1Expanded, setL1Expanded] = useState({ new: true, review: true });
   const [l2Expanded, setL2Expanded] = useState<Record<string, boolean>>({ malfeasance: true });
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expandedKP, setExpandedKP] = useState<Set<string>>(new Set());
@@ -1216,9 +1207,7 @@ export default function TodayScreen({
   const anyL2Expanded = Object.values(l2Expanded).some(Boolean);
 
   const showHeroCTA      = !dismissed.has('hero-cta');
-  const showTypeNew      = dismissed.has('hero-cta') && !dismissed.has('type-new');
-  const showTypeReview   = dismissed.has('type-new') && !dismissed.has('type-review');
-  const showModExpand    = dismissed.has('type-review') && !dismissed.has('module-expand');
+  const showModExpand    = dismissed.has('hero-cta') && !dismissed.has('module-expand');
   const showModStart     = dismissed.has('module-expand') && !dismissed.has('module-start');
   const showBatchBubble  = dismissed.has('module-start') && !dismissed.has('batch-ops') && anyL2Expanded;
   const showStarBubble   = dismissed.has('batch-ops') && !dismissed.has('star-bookmark') && anyL2Expanded;
@@ -1229,12 +1218,6 @@ export default function TodayScreen({
     // 按所选练习模式（题型）发起练习；demo 下 onStartPractice 无参，题型经此传递给上层练习流
     onStartPractice?.(practiceType === 'default' ? undefined : practiceType);
   }, [dismiss, onStartPractice, practiceType]);
-
-  const handleL1Toggle = (type: 'new' | 'review') => {
-    setL1Expanded(s => ({ ...s, [type]: !s[type] }));
-    if (type === 'new' && showTypeNew) dismiss('type-new');
-    if (type === 'review' && showTypeReview) dismiss('type-review');
-  };
 
   const handleL2Toggle = (id: string) => {
     setL2Expanded(s => ({ ...s, [id]: !s[id] }));
@@ -1540,69 +1523,59 @@ export default function TodayScreen({
 
           {/* ② Today tasks ───────────────────────────────────────────────────────── */}
           <div style={{ position: 'relative' }}>
-            <div style={{ background: '#fff', borderRadius: 16, overflow: 'hidden',
-              boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
-
-              {/* Card title — 左标题 · 中[列表|闪卡]+批量 · 右计数 */}
-              <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 16px', borderBottom: `1px solid ${C.borderSoft}`, gap: 10,
-              }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.dark, flexShrink: 0 }}>今日任务</span>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {/* [列表 | 闪卡] 分段切换 —— 作用域仅今日任务 */}
-                  <div style={{ display: 'flex', background: C.panel, borderRadius: 8, padding: 2 }}>
-                    {(['list', 'flashcard'] as ViewMode[]).map(m => (
-                      <button key={m} onClick={() => setViewMode(m)} style={{
-                        fontSize: 11, fontWeight: 600, padding: '4px 10px', borderRadius: 6,
-                        border: 'none', cursor: 'pointer',
-                        background: viewMode === m ? '#fff' : 'transparent',
-                        color: viewMode === m ? C.dark : C.tertiary,
-                        boxShadow: viewMode === m ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
-                      }}>
-                        {m === 'list' ? '列表' : '闪卡'}
-                      </button>
-                    ))}
-                  </div>
-                  {/* 批量 按钮 */}
-                  {batchMode ? (
-                    <button onClick={exitBatch} style={{
-                      fontSize: 11, fontWeight: 600, padding: '5px 11px', borderRadius: 8,
-                      border: `1.5px solid ${C.learning}`, background: '#F1F6FF', color: C.learning, cursor: 'pointer',
-                    }}>完成</button>
-                  ) : (
-                    <button onClick={() => { setBatchMode(true); if (showBatchBubble) dismiss('batch-ops'); }} style={{
-                      fontSize: 11, fontWeight: 600, padding: '5px 11px', borderRadius: 8,
-                      border: `1.5px solid ${C.border}`, background: '#fff', color: C.sub, cursor: 'pointer',
-                    }}>批量</button>
-                  )}
-                </div>
-
-                <span style={{ fontSize: 12, color: C.tertiary, flexShrink: 0 }}>已处理 {DONE_KPS}/{TOTAL_KPS} 知识点</span>
+            {/* Section title bar */}
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '14px 0 10px', gap: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: C.dark }}>今日任务</span>
+                <span style={{ fontSize: 12, color: C.tertiary }}>
+                  共 {MODULES.length} 块 · {TOTAL_KPS} 知识点 · 约 {MODULES.reduce((a, m) => a + m.minEst, 0)}min
+                </span>
               </div>
-
-              {/* L1: 新学 */}
-              <div style={{ position: 'relative' }}>
-                <TypeHeader
-                  label="新学" blocks={newModules.length} kpTotal={newKPTotal}
-                  done={newModules.reduce((a, m) => a + m.done, 0)}
-                  expanded={l1Expanded.new} onToggle={() => handleL1Toggle('new')}
-                />
-                {showTypeNew && (
-                  <BubbleTip
-                    text="今天新学的知识点，已按模块分好。"
-                    onDismiss={() => dismiss('type-new')}
-                    tailSide="top" tailOffset="28%"
-                    style={{ top: '100%', left: 16, marginTop: 8 }}
-                  />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* [列表 | 闪卡] icon toggle */}
+                <button onClick={() => setViewMode(viewMode === 'list' ? 'flashcard' : 'list')} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`,
+                  background: '#fff', cursor: 'pointer', color: C.sub,
+                }}>
+                  {viewMode === 'list' ? <LayoutGrid size={14} /> : <List size={14} />}
+                </button>
+                {/* 批量 icon */}
+                {batchMode ? (
+                  <button onClick={exitBatch} style={{
+                    fontSize: 11, fontWeight: 600, padding: '5px 11px', borderRadius: 8,
+                    border: `1.5px solid ${C.learning}`, background: '#F1F6FF', color: C.learning, cursor: 'pointer',
+                  }}>完成</button>
+                ) : (
+                  <button onClick={() => { setBatchMode(true); if (showBatchBubble) dismiss('batch-ops'); }} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, borderRadius: 7, border: `1px solid ${C.border}`,
+                    background: '#fff', cursor: 'pointer', color: C.sub,
+                  }}>
+                    <CheckSquare size={14} />
+                  </button>
                 )}
+                {/* 查看完整计划 link */}
+                <button onClick={onViewPlan} style={{
+                  fontSize: 12, color: C.learning, background: 'none', border: 'none',
+                  cursor: 'pointer', padding: 0, fontWeight: 600, flexShrink: 0,
+                }}>
+                  查看完整计划 →
+                </button>
               </div>
+            </div>
 
-              {l1Expanded.new && newModules.map((mod, mi) => (
+            {/* Flat integrated module list */}
+            <div style={{ background: '#fff', borderRadius: 12, overflow: 'hidden',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+              {MODULES.map((mod, mi) => (
                 <ModuleSection
                   key={mod.id}
                   mod={mod}
+                  seq={mi + 1}
                   viewMode={viewMode}
                   batchMode={batchMode}
                   portrait={portrait}
@@ -1628,72 +1601,9 @@ export default function TodayScreen({
                   onDismissStarBubble={() => dismiss('star-bookmark')}
                   showPriorityBubble={showPriorityBubble && mi === 1}
                   onDismissPriorityBubble={() => dismiss('priority-bar')}
-                  isLast={mi === newModules.length - 1}
+                  isLast={mi === MODULES.length - 1}
                 />
               ))}
-
-              {/* 类型间细分隔线 */}
-              <div style={{ height: 1, background: C.border }} />
-
-              {/* L1: 复习 */}
-              <div style={{ position: 'relative' }}>
-                <TypeHeader
-                  label="复习" blocks={reviewModules.length} kpTotal={reviewKPTotal}
-                  done={reviewModules.reduce((a, m) => a + m.done, 0)}
-                  expanded={l1Expanded.review} onToggle={() => handleL1Toggle('review')}
-                />
-                {showTypeReview && (
-                  <BubbleTip
-                    text="学过、到点该回顾的，趁没忘过一遍。"
-                    onDismiss={() => dismiss('type-review')}
-                    tailSide="top" tailOffset="28%"
-                    style={{ top: '100%', left: 16, marginTop: 8 }}
-                  />
-                )}
-              </div>
-
-              {l1Expanded.review && reviewModules.map((mod, mi) => (
-                <ModuleSection
-                  key={mod.id}
-                  mod={mod}
-                  viewMode={viewMode}
-                  batchMode={batchMode}
-                  portrait={portrait}
-                  isExpanded={!!l2Expanded[mod.id]}
-                  onToggle={() => handleL2Toggle(mod.id)}
-                  selected={selected}
-                  onSelect={handleSelect}
-                  onSelectModule={handleSelectModule}
-                  bookmarked={bookmarked}
-                  onBookmark={handleBookmark}
-                  expandedKP={expandedKP}
-                  onToggleKP={handleToggleKP}
-                  onOpenFullscreen={handleOpenFullscreen}
-                  onEnterBatch={enterBatch}
-                  onStartModule={() => onStartPractice?.()}
-                  showExpandBubble={false}
-                  onDismissExpandBubble={() => {}}
-                  showStartBubble={false}
-                  onDismissStartBubble={() => {}}
-                  showBatchBubble={false}
-                  onDismissBatchBubble={() => {}}
-                  showStarBubble={false}
-                  onDismissStarBubble={() => {}}
-                  showPriorityBubble={false}
-                  onDismissPriorityBubble={() => {}}
-                  isLast={mi === reviewModules.length - 1}
-                />
-              ))}
-
-              {/* Footer 查看全部 → */}
-              <div style={{ padding: '12px 16px', borderTop: `1px solid ${C.borderSoft}`, textAlign: 'right' }}>
-                <button onClick={onViewKnowledgeMap ?? onViewResources} style={{
-                  fontSize: 12, color: C.learning, background: 'none', border: 'none',
-                  cursor: 'pointer', padding: 0, fontWeight: 600,
-                }}>
-                  查看全部 →
-                </button>
-              </div>
             </div>
           </div>
         </div>
