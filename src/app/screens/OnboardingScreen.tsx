@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
+import { ArrowLeft, Check, Star, Upload, FileText, Mic, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
 import { CloudMascot } from '../assets/CloudMascot';
 import PlanFrameworkScreen, { type PlanDemoScenario } from './PlanFrameworkScreen';
 
@@ -1693,15 +1693,28 @@ function B5Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode 
   const [solved, setSolved] = useState(false);
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set());
   const [showSource, setShowSource] = useState(false);
-  const [showSourceTip, setShowSourceTip] = useState(true);
+  const [showSourceTip, setShowSourceTip] = useState(false);
   const [replayKey, setReplayKey] = useState(0);
   const [typeHintDismissed, setTypeHintDismissed] = useState(false);
+  const [firstRoundDone, setFirstRoundDone] = useState(false);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [wide, setWide] = useState(true);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const update = () => setWide(el.clientWidth >= 760);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const contents = {
     单选: { question: '斡旋受贿罪的行为主体必须是？', answer: '国家工作人员', analysis: '斡旋受贿属于受贿罪的特殊形态，行为主体必须具有国家工作人员身份。' },
-    填空: { question: '斡旋受贿罪的行为主体必须是 ______。', user: '公职人员', answer: '国家工作人员', analysis: '“公职人员”范围过宽，法条要求行为人具有国家工作人员身份。' },
+    填空: { question: '斡旋受贿罪的行为主体必须是 ______。', user: '公职人员', answer: '国家工作人员', analysis: '"公职人员"范围过宽，法条要求行为人具有国家工作人员身份。' },
     判断: { question: '斡旋受贿要求行为人亲自利用本人职务为请托人谋利。', user: '正确', answer: '错误', analysis: '其核心是利用职权或地位形成的影响，通过其他国家工作人员为请托人谋利。' },
     多选: { question: '斡旋受贿的成立条件包括哪些？', user: '☑ 国家工作人员身份　☐ 地位影响　☑ 收受财物', answer: '☑ 国家工作人员身份　☑ 地位影响　☑ 收受财物', analysis: '三项均是关键条件；多选题使用方形复选框表达。' },
-    简答: { question: '请用一句话说明斡旋受贿与普通受贿的核心区别。', user: '通过别人办事并收钱。', answer: '利用职权或地位形成的影响，斡旋其他国家工作人员为请托人谋利并收受财物。', analysis: '已命中“他人办事、收受财物”，遗漏“职权或地位形成的影响”。' },
+    简答: { question: '请用一句话说明斡旋受贿与普通受贿的核心区别。', user: '通过别人办事并收钱。', answer: '利用职权或地位形成的影响，斡旋其他国家工作人员为请托人谋利并收受财物。', analysis: '已命中"他人办事、收受财物"，遗漏"职权或地位形成的影响"。' },
   } as const;
   const currentType = journey[currentIndex].type;
   const current = contents[currentType];
@@ -1735,81 +1748,126 @@ function B5Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode 
     } else {
       timers.push(setTimeout(() => setDraft(preset), 500));
     }
-    timers.push(setTimeout(() => setSolved(true), currentType === '简答' ? 2100 : currentType === '填空' ? 1500 : 1250));
+    const solveAt = currentType === '简答' ? 2100 : currentType === '填空' ? 1500 : 1250;
+    timers.push(setTimeout(() => setSolved(true), solveAt));
+    if (autoPlay) {
+      timers.push(setTimeout(() => setShowSource(true), solveAt + 700));
+    }
     return () => timers.forEach(clearTimeout);
   }, [currentType, replayKey]);
+  useEffect(() => {
+    if (!autoPlay || !solved) return;
+    if (currentIndex >= journey.length - 1) {
+      const t = setTimeout(() => setFirstRoundDone(true), 1600);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => {
+      setCurrentIndex(i => i + 1);
+      setReplayKey(k => k + 1);
+    }, 2600);
+    return () => clearTimeout(t);
+  }, [autoPlay, solved, currentIndex]);
   const isCorrect = currentType === '单选' ? draft === '国家工作人员'
     : currentType === '填空' ? draft.trim() === '国家工作人员'
     : currentType === '判断' ? draft === '错误'
     : currentType === '多选' ? multiSelected.size === 3 && !multiSelected.has('仅靠普通私人交情')
     : draft.includes('影响') || draft.includes('职权');
   const selectPractice = (index: number) => {
+    if (autoPlay) setShowSourceTip(true);
+    setAutoPlay(false);
     setCurrentIndex(index);
     setReplayKey(key => key + 1);
     setTypeHintDismissed(true);
   };
-  const nextPractice = () => {
-    if (currentIndex >= journey.length - 1) {
-      onNext();
-      return;
-    }
-    selectPractice(currentIndex + 1);
-    setShowSourceTip(false);
+  const replayCurrent = (index: number) => {
+    setAutoPlay(false);
+    setCurrentIndex(index);
+    setReplayKey(key => key + 1);
+    setTypeHintDismissed(true);
   };
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden max-w-[820px] w-full mx-auto">
-      <div className="mb-3">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[11px] font-semibold" style={{color:T3}}>5 种题型 · 当前演示 {currentIndex + 1} / 5</p>
-          <button onClick={onNext} className="text-[11px] font-medium whitespace-nowrap" style={{color:T4}}>跳过练习演示 →</button>
+  const nextPractice = () => onNext();
+  const renderTabs = (vertical: boolean) => (
+    <div className={vertical ? 'flex flex-col gap-2 relative' : 'grid grid-cols-5 gap-1.5 relative'}>
+      {firstRoundDone && !typeHintDismissed && (
+        <div className="absolute z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold whitespace-nowrap pointer-events-none"
+          style={vertical
+            ? {left:'100%',top:'8px',marginLeft:'8px',background:'#2D8CFF',color:'#fff',boxShadow:'0 6px 16px rgba(45,140,255,.32)',animation:'pulse 1.5s ease-in-out infinite'}
+            : {left:'30%',top:'-30px',transform:'translateX(-50%)',background:'#2D8CFF',color:'#fff',boxShadow:'0 6px 16px rgba(45,140,255,.32)',animation:'pulse 1.5s ease-in-out infinite'}}>
+          <MousePointer2 size={13}/>点击可查看该题型
+          <span className="absolute w-2 h-2 rotate-45" style={vertical?{left:'-3px',top:'12px',background:'#2D8CFF'}:{left:'50%',bottom:'-4px',transform:'translateX(-50%)',background:'#2D8CFF'}}/>
         </div>
-        <div className="grid grid-cols-5 gap-1.5 relative">
-          {!typeHintDismissed && (
-            <div className="absolute z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold whitespace-nowrap pointer-events-none"
-              style={{left:'30%',top:'-30px',transform:'translateX(-50%)',background:'#2D8CFF',color:'#fff',boxShadow:'0 6px 16px rgba(45,140,255,.32)',animation:'pulse 1.5s ease-in-out infinite'}}>
-              <MousePointer2 size={13}/>点击题型可切换练习方式
-              <span className="absolute left-1/2 -bottom-1 w-2 h-2 rotate-45" style={{transform:'translateX(-50%)',background:'#2D8CFF'}}/>
-            </div>
-          )}
-          {journey.map((step, index) => {
-            const active = index === currentIndex;
-            return <button key={step.type} onClick={() => selectPractice(index)} className="rounded-xl px-2 py-2 text-center transition-all" style={{background:active?'#EAF3FF':'#F5F6F8',border:`1px solid ${active?'#9BC8FF':BORDER}`,boxShadow:active?'0 4px 14px rgba(47,137,252,.12)':'none'}}>
-              <p className="text-[10px] font-bold" style={{color:active?BLUE:T3}}>{step.type}</p>
-              <p className="text-[8px] mt-0.5" style={{color:active?BLUE:T4}}>{step.purpose}</p>
-            </button>;
-          })}
-        </div>
-      </div>
-      <div className="flex-1 rounded-2xl p-5 overflow-y-auto min-h-0" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow:'0 10px 32px rgba(20,35,60,.06)' }}>
-        <div className="flex items-center gap-2 mb-3"><span className="px-2 py-1 rounded-lg text-[9px] font-semibold" style={{background:'#EAF3FF',color:BLUE}}>{currentType} · {journey[currentIndex].purpose}</span><span className="ml-auto flex items-center gap-1 text-[9px]" style={{color:T4}}><Sparkles size={11}/>{solved?'演示完成':'正在自动作答…'}</span></div>
-        <p className="text-[15px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
-        {currentType === '单选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员','一般公职人员','受托办事人员','任何自然人'].map(v => {
-          const selected = draft === v; const correct = v === '国家工作人员';
-          return <button key={v} disabled className="py-3 rounded-xl text-[11px] flex items-center justify-center gap-1.5" style={{background:solved&&correct?'#EAF9EF':solved&&selected&&!correct?'#FFF0EE':selected?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&selected&&!correct?RED:selected?PRIMARY:BORDER}`,color:solved&&correct?GREEN:T2}}>{v}{solved&&correct&&<Check size={12}/>} </button>})}</div>}
-        {currentType === '判断' && <div className="grid grid-cols-2 gap-2 mb-3">{['正确','错误'].map(v => {
-          const selected=draft===v; const correct=v==='错误';
-          return <button key={v} disabled className="py-3 rounded-xl text-[12px]" style={{background:solved&&correct?'#EAF9EF':solved&&selected&&!correct?'#FFF0EE':selected?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&selected&&!correct?RED:selected?PRIMARY:BORDER}`,color:solved&&correct?GREEN:T2}}>{v}{solved&&correct?' ✓':''}</button>})}</div>}
-        {currentType === '多选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员身份','职权或地位形成的影响','收受财物','仅靠普通私人交情'].map(v => {
-          const checked=multiSelected.has(v); const correct=v!=='仅靠普通私人交情';
-          return <button key={v} disabled className="w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center gap-2" style={{background:solved&&correct?'#EAF9EF':solved&&checked&&!correct?'#FFF0EE':checked?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&checked&&!correct?RED:checked?PRIMARY:BORDER}`}}><span className="w-4 h-4 rounded flex items-center justify-center" style={{background:(solved&&correct)?GREEN:checked?BLUE:CARD,border:`1px solid ${(solved&&correct)?GREEN:checked?BLUE:'#C9CDD3'}`}}>{(checked||solved&&correct)&&<Check size={11} color="#fff" strokeWidth={3}/>}</span>{v}</button>})}</div>}
-        {(currentType === '填空' || currentType === '简答') && <div className="relative mb-3"><textarea value={draft} readOnly onChange={e => setDraft(e.target.value)} className="w-full rounded-xl p-3 text-[12px] resize-none" style={{border:`1.5px solid ${solved?(isCorrect?GREEN:RED):BORDER}`,background:solved?(isCorrect?'#F1FBF5':'#FFF7F5'):'#FAFAFA',minHeight:68,color:T2}}/><span className="absolute right-3 bottom-2 text-[9px]" style={{color:T4}}>演示答案已自动填入</span></div>}
-        {!solved && <div className="rounded-xl px-3 py-2 flex items-center gap-2 text-[10px]" style={{background:'#F6F8FC',color:T3}}><Sparkles size={12} color={BLUE}/>预制答案正在自动完成，无需手动作答</div>}
-        {solved && <>
-          <div className="rounded-2xl p-4 relative" style={{background:isCorrect?'#F1FBF5':'#FFF8E7',border:`1px solid ${isCorrect?'#B7EFCF':'#F4D99A'}`}}>
-            <div className="flex items-center gap-2 mb-2"><div className="w-6 h-6 rounded-full flex items-center justify-center" style={{background:isCorrect?GREEN:'#E6A23C'}}>{isCorrect?<Check size={14} color="#fff"/>:<span className="text-white text-[12px]">!</span>}</div><p className="text-[13px] font-bold" style={{color:isCorrect?GREEN:'#9A6B00'}}>{isCorrect?'回答正确':'还差一点'}</p><span className="ml-auto px-2.5 py-1 rounded-full text-[10px] font-bold" style={{background:isCorrect?'#DDF6E6':'#F8E8BB',color:isCorrect?GREEN:'#8C6500'}}>{isCorrect?'掌握程度 +1':'掌握程度暂未提升'}</span></div>
-            <div className="flex items-center justify-between"><p className="text-[10px] font-semibold mb-1" style={{color:BLUE}}>解析</p><div className="relative"><button onClick={()=>{setShowSource(v=>!v);setShowSourceTip(false);}} className="flex items-center gap-1 text-[10px] font-semibold" style={{color:BLUE}}><BookOpen size={12}/>{showSource?'收起来源':'查看来源 →'}</button>{showSourceTip&&<div className="absolute right-0 bottom-[24px] z-20 w-[190px] px-3 py-2 rounded-xl text-[9px] leading-4" style={{background:'#20283A',color:'#fff',boxShadow:'0 8px 22px rgba(0,0,0,.2)'}}>对解析有疑问？可以查看教材原文<div className="absolute right-5 -bottom-1 w-2 h-2 rotate-45" style={{background:'#20283A'}}/></div>}</div></div>
-            <p className="text-[11px] leading-5" style={{color:T2}}>{current.analysis}</p>
-            <div className="mt-3 pt-2 flex items-center gap-2" style={{borderTop:`1px solid ${isCorrect?'#D7EFDF':'#EFE1B8'}`}}><Link2 size={12} color={T4}/><span className="text-[10px]" style={{color:T3}}>相关知识点：受贿罪构成要件</span></div>
-            {showSource&&<div className="mt-3 rounded-xl p-3 flex items-start gap-2" style={{background:'rgba(255,255,255,.72)',border:`1px solid ${BORDER}`}}><FileText size={14} color={BLUE} className="mt-0.5"/><div><p className="text-[9px] font-semibold" style={{color:T2}}>刑法分论讲义.pdf · 第 42 页</p><p className="text-[9px] leading-4 mt-1" style={{color:T3}}>“国家工作人员利用本人职权或者地位形成的便利条件……”</p><mark className="text-[9px]" style={{background:'#FFF09A'}}>主体必须具有国家工作人员身份</mark></div></div>}
+      )}
+      {journey.map((step, index) => {
+        const active = index === currentIndex;
+        return (
+          <div key={step.type}
+            className={`rounded-xl transition-all flex items-center ${vertical ? 'px-3.5 py-3 gap-2' : 'flex-col px-2 py-2.5 gap-0.5 relative'}`}
+            style={{background:active?'#EAF3FF':CARD,border:`1.5px solid ${active?BLUE:'#E3E5E9'}`,boxShadow:active?'0 4px 14px rgba(47,137,252,.18)':'0 1px 2px rgba(20,35,60,.04)'}}>
+            <button onClick={() => selectPractice(index)} className={vertical ? 'flex-1 text-left' : 'w-full text-center'}>
+              <p className="text-[13px] font-bold" style={{color:active?BLUE:T1}}>{step.type}</p>
+              <p className="text-[10px] mt-0.5 font-medium" style={{color:active?'#5B9BF5':T3}}>{step.purpose}</p>
+            </button>
+            {active && solved && (
+              <button onClick={() => replayCurrent(index)} title="重播本题演示"
+                className={`flex items-center justify-center rounded-full flex-shrink-0 ${vertical ? 'w-7 h-7' : 'absolute top-1 right-1 w-5 h-5'}`}
+                style={{background:BLUE,color:'#fff'}}>
+                <RotateCcw size={vertical?13:10}/>
+              </button>
+            )}
           </div>
-          <div className="mt-2 rounded-xl px-3 py-2 text-[10px]" style={{background:'#EAF3FF',color:BLUE}}>{isCorrect ? `本题已掌握，下一题进入「${currentIndex < journey.length - 1 ? journey[currentIndex + 1].purpose : '智能讲解'}」` : '这个知识点仍需强化，系统会在后续练习中再次检查'}</div>
-        </>}
-      </div>
+        );
+      })}
+    </div>
+  );
+  const questionCard = (
+    <div className="flex-1 rounded-2xl p-5 overflow-y-auto min-h-0" style={{ background: CARD, border: `1px solid ${BORDER}`, boxShadow:'0 10px 32px rgba(20,35,60,.06)' }}>
+      <p className="text-[15px] font-semibold mb-4" style={{ color: T1 }}>{current.question}</p>
+      {currentType === '单选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员','一般公职人员','受托办事人员','任何自然人'].map(v => {
+        const selected = draft === v; const correct = v === '国家工作人员';
+        return <button key={v} disabled className="py-3 rounded-xl text-[11px] flex items-center justify-center gap-1.5" style={{background:solved&&correct?'#EAF9EF':solved&&selected&&!correct?'#FFF0EE':selected?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&selected&&!correct?RED:selected?PRIMARY:BORDER}`,color:solved&&correct?GREEN:T2}}>{v}{solved&&correct&&<Check size={12}/>} </button>})}</div>}
+      {currentType === '判断' && <div className="grid grid-cols-2 gap-2 mb-3">{['正确','错误'].map(v => {
+        const selected=draft===v; const correct=v==='错误';
+        return <button key={v} disabled className="py-3 rounded-xl text-[12px]" style={{background:solved&&correct?'#EAF9EF':solved&&selected&&!correct?'#FFF0EE':selected?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&selected&&!correct?RED:selected?PRIMARY:BORDER}`,color:solved&&correct?GREEN:T2}}>{v}{solved&&correct?' ✓':''}</button>})}</div>}
+      {currentType === '多选' && <div className="grid grid-cols-2 gap-2 mb-3">{['国家工作人员身份','职权或地位形成的影响','收受财物','仅靠普通私人交情'].map(v => {
+        const checked=multiSelected.has(v); const correct=v!=='仅靠普通私人交情';
+        return <button key={v} disabled className="w-full text-left px-3 py-2 rounded-lg text-[12px] flex items-center gap-2" style={{background:solved&&correct?'#EAF9EF':solved&&checked&&!correct?'#FFF0EE':checked?'#FFFBDE':'#F6F6F6',border:`1.5px solid ${solved&&correct?GREEN:solved&&checked&&!correct?RED:checked?PRIMARY:BORDER}`}}><span className="w-4 h-4 rounded flex items-center justify-center" style={{background:(solved&&correct)?GREEN:checked?BLUE:CARD,border:`1px solid ${(solved&&correct)?GREEN:checked?BLUE:'#C9CDD3'}`}}>{(checked||solved&&correct)&&<Check size={11} color="#fff" strokeWidth={3}/>}</span>{v}</button>})}</div>}
+      {(currentType === '填空' || currentType === '简答') && <div className="relative mb-3"><textarea value={draft} readOnly onChange={e => setDraft(e.target.value)} className="w-full rounded-xl p-3 text-[12px] resize-none" style={{border:`1.5px solid ${solved?(isCorrect?GREEN:RED):BORDER}`,background:solved?(isCorrect?'#F1FBF5':'#FFF7F5'):'#FAFAFA',minHeight:68,color:T2}}/><span className="absolute right-3 bottom-2 text-[9px]" style={{color:T4}}>演示答案已自动填入</span></div>}
+      {!solved && <div className="rounded-xl px-3 py-2 flex items-center gap-2 text-[10px]" style={{background:'#F6F8FC',color:T3}}><Sparkles size={12} color={BLUE}/>预制答案正在自动完成，无需手动作答</div>}
+      {solved && <>
+        <div className="rounded-2xl p-4 relative" style={{background:isCorrect?'#F1FBF5':'#FFF8E7',border:`1px solid ${isCorrect?'#B7EFCF':'#F4D99A'}`}}>
+          <div className="flex items-center gap-2 mb-2"><div className="w-6 h-6 rounded-full flex items-center justify-center" style={{background:isCorrect?GREEN:'#E6A23C'}}>{isCorrect?<Check size={14} color="#fff"/>:<span className="text-white text-[12px]">!</span>}</div><p className="text-[13px] font-bold" style={{color:isCorrect?GREEN:'#9A6B00'}}>{isCorrect?'回答正确':'还差一点'}</p><span className="ml-auto px-2.5 py-1 rounded-full text-[10px] font-bold" style={{background:isCorrect?'#DDF6E6':'#F8E8BB',color:isCorrect?GREEN:'#8C6500'}}>{isCorrect?'掌握程度 +1':'掌握程度暂未提升'}</span></div>
+          <p className="text-[11.5px] leading-5" style={{color:T2}}>{current.analysis}</p>
+          <div className="mt-3 pt-2.5 relative" style={{borderTop:`1px solid ${isCorrect?'#D7EFDF':'#EFE1B8'}`}}>
+            <button onClick={()=>{setShowSource(v=>!v);setShowSourceTip(false);}} className="flex items-center gap-1 text-[11px] font-semibold" style={{color:BLUE}}><BookOpen size={13}/>{showSource?'收起来源':'查看来源'}</button>
+            {showSourceTip&&<div className="absolute left-0 bottom-[26px] z-20 w-[200px] px-3 py-2 rounded-xl text-[9px] leading-4" style={{background:'#20283A',color:'#fff',boxShadow:'0 8px 22px rgba(0,0,0,.2)'}}>对解析有疑问？可以查看教材原文<div className="absolute left-6 -bottom-1 w-2 h-2 rotate-45" style={{background:'#20283A'}}/></div>}
+            {showSource&&<div className="mt-2.5 rounded-xl p-3 flex items-start gap-2" style={{background:'rgba(255,255,255,.72)',border:`1px solid ${BORDER}`}}><FileText size={14} color={BLUE} className="mt-0.5"/><div><p className="text-[9px] font-semibold" style={{color:T2}}>刑法分论讲义.pdf · 第 42 页</p><p className="text-[9px] leading-4 mt-1" style={{color:T3}}>"国家工作人员利用本人职权或者地位形成的便利条件……"</p><mark className="text-[9px]" style={{background:'#FFF09A'}}>主体必须具有国家工作人员身份</mark></div></div>}
+          </div>
+        </div>
+      </>}
+    </div>
+  );
+  return (
+    <div ref={rootRef} className="flex flex-col flex-1 overflow-hidden max-w-[920px] w-full mx-auto">
+      {wide ? (
+        <div className="flex-1 flex gap-4 min-h-0">
+          <div className="w-[160px] flex-shrink-0 flex flex-col">
+            {renderTabs(true)}
+          </div>
+          <div className="flex-1 flex flex-col min-w-0">
+            {questionCard}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mb-3">
+            {renderTabs(false)}
+          </div>
+          {questionCard}
+        </>
+      )}
       <div className="pb-5 pt-2 flex-shrink-0">
         {dots}
-        <CTAButton onClick={nextPractice}>
-          {currentIndex < journey.length - 1 ? `下一题：${journey[currentIndex + 1].type} →` : '继续体验 AI 辅导 →'}
-        </CTAButton>
+        <CTAButton onClick={nextPractice}>继续体验 AI 辅导 →</CTAButton>
       </div>
     </div>
   );
@@ -1914,16 +1972,16 @@ function TracebackDemo({ onNext, dots }: { onNext: () => void; dots?: React.Reac
                 <h2 className="text-[21px] font-bold mb-6" style={{color:'#2BAE8A'}}>二、解释理由：论证结论的合理性</h2>
                 <h3 className="text-[17px] font-bold mb-3" style={{color:'#2BAE8A'}}>（一）体系解释</h3>
                 <div className="space-y-3 text-[14px] leading-8">
-                  <p>1．“同一用语的含义相对化”（一词多义）。体系解释并不意味着同一用语在不同条文中需要保持同一含义。相反，同一用语在不同语境中可以保持不同含义。</p>
-                  <p><span style={{color:'#2BAE8A'}}>［练习 1］</span>（2016 年第 51 题），强制猥亵、侮辱罪与侮辱罪，二者中的“侮辱”含义是否相同？</p>
+                  <p>1．"同一用语的含义相对化"（一词多义）。体系解释并不意味着同一用语在不同条文中需要保持同一含义。相反，同一用语在不同语境中可以保持不同含义。</p>
+                  <p><span style={{color:'#2BAE8A'}}>［练习 1］</span>（2016 年第 51 题），强制猥亵、侮辱罪与侮辱罪，二者中的"侮辱"含义是否相同？</p>
                   <p><span style={{color:'#2BAE8A'}}>［练习 2］</span>甲开设洗浴中心，组织服务员只提供色情按摩服务，不提供性交服务。甲是否构成组织卖淫罪？</p>
-                  <p>2．“不同用语的含义同一化”（多词一义）。刑法中几个不同的用语也可以保持同一个含义。</p>
-                  <p className="rounded px-2 -mx-2" style={{background:marked?'#FFF1A6':'transparent'}}><span style={{color:'#2BAE8A'}}>［问题］</span>刑法条文中的“出售”“销售”“倒卖”“贩卖”的含义是否相同？</p>
+                  <p>2．"不同用语的含义同一化"（多词一义）。刑法中几个不同的用语也可以保持同一个含义。</p>
+                  <p className="rounded px-2 -mx-2" style={{background:marked?'#FFF1A6':'transparent'}}><span style={{color:'#2BAE8A'}}>［问题］</span>刑法条文中的"出售""销售""倒卖""贩卖"的含义是否相同？</p>
                 </div>
                 <h3 className="text-[17px] font-bold mt-6 mb-3" style={{color:'#2BAE8A'}}>（二）当然解释</h3>
                 <div className="space-y-3 text-[14px] leading-8">
-                  <p><span style={{color:'#2BAE8A'}}>［问题］</span>可否主张“强制猥亵都是犯罪，强奸更应是犯罪”？</p>
-                  <p><span style={{color:'#2BAE8A'}}>［考点］</span>当然解释，是指在论证无罪时“举重以明轻”，在论证有罪时“举轻以明重”。</p>
+                  <p><span style={{color:'#2BAE8A'}}>［问题］</span>可否主张"强制猥亵都是犯罪，强奸更应是犯罪"？</p>
+                  <p><span style={{color:'#2BAE8A'}}>［考点］</span>当然解释，是指在论证无罪时"举重以明轻"，在论证有罪时"举轻以明重"。</p>
                   <p><span style={{color:'#2BAE8A'}}>［注意］</span>当然解释所比较的两个事项必须是性质相同、程度不同的关系。</p>
                 </div>
                 <h3 className="text-[17px] font-bold mt-6 mb-3" style={{color:'#2BAE8A'}}>（三）目的解释</h3>
