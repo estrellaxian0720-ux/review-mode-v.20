@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Check, Star, Upload, FileText, Mic, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
 import { CloudMascot } from '../assets/CloudMascot';
+import PlanFrameworkScreen, { type PlanDemoScenario } from './PlanFrameworkScreen';
+import { useApp } from '../contexts/AppContext';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -18,6 +20,8 @@ interface OnboardingScreenProps {
   onSkip: () => void;
   onEnterSample?: () => void;
   initialStep?: Step;
+  demoScenario?: PlanDemoScenario;
+  onActiveStepChange?: (step: Step) => void;
 }
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -356,6 +360,7 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 function A2Screen({ goalType, goalDetail, onNext, onBack }: {
   goalType: GoalType; goalDetail: string; onNext: () => void; onBack: () => void;
 }) {
+  const { weeklyStudyDays, setWeeklyStudyDays } = useApp();
   const defaultScores = SCORE_DEFAULTS[goalType];
   const defaultDate = (() => {
     const d = new Date(); d.setDate(d.getDate() + 7);
@@ -374,6 +379,9 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
   const [reminderDenied, setReminderDenied] = useState(false);
   const [reminderTime, setReminderTime] = useState('19:00');
   const [customReminder, setCustomReminder] = useState(false);
+  const [rhythmMode, setRhythmMode] = useState<'weekdays' | 'everyday' | 'custom'>(() =>
+    weeklyStudyDays.length === 7 ? 'everyday' : 'weekdays'
+  );
 
   const daysLeft = examDate
     ? Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000))
@@ -384,6 +392,19 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
 
   const toggleSubject = (s: string) => {
     const next = new Set(subjects); next.has(s) ? next.delete(s) : next.add(s); setSubjects(next);
+  };
+  const selectStudyRhythm = (mode: 'weekdays' | 'everyday', days: number[]) => {
+    setRhythmMode(mode);
+    setWeeklyStudyDays(days);
+  };
+  const toggleStudyDay = (day: number) => {
+    const next = weeklyStudyDays.includes(day)
+      ? weeklyStudyDays.filter(value => value !== day)
+      : [...weeklyStudyDays, day].sort((a, b) => a - b);
+    if (next.length > 0) {
+      setRhythmMode('custom');
+      setWeeklyStudyDays(next);
+    }
   };
   const validateScore = (target: string, total: string) => {
     const t = parseFloat(target), tot = parseFloat(total);
@@ -489,6 +510,49 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
               {daysLeft !== null && (
                 <p className="text-[11px] mt-0.5" style={{ color: BLUE }}>距考试还有 {daysLeft} 天</p>
               )}
+            </div>
+
+            {/* 只设置周期性可用时间；具体日期任务由 AI 拆解后生成。 */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <FieldLabel>每周学习节奏</FieldLabel>
+                <span className="text-[10px] font-semibold" style={{color:BLUE}}>每周 {weeklyStudyDays.length} 天</span>
+              </div>
+              <div className="flex gap-1.5 mb-2">
+                {([
+                  ['weekdays', '工作日'],
+                  ['everyday', '每天'],
+                  ['custom', '自定义'],
+                ] as const).map(([mode, label]) => (
+                  <button key={mode} type="button"
+                    onClick={() => mode === 'weekdays'
+                      ? selectStudyRhythm('weekdays', [1,2,3,4,5])
+                      : mode === 'everyday'
+                        ? selectStudyRhythm('everyday', [1,2,3,4,5,6,7])
+                        : setRhythmMode('custom')}
+                    className="px-2.5 py-1 rounded-full text-[10px] font-semibold"
+                    style={{
+                      background:rhythmMode===mode?(mode==='custom'?'#EAF3FF':'#FFFBDE'):'#F3F4F6',
+                      color:rhythmMode===mode?(mode==='custom'?BLUE:'#7A6400'):T4,
+                      border:`1px solid ${rhythmMode===mode?(mode==='custom'?BLUE:PRIMARY):'transparent'}`,
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {['一','二','三','四','五','六','日'].map((label, index) => {
+                  const day = index + 1;
+                  const active = weeklyStudyDays.includes(day);
+                  return <button key={day} type="button" onClick={() => toggleStudyDay(day)}
+                    aria-pressed={active}
+                    className="h-7 rounded-lg text-[10px] font-bold"
+                    style={{background:active?PRIMARY:'#F3F4F6',color:active?'#6B5900':T4,border:`1px solid ${active?'#D9B900':BORDER}`}}>{label}</button>;
+                })}
+              </div>
+              <p className="text-[10px] mt-1.5" style={{color:T4}}>
+                {rhythmMode === 'weekdays' ? '每周 5 天 · 周末默认休息' : '用于计算可用学习日，不需要逐日维护日历'}
+              </p>
             </div>
 
             {/* 4. Target / Total score — paired */}
@@ -2420,7 +2484,7 @@ function A6Screen({ onNext }: { onNext: () => void }) {
 
 // ── Main Onboarding Orchestrator ───────────────────────────────────────────────
 
-export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = onSkip, initialStep }: OnboardingScreenProps) {
+export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = onSkip, initialStep, demoScenario = 'fit', onActiveStepChange }: OnboardingScreenProps) {
   const [stepIdx, setStepIdx]       = useState(() => initialStep ? Math.max(0, STEPS_WITH_SAMPLE.indexOf(initialStep)) : 0);
   const [goalType, setGoalType]     = useState<GoalType>('cert');
   const [goalDetail, setGoalDetail] = useState('法考·法律类');
@@ -2434,6 +2498,10 @@ export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = o
   const STEPS = hasPreset ? STEPS_WITH_SAMPLE : STEPS_NO_SAMPLE;
   const step  = STEPS[stepIdx];
   const total = STEPS.length;
+
+  useEffect(() => {
+    onActiveStepChange?.(step);
+  }, [onActiveStepChange, step]);
 
   const next = () => setStepIdx(i => Math.min(i + 1, total - 1));
   const back = () => setStepIdx(i => Math.max(i - 1, 0));
@@ -2487,6 +2555,19 @@ export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = o
       default:   return null;
     }
   };
+
+  // A6 与独立计划入口共用同一个日历工作台，避免 onboarding 继续渲染历史确认页。
+  if (step === 'A6') {
+    return (
+      <div className="w-full h-full relative" style={{ background: BG }}>
+        <PlanFrameworkScreen
+          onConfirm={onComplete}
+          onSkip={returnFromPlanToDemo}
+          demoScenario={demoScenario}
+        />
+      </div>
+    );
+  }
 
   // ScreenWrapper needs position:relative so A5's dark B3 overlay can cover it
   return (

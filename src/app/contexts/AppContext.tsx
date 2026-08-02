@@ -42,6 +42,8 @@ interface AppState {
   selectedSpaceId: string | null;
   practiceStartingPoint: string | undefined;
   dailyStudyHours: number;
+  /** 1=周一 … 7=周日；默认工作日学习。 */
+  weeklyStudyDays: number[];
   
   // 进度追踪
   overallMastery: number;
@@ -85,6 +87,7 @@ interface AppActions {
   setSelectedSpaceId: (id: string | null) => void;
   setPracticeStartingPoint: (id: string | undefined) => void;
   setDailyStudyHours: (hours: number) => void;
+  setWeeklyStudyDays: (days: number[]) => void;
   
   // 进度操作
   updateMastery: (mastery: number) => void;
@@ -223,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [practiceStartingPoint, setPracticeStartingPoint] = useState<string | undefined>(undefined);
   const [dailyStudyHours, setDailyStudyHours] = useState(2);
+  const [weeklyStudyDays, setWeeklyStudyDays] = useState<number[]>([1, 2, 3, 4, 5]);
   
   // 进度追踪
   const [overallMastery, setOverallMastery] = useState(68);
@@ -322,6 +326,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectedSpaceId,
     practiceStartingPoint,
     dailyStudyHours,
+    weeklyStudyDays,
     overallMastery,
     showPivotPopup,
     showMasteryCompletion,
@@ -344,6 +349,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedSpaceId,
     setPracticeStartingPoint,
     setDailyStudyHours,
+    setWeeklyStudyDays,
     updateMastery,
     setShowPivotPopup,
     setShowMasteryCompletion,

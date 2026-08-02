@@ -9,7 +9,6 @@
  */
 export type Screen = 
   | 'space-selector'
-  | 'setup'
   | 'resources'
   | 'resource-collection'
   | 'priority-triage'
