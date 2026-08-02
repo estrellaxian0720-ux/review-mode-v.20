@@ -113,8 +113,9 @@ function AppContent() {
   const [showGeneratedPlanReady, setShowGeneratedPlanReady] = React.useState(false);
   const [openOnboardingAtPlan, setOpenOnboardingAtPlan] = React.useState(false);
   const [planDemoScenario, setPlanDemoScenario] = React.useState<PlanDemoScenario>('fit');
-  const [planDebugOpen, setPlanDebugOpen] = React.useState(false);
-  const [planDebugPosition, setPlanDebugPosition] = React.useState({ left: 12, top: 72 });
+  const [demoMenuOpen, setDemoMenuOpen] = React.useState(false);
+  const [demoControlPosition, setDemoControlPosition] = React.useState({ left: 12, top: 72 });
+  const [onboardingActiveStep, setOnboardingActiveStep] = React.useState('A1');
   const generationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
@@ -379,6 +380,8 @@ function AppContent() {
         return (
           <OnboardingScreen
             initialStep={openOnboardingAtPlan ? 'A6' : undefined}
+            demoScenario={planDemoScenario}
+            onActiveStepChange={setOnboardingActiveStep}
             onComplete={() => { setOpenOnboardingAtPlan(false); navigateTo('dashboard'); }}
             onSkip={() => navigateTo('space-selector')}
             onEnterSample={() => {
@@ -412,71 +415,63 @@ function AppContent() {
           className="overflow-hidden bg-white relative flex"
           style={{ width: frameW, height: frameH, transform: `scale(${viewportScale})`, transformOrigin: 'top left', transition: 'width .3s ease, height .3s ease' }}
         >
-        {/* 全局横竖屏切换按钮（练习页强制横屏时隐藏） */}
+        {/* 页面上下文演示控制器：公共能力与当前页面状态集中在同一处。 */}
         {!forceLandscape && (
-          <button
-            onClick={toggleOrientation}
-            title={isPortrait ? '切换到横屏' : '切换到竖屏'}
-            style={{
-              position: 'absolute', top: 8, right: 8, zIndex: 300,
-              display: 'flex', alignItems: 'center', gap: 4,
-              padding: '5px 9px', borderRadius: 8, cursor: 'pointer',
-              border: '1px solid rgba(0,0,0,0.12)', background: 'rgba(255,255,255,0.92)',
-              fontSize: 11, fontWeight: 600, color: '#555',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-            }}
-          >
-            {isPortrait ? '🖥 横屏' : '📱 竖屏'}
-          </button>
-        )}
-
-        {currentScreen === 'plan-framework' && (
           <div
             draggable
             onDragEnd={(event) => {
               const bounds = event.currentTarget.parentElement?.getBoundingClientRect();
               if (!bounds) return;
-              setPlanDebugPosition({
+              setDemoControlPosition({
                 left: Math.max(8, Math.min(frameW - 150, (event.clientX - bounds.left) / viewportScale)),
-                top: Math.max(8, Math.min(frameH - 190, (event.clientY - bounds.top) / viewportScale)),
+                top: Math.max(8, Math.min(frameH - 230, (event.clientY - bounds.top) / viewportScale)),
               });
             }}
             style={{
-              position: 'absolute', left: planDebugPosition.left, top: planDebugPosition.top, zIndex: 310,
+              position: 'absolute', left: demoControlPosition.left, top: demoControlPosition.top, zIndex: 310,
               cursor: 'move', userSelect: 'none',
             }}
           >
             <button
-              onClick={() => setPlanDebugOpen(value => !value)}
-              title="计划页面调试状态（可拖动）"
+              onClick={() => setDemoMenuOpen(value => !value)}
+              title="当前页面演示选项（可拖动）"
               style={{
                 border: '1px solid rgba(0,0,0,.14)', borderRadius: 9, padding: '6px 9px',
                 background: 'rgba(255,255,255,.95)', boxShadow: '0 2px 8px rgba(0,0,0,.12)',
                 fontSize: 11, fontWeight: 700, cursor: 'pointer',
               }}
             >
-              🛠 计划状态
+              🛠 演示
             </button>
-            {planDebugOpen && (
+            {demoMenuOpen && (
               <div style={{
-                marginTop: 5, width: 138, padding: 7, borderRadius: 10, background: 'rgba(255,255,255,.98)',
+                marginTop: 5, width: 148, padding: 7, borderRadius: 10, background: 'rgba(255,255,255,.98)',
                 border: '1px solid rgba(0,0,0,.12)', boxShadow: '0 6px 20px rgba(0,0,0,.16)',
                 display: 'flex', flexDirection: 'column', gap: 4,
               }}>
-                {([
-                  ['fit', '容量充足'],
-                  ['slight', '轻度超限'],
-                  ['material', '明显超限'],
-                  ['extreme', '极端超限'],
-                  ['impossible', '强制落地'],
-                ] as [PlanDemoScenario, string][]).map(([id, label]) => (
-                  <button key={id} onClick={() => setPlanDemoScenario(id)} style={{
-                    border: 0, borderRadius: 6, padding: '5px 7px', textAlign: 'left', cursor: 'pointer',
-                    background: planDemoScenario === id ? '#EEF6FF' : 'transparent',
-                    color: planDemoScenario === id ? '#2D8CFF' : '#555', fontSize: 10,
-                    fontWeight: planDemoScenario === id ? 700 : 500,
-                  }}>{label}</button>
-                ))}
+                <button onClick={toggleOrientation} style={{
+                  border: 0, borderRadius: 6, padding: '5px 7px', textAlign: 'left', cursor: 'pointer',
+                  background: 'transparent', color: '#555', fontSize: 10, fontWeight: 600,
+                }}>{isPortrait ? '🖥 切换到横屏' : '📱 切换到竖屏'}</button>
+                {(currentScreen === 'plan-framework' || (currentScreen === 'onboarding' && onboardingActiveStep === 'A6')) && (
+                  <>
+                    <div style={{ height: 1, background: '#ECEEF2', margin: '2px 0' }} />
+                    {([
+                      ['fit', '时间充足'],
+                      ['slight', '轻度超限'],
+                      ['material', '时间不足'],
+                      ['extreme', '严重不足'],
+                      ['impossible', '无法按期完成'],
+                    ] as [PlanDemoScenario, string][]).map(([id, label]) => (
+                      <button key={id} onClick={() => setPlanDemoScenario(id)} style={{
+                        border: 0, borderRadius: 6, padding: '5px 7px', textAlign: 'left', cursor: 'pointer',
+                        background: planDemoScenario === id ? '#EEF6FF' : 'transparent',
+                        color: planDemoScenario === id ? '#2D8CFF' : '#555', fontSize: 10,
+                        fontWeight: planDemoScenario === id ? 700 : 500,
+                      }}>{label}</button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
           </div>

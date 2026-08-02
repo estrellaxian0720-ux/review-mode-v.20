@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Check, Star, Upload, FileText, Mic, Link2, Image, GripVertical, X, Search, ChevronDown, Users, Trash2, RotateCcw, BookOpen, PenLine, Eraser, MoreHorizontal, Send, Sparkles, Bookmark, ExternalLink, MousePointer2, Plus, Pencil } from 'lucide-react';
 import { CloudMascot } from '../assets/CloudMascot';
+import PlanFrameworkScreen, { type PlanDemoScenario } from './PlanFrameworkScreen';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -18,6 +19,8 @@ interface OnboardingScreenProps {
   onSkip: () => void;
   onEnterSample?: () => void;
   initialStep?: Step;
+  demoScenario?: PlanDemoScenario;
+  onActiveStepChange?: (step: Step) => void;
 }
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
@@ -2362,7 +2365,7 @@ function A6Screen({ onNext }: { onNext: () => void }) {
 
 // ── Main Onboarding Orchestrator ───────────────────────────────────────────────
 
-export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = onSkip, initialStep }: OnboardingScreenProps) {
+export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = onSkip, initialStep, demoScenario = 'fit', onActiveStepChange }: OnboardingScreenProps) {
   const [stepIdx, setStepIdx]       = useState(() => initialStep ? Math.max(0, STEPS_WITH_SAMPLE.indexOf(initialStep)) : 0);
   const [goalType, setGoalType]     = useState<GoalType>('cert');
   const [goalDetail, setGoalDetail] = useState('法考·法律类');
@@ -2376,6 +2379,10 @@ export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = o
   const STEPS = hasPreset ? STEPS_WITH_SAMPLE : STEPS_NO_SAMPLE;
   const step  = STEPS[stepIdx];
   const total = STEPS.length;
+
+  useEffect(() => {
+    onActiveStepChange?.(step);
+  }, [onActiveStepChange, step]);
 
   const next = () => setStepIdx(i => Math.min(i + 1, total - 1));
   const back = () => setStepIdx(i => Math.max(i - 1, 0));
@@ -2429,6 +2436,19 @@ export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = o
       default:   return null;
     }
   };
+
+  // A6 与独立计划入口共用同一个日历工作台，避免 onboarding 继续渲染历史确认页。
+  if (step === 'A6') {
+    return (
+      <div className="w-full h-full relative" style={{ background: BG }}>
+        <PlanFrameworkScreen
+          onConfirm={onComplete}
+          onSkip={returnFromPlanToDemo}
+          demoScenario={demoScenario}
+        />
+      </div>
+    );
+  }
 
   // ScreenWrapper needs position:relative so A5's dark B3 overlay can cover it
   return (
