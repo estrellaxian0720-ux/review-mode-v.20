@@ -379,9 +379,6 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
   const [reminderDenied, setReminderDenied] = useState(false);
   const [reminderTime, setReminderTime] = useState('19:00');
   const [customReminder, setCustomReminder] = useState(false);
-  const [rhythmMode, setRhythmMode] = useState<'weekdays' | 'everyday' | 'custom'>(() =>
-    weeklyStudyDays.length === 7 ? 'everyday' : 'weekdays'
-  );
 
   const daysLeft = examDate
     ? Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000))
@@ -393,16 +390,11 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
   const toggleSubject = (s: string) => {
     const next = new Set(subjects); next.has(s) ? next.delete(s) : next.add(s); setSubjects(next);
   };
-  const selectStudyRhythm = (mode: 'weekdays' | 'everyday', days: number[]) => {
-    setRhythmMode(mode);
-    setWeeklyStudyDays(days);
-  };
   const toggleStudyDay = (day: number) => {
     const next = weeklyStudyDays.includes(day)
       ? weeklyStudyDays.filter(value => value !== day)
       : [...weeklyStudyDays, day].sort((a, b) => a - b);
     if (next.length > 0) {
-      setRhythmMode('custom');
       setWeeklyStudyDays(next);
     }
   };
@@ -463,7 +455,22 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
               </div>
             </div>
 
-            {/* 5. Familiarity — 2×2 grid */}
+            {/* 3. Target / Total score — paired */}
+            <div>
+              <FieldLabel>目标分数 / 总分</FieldLabel>
+              <div className="flex items-center gap-2">
+                <input type="number" value={targetScore}
+                  onChange={e => { setTargetScore(e.target.value); validateScore(e.target.value, totalScore); }}
+                  placeholder="目标分" className={`${inputCls} flex-1`} style={inputStyle(!!scoreError)} />
+                <span className="text-[13px] flex-shrink-0" style={{ color: T4 }}>/</span>
+                <input type="number" value={totalScore}
+                  onChange={e => { setTotalScore(e.target.value); validateScore(targetScore, e.target.value); }}
+                  placeholder="总分" className={`${inputCls} flex-1`} style={inputStyle()} />
+              </div>
+              {scoreError && <p className="text-[11px] mt-0.5" style={{ color: RED }}>{scoreError}</p>}
+            </div>
+
+            {/* 4. Familiarity — 2×2 grid */}
             <div>
               <FieldLabel>当前熟悉度</FieldLabel>
               <div className="grid grid-cols-2 gap-1.5">
@@ -500,7 +507,7 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
 
           {/* ── RIGHT COLUMN ── */}
           <div className="space-y-3">
-            {/* 3. Exam date */}
+            {/* 1. Exam date */}
             <div>
               <FieldLabel>考试日期</FieldLabel>
               <input type="date" value={examDate}
@@ -512,33 +519,23 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
               )}
             </div>
 
+            {/* 2. Language */}
+            <div>
+              <FieldLabel>输出语种</FieldLabel>
+              <select value={lang} onChange={e => setLang(e.target.value)}
+                className={inputCls} style={inputStyle()}>
+                <option>简体中文</option>
+                <option>English</option>
+                <option>繁體中文</option>
+              </select>
+              <p className="text-[11px] mt-0.5" style={{ color: '#BBB' }}>用于后续练习题与 AI Tutor 回复</p>
+            </div>
+
             {/* 只设置周期性可用时间；具体日期任务由 AI 拆解后生成。 */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <FieldLabel>每周学习节奏</FieldLabel>
                 <span className="text-[10px] font-semibold" style={{color:BLUE}}>每周 {weeklyStudyDays.length} 天</span>
-              </div>
-              <div className="flex gap-1.5 mb-2">
-                {([
-                  ['weekdays', '工作日'],
-                  ['everyday', '每天'],
-                  ['custom', '自定义'],
-                ] as const).map(([mode, label]) => (
-                  <button key={mode} type="button"
-                    onClick={() => mode === 'weekdays'
-                      ? selectStudyRhythm('weekdays', [1,2,3,4,5])
-                      : mode === 'everyday'
-                        ? selectStudyRhythm('everyday', [1,2,3,4,5,6,7])
-                        : setRhythmMode('custom')}
-                    className="px-2.5 py-1 rounded-full text-[10px] font-semibold"
-                    style={{
-                      background:rhythmMode===mode?(mode==='custom'?'#EAF3FF':'#FFFBDE'):'#F3F4F6',
-                      color:rhythmMode===mode?(mode==='custom'?BLUE:'#7A6400'):T4,
-                      border:`1px solid ${rhythmMode===mode?(mode==='custom'?BLUE:PRIMARY):'transparent'}`,
-                    }}>
-                    {label}
-                  </button>
-                ))}
               </div>
               <div className="grid grid-cols-7 gap-1">
                 {['一','二','三','四','五','六','日'].map((label, index) => {
@@ -551,35 +548,8 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
                 })}
               </div>
               <p className="text-[10px] mt-1.5" style={{color:T4}}>
-                {rhythmMode === 'weekdays' ? '每周 5 天 · 周末默认休息' : '用于计算可用学习日，不需要逐日维护日历'}
+                周末默认休息，点击日期可调整
               </p>
-            </div>
-
-            {/* 4. Target / Total score — paired */}
-            <div>
-              <FieldLabel>目标分数 / 总分</FieldLabel>
-              <div className="flex items-center gap-2">
-                <input type="number" value={targetScore}
-                  onChange={e => { setTargetScore(e.target.value); validateScore(e.target.value, totalScore); }}
-                  placeholder="目标分" className={`${inputCls} flex-1`} style={inputStyle(!!scoreError)} />
-                <span className="text-[13px] flex-shrink-0" style={{ color: T4 }}>/</span>
-                <input type="number" value={totalScore}
-                  onChange={e => { setTotalScore(e.target.value); validateScore(targetScore, e.target.value); }}
-                  placeholder="总分" className={`${inputCls} flex-1`} style={inputStyle()} />
-              </div>
-              {scoreError && <p className="text-[11px] mt-0.5" style={{ color: RED }}>{scoreError}</p>}
-            </div>
-
-            {/* 6. Language */}
-            <div>
-              <FieldLabel>输出语种</FieldLabel>
-              <select value={lang} onChange={e => setLang(e.target.value)}
-                className={inputCls} style={inputStyle()}>
-                <option>简体中文</option>
-                <option>English</option>
-                <option>繁體中文</option>
-              </select>
-              <p className="text-[11px] mt-0.5" style={{ color: '#BBB' }}>用于后续练习题与 AI Tutor 回复</p>
             </div>
 
             <div className="pt-2" style={{borderTop:`1px solid ${BORDER}`}}>
