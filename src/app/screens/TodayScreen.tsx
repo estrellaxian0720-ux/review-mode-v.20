@@ -734,10 +734,12 @@ interface KPRowProps {
   batchMode: boolean;
   selected: boolean;
   bookmarked: boolean;
+  mastered: boolean;
   expanded: boolean;
   onTap: () => void;                  // 点行本体：批量=勾选；否则=就地展开概念
   onLongPress: () => void;
   onToggleBookmark: () => void;
+  onToggleMastered: () => void;
   onOpenFullscreen: (rect: OriginRect) => void;
   showStarBubble: boolean;
   onDismissStarBubble: () => void;
@@ -746,8 +748,8 @@ interface KPRowProps {
 }
 
 function KPRow({
-  kp, batchMode, selected, bookmarked, expanded,
-  onTap, onLongPress, onToggleBookmark, onOpenFullscreen,
+  kp, batchMode, selected, bookmarked, mastered, expanded,
+  onTap, onLongPress, onToggleBookmark, onToggleMastered, onOpenFullscreen,
   showStarBubble, onDismissStarBubble, showPriorityBubble, onDismissPriorityBubble,
 }: KPRowProps) {
   const { handlers, firedRef } = useLongPress(onLongPress);
@@ -778,12 +780,23 @@ function KPRow({
             {selected && <Check size={9} color="#fff" strokeWidth={3} />}
           </button>
         )}
+        {!batchMode && (
+          <button onClick={(e) => { e.stopPropagation(); onToggleMastered(); }} title="勾选表示我已经掌握" style={{
+            width: 18, height: 18, borderRadius: '50%', flexShrink: 0, padding: 0,
+            border: `2px solid ${mastered ? C.mastered : C.muted}`,
+            background: mastered ? C.mastered : '#fff', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {mastered && <Check size={10} color="#fff" strokeWidth={3} />}
+          </button>
+        )}
 
         {/* 优先级色条 ▍ */}
         <PriorityBar imp={kp.importance} onClick={() => setReason(r => !r)} />
 
         {/* 知识点名 */}
-        <span style={{ fontSize: 13, color: C.ink, flexShrink: 0, lineHeight: 1.4, maxWidth: 150,
+        <span style={{ fontSize: 13, color: mastered ? C.tertiary : C.ink, flexShrink: 0, lineHeight: 1.4, maxWidth: 150,
+          textDecoration: mastered ? 'line-through' : 'none',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {kp.name}
         </span>
@@ -962,7 +975,9 @@ interface ModuleSectionProps {
   onSelect: (id: string) => void;
   onSelectModule: (mod: Module) => void;
   bookmarked: Set<string>;
+  mastered: Set<string>;
   onBookmark: (id: string) => void;
+  onMastered: (id: string) => void;
   expandedKP: Set<string>;
   onToggleKP: (id: string) => void;
   onOpenFullscreen: (kp: KP, mod: Module, rect: OriginRect) => void;
@@ -983,7 +998,7 @@ interface ModuleSectionProps {
 
 function ModuleSection({
   mod, seq, viewMode, batchMode, portrait, isExpanded, onToggle,
-  selected, onSelect, onSelectModule, bookmarked, onBookmark, expandedKP, onToggleKP,
+  selected, onSelect, onSelectModule, bookmarked, mastered, onBookmark, onMastered, expandedKP, onToggleKP,
   onOpenFullscreen, onEnterBatch, onStartModule,
   showExpandBubble, onDismissExpandBubble,
   showStartBubble, onDismissStartBubble,
@@ -1109,10 +1124,12 @@ function ModuleSection({
                 batchMode={batchMode}
                 selected={selected.has(kp.id)}
                 bookmarked={bookmarked.has(kp.id)}
+                mastered={mastered.has(kp.id)}
                 expanded={expandedKP.has(kp.id)}
                 onTap={() => { if (batchMode) onSelect(kp.id); else onToggleKP(kp.id); }}
                 onLongPress={() => onEnterBatch(kp.id)}
                 onToggleBookmark={() => onBookmark(kp.id)}
+                onToggleMastered={() => onMastered(kp.id)}
                 onOpenFullscreen={(rect) => onOpenFullscreen(kp, mod, rect)}
                 showStarBubble={showStarBubble && ki === 1}
                 onDismissStarBubble={onDismissStarBubble}
@@ -1185,7 +1202,7 @@ export default function TodayScreen({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [expandedKP, setExpandedKP] = useState<Set<string>>(new Set());
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set(['kp-m1']));
-  const [, setMastered] = useState<Set<string>>(new Set());
+  const [mastered, setMastered] = useState<Set<string>>(new Set());
   const [masteredToast, setMasteredToast] = useState(false);
   const masteredToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -1243,6 +1260,14 @@ export default function TodayScreen({
   const handleBookmark = (kpId: string) => {
     setBookmarked(s => { const n = new Set(s); n.has(kpId) ? n.delete(kpId) : n.add(kpId); return n; });
     if (showStarBubble) dismiss('star-bookmark');
+  };
+  const handleMastered = (kpId: string) => {
+    setMastered(current => {
+      const next = new Set(current);
+      next.has(kpId) ? next.delete(kpId) : next.add(kpId);
+      return next;
+    });
+    triggerMasteredToast();
   };
 
   const enterBatch = (kpId: string) => {
@@ -1584,7 +1609,9 @@ export default function TodayScreen({
                   onSelect={handleSelect}
                   onSelectModule={handleSelectModule}
                   bookmarked={bookmarked}
+                  mastered={mastered}
                   onBookmark={handleBookmark}
+                  onMastered={handleMastered}
                   expandedKP={expandedKP}
                   onToggleKP={handleToggleKP}
                   onOpenFullscreen={handleOpenFullscreen}

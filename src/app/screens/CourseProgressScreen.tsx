@@ -3,6 +3,7 @@ import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Play, Check, Star, Tras
 
 interface CourseProgressScreenProps {
   onBack: () => void;
+  onViewKnowledgeSystem?: () => void;
   onStartPractice?: () => void;
   /** 'created' = 创建完成后首次落地（语境A）；'view' = 日后从 Hero 进入（语境B） */
   context?: 'created' | 'view';
@@ -301,7 +302,7 @@ function ModuleGroup({ mod, dateT, bookmarked, onBookmark, onToggleCheck, onDrag
                 </button>
               )}
               {canEdit && (
-                <button onClick={() => onRequestDelete(mod.id, kp)} title="从计划中删除"
+                <button onClick={() => onRequestDelete(mod.id, kp)} title="移出当前计划"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, flexShrink: 0, color: C.muted }}>
                   <Trash2 size={13} />
                 </button>
@@ -500,7 +501,7 @@ function MonthProgressCalendar({ onClose, onPickDate }: { onClose: () => void; o
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
-export function CourseProgressScreen({ onBack, onStartPractice, context = 'view' }: CourseProgressScreenProps) {
+export function CourseProgressScreen({ onBack, onViewKnowledgeSystem, onStartPractice, context = 'view' }: CourseProgressScreenProps) {
   const [selectedDate, setSelectedDate] = useState(SYSTEM_TODAY);
   const [weekOffset, setWeekOffset] = useState(0);
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set(['kp-m1']));
@@ -576,7 +577,7 @@ export function CourseProgressScreen({ onBack, onStartPractice, context = 'view'
     setDrag(null);
   };
 
-  // 硬删除
+  // 移出当前计划；知识点本体仍在完整列表中可恢复。
   const confirmDelete = () => {
     if (!deleteTarget) return;
     setModules(dIdx, mods =>
@@ -620,6 +621,20 @@ export function CourseProgressScreen({ onBack, onStartPractice, context = 'view'
         }}>
           <Calendar size={18} />
         </button>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 16px', background: C.card,
+        borderBottom: `1px solid ${C.bdr}`, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: '#ECEEF2' }}>
+          <button style={{ padding: '7px 20px', border: 'none', borderRadius: 9, background: '#fff',
+            color: C.ink, fontSize: 13, fontWeight: 750, boxShadow: '0 1px 4px rgba(0,0,0,.08)' }}>
+            学习计划
+          </button>
+          <button onClick={onViewKnowledgeSystem} style={{ padding: '7px 20px', border: 'none', borderRadius: 9,
+            background: 'transparent', color: C.sub, fontSize: 13, fontWeight: 650, cursor: 'pointer' }}>
+            知识体系
+          </button>
+        </div>
       </div>
 
       {/* Week strip */}
@@ -842,7 +857,7 @@ export function CourseProgressScreen({ onBack, onStartPractice, context = 'view'
         <MonthProgressCalendar onClose={() => setShowCalendar(false)} onPickDate={handleSelectDate} />
       )}
 
-      {/* 删除确认（加重、写明后果） */}
+      {/* 移出计划确认：与永久删除知识点严格区分 */}
       {deleteTarget && (
         <div onClick={() => setDeleteTarget(null)} style={{
           position: 'absolute', inset: 0, zIndex: 110, background: 'rgba(10,10,20,0.5)',
@@ -858,11 +873,11 @@ export function CourseProgressScreen({ onBack, onStartPractice, context = 'view'
                 <Trash2 size={17} color={C.weak} />
               </span>
               <span style={{ fontSize: 15, fontWeight: 700, color: C.ink }}>
-                删除「{deleteTarget.kp.name}」？
+                将「{deleteTarget.kp.name}」移出当前计划？
               </span>
             </div>
             <p style={{ fontSize: 13, color: C.sub, lineHeight: 1.7, margin: '0 0 18px' }}>
-              将从你的知识结构中<strong style={{ color: C.weak }}>永久删除</strong>，其练习记录、星图与连线一并移除，<strong style={{ color: C.weak }}>不可恢复</strong>。（这不是「标记已掌握 / 跳过」）
+              移出后不再安排学习、复习或测试，也不计入计划容量。知识点、原资料和历史证据仍保留，可在知识体系的完整列表中重新加入。（这不是「我已经会了」）
             </p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setDeleteTarget(null)} style={{
@@ -872,7 +887,7 @@ export function CourseProgressScreen({ onBack, onStartPractice, context = 'view'
               <button onClick={confirmDelete} style={{
                 padding: '9px 18px', borderRadius: 10, border: 'none',
                 background: C.weak, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              }}>永久删除</button>
+              }}>移出当前计划</button>
             </div>
           </div>
         </div>
