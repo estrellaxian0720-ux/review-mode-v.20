@@ -6,11 +6,13 @@ import { ArrowLeft, X } from 'lucide-react';
 type Status = 'mastered' | 'learning' | 'review_due' | 'new' | 'weak';
 type Filter = 'all' | 'today' | 'review' | 'weak' | 'mastered';
 type ViewMode = 'star' | 'mindmap' | 'list';
+type PlanMembership = 'included' | 'excluded';
 
 interface Concept {
   id: string; name: string; status: Status;
   x: number; y: number; deg: number;
   sectionId: string; chapterId: string;
+  membership: PlanMembership;
   sx: number; sy: number; // group-local SVG coords
 }
 
@@ -328,6 +330,8 @@ const RAW: CRow[] = [
 const CONCEPTS: Concept[] = RAW.map(([name, status, x, y, deg, sectionId], i) => ({
   id: String(i),
   name, status, x, y, deg, sectionId,
+  // Demo: 保留一小部分未加入当前计划的知识点，用于表达三个功能视图的范围差异。
+  membership: i % 7 === 0 ? 'excluded' : 'included',
   chapterId: S_CH[sectionId],
   sx: csx(x), sy: csy(y),
 }));
@@ -441,6 +445,7 @@ interface EditOps {
   onAddConcept: (sectionId: string) => string;         // 模块下新增知识点，返回新 id
   onSaveAnswer: (id: string, text: string) => void;    // 答案自动保存 + toast
   onToast: (msg: string) => void;
+  onSetMembership: (id: string, membership: PlanMembership) => void;
   getAnswer: (c: Concept) => string;
 }
 
@@ -461,7 +466,7 @@ interface MMNode {
   id: string; label: string;
   level: number; side: 'root' | 'left' | 'right';
   children: MMNode[];
-  status?: Status; isUser?: boolean;
+  status?: Status; membership?: PlanMembership; isUser?: boolean;
 }
 interface MMPos { cx: number; cy: number; level: number; side: 'root' | 'left' | 'right'; }
 
@@ -514,7 +519,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
       for (const sec of SECTIONS.filter(s => s.chId === ch.id)) {
         const secNode: MMNode = { id: sec.id, label: sec.name, level: 2, side, children: [] };
         for (const c of concepts.filter(c => c.sectionId === sec.id)) {
-          secNode.children.push({ id: c.id, label: c.name, level: 3, side, children: [], status: c.status });
+          secNode.children.push({ id: c.id, label: c.name, level: 3, side, children: [], status: c.status, membership: c.membership });
         }
         chNode.children.push(secNode);
       }
@@ -845,6 +850,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
               const isMatch = searchMatches.has(node.id);
               const searchDim = search.trim().length > 0 && searchMatches.size > 0 && !isMatch;
               const filterDim = filter !== 'all' && node.level === 3 && !!node.status && !matchesFilter({ status: node.status } as Concept, filter);
+              const excluded = node.membership === 'excluded';
               const dimmed = searchDim || filterDim;
               const side = p.side;
 
@@ -860,7 +866,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
               const hx = side === 'left' ? x - 11 : x + w + 11;
 
               return (
-                <g key={node.id} data-node="true" style={{ opacity: dimmed ? 0.18 : 1 }}>
+                <g key={node.id} data-node="true" style={{ opacity: dimmed ? 0.18 : excluded ? 0.45 : 1 }}>
                   <rect x={x} y={y} width={w} height={h}
                     rx={p.level === 0 ? 10 : p.level === 1 ? 7 : 5}
                     fill={bg} stroke={bd} strokeWidth={isSel ? 2 : 1}
@@ -910,6 +916,10 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                     style={{ pointerEvents: 'none', userSelect: 'none', fontFamily: 'system-ui,sans-serif' }}>
                     {lbl}
                   </text>
+                  {excluded && p.level === 3 && (
+                    <text x={x + w - 5} y={y + 6} textAnchor="end" fill="#A86600" fontSize={7.5}
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}>未加入</text>
+                  )}
                   {hasKids && (
                     <g onClick={e => { e.stopPropagation(); toggleNode(node.id, node); }} style={{ cursor: 'pointer' }}>
                       <circle cx={hx} cy={p.cy} r={7.5} fill="#EDE9E0" stroke="#C0BCB4" strokeWidth={1} />
@@ -1062,6 +1072,15 @@ function ListView({ concepts, filter, ops }: { concepts: Concept[]; filter: Filt
                               </span>
                             )}
                             <span className="text-[10px]" style={{ color: '#aaa' }}>{STATUS_LABEL[c.status]}</span>
+                            <span className="text-[9px] px-1.5 py-0.5 rounded" style={{
+                              background: c.membership === 'included' ? '#EEF6FF' : '#F1F1F1',
+                              color: c.membership === 'included' ? '#2D8CFF' : '#888',
+                            }}>{c.membership === 'included' ? '已加入' : '未加入'}</span>
+                            {c.membership === 'excluded' && (
+                              <button className="text-[10px] px-2 py-0.5 rounded"
+                                onClick={e => { e.stopPropagation(); ops.onSetMembership(c.id, 'included'); }}
+                                style={{ background: '#FFF7D6', color: '#7A6200' }}>加入计划</button>
+                            )}
                             <button className="text-[10px] px-2 py-0.5 rounded" onClick={e => e.stopPropagation()} style={{
                               background: c.status === 'mastered' ? '#F6FEF9' : '#EAF3FF',
                               color: c.status === 'mastered' ? '#00A63E' : '#2D8CFF',
@@ -1248,6 +1267,8 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
   const [bubblePos, setBubblePos] = useState({ x: 0, y: 0 });
   const [hint1, setHint1] = useState(true);
   const [hint2, setHint2] = useState(false);
+  const [mindMapScope, setMindMapScope] = useState<'current' | 'all'>('current');
+  const [listMembership, setListMembership] = useState<'all' | PlanMembership>('all');
 
   // ── 三视图共享的知识点数据（思维导图/列表可增删改，星图仅浏览） ──
   const [concepts, setConcepts] = useState<Concept[]>(CONCEPTS);
@@ -1289,6 +1310,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
       const y = (sec?.cy ?? 0.5) + (Math.random() - 0.5) * 0.06;
       const nc: Concept = {
         id: nid, name: '新知识点', status: 'new',
+        membership: 'included',
         x, y, deg: 3, sectionId, chapterId: S_CH[sectionId],
         sx: csx(x), sy: csy(y),
       };
@@ -1300,6 +1322,10 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
       showToast('已保存');
     },
     onToast: showToast,
+    onSetMembership: (id, membership) => {
+      setConcepts(cs => cs.map(c => c.id === id ? { ...c, membership } : c));
+      showToast(membership === 'included' ? '已加入当前计划' : '已移出当前计划');
+    },
     getAnswer,
   }), [showToast, getAnswer]);
 
@@ -1376,8 +1402,11 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
       .filter((r): r is { from: Concept; to: Concept } => !!(r.from && r.to && r.from.id !== r.to.id));
   }, [lod, byName]);
 
-  const masteredCount = concepts.filter(c => c.status === 'mastered').length;
-  const litPct = Math.round(masteredCount / concepts.length * 100);
+  const includedConcepts = useMemo(() => concepts.filter(c => c.membership === 'included'), [concepts]);
+  const masteredCount = includedConcepts.filter(c => c.status === 'mastered').length;
+  const litPct = Math.round(masteredCount / Math.max(1, includedConcepts.length) * 100);
+  const mindMapConcepts = mindMapScope === 'current' ? includedConcepts : concepts;
+  const listConcepts = listMembership === 'all' ? concepts : concepts.filter(c => c.membership === listMembership);
 
   // Spec §筛选chip: ONLY 4 resident chips — 全部 / 待复习 / 薄弱 / 已掌握.
   // 「今日待学」is forbidden as a resident chip; it exists ONLY as a transient
@@ -1400,7 +1429,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
           <span>返回</span>
         </button>
         <div className="w-px h-4" style={{ background: 'rgba(255,255,255,0.12)' }}/>
-        <span className="font-semibold text-sm" style={{ color: '#F0ECE0' }}>知识地图</span>
+        <span className="font-semibold text-sm" style={{ color: '#F0ECE0' }}>知识体系</span>
         <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
           {litPct}% 已亮 · 本周新点亮 8 颗
         </span>
@@ -1408,7 +1437,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
         {/* View switcher */}
         <div className="ml-auto flex items-center gap-0.5 rounded-lg p-0.5"
           style={{ background: 'rgba(255,255,255,0.07)' }}>
-          {([['star','★ 星图'],['mindmap','思维导图'],['list','列表']] as [ViewMode, string][]).map(([v, label]) => (
+          {([['star','★ 星空'],['mindmap','思维导图'],['list','列表']] as [ViewMode, string][]).map(([v, label]) => (
             <button key={v}
               onClick={() => handleViewChange(v)}
               className="px-3 py-1.5 text-xs font-medium rounded-md transition-all"
@@ -1427,7 +1456,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
         <div className="flex-shrink-0 flex items-center justify-between px-4 py-1.5"
           style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
           <span className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>
-            换个看法：星图看全貌、列表快速查
+            三个视图职责不同：星空看成就，导图理结构，列表管全量
           </span>
           <button onClick={() => { setHint1(false); setHint2(true); }}
             style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>×</button>
@@ -1460,6 +1489,30 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
             </button>
           </div>
         )}
+      </div>
+
+      {/* 范围控制按视图分层：星空固定当前计划，导图可看全量，列表承担全局兜底。 */}
+      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(11,13,20,0.88)' }}>
+        <span className="text-[11px]" style={{ color: 'rgba(255,255,255,.38)' }}>查看范围</span>
+        {view === 'star' && (
+          <span className="px-3 py-1 rounded-full text-xs font-medium"
+            style={{ background: 'rgba(253,234,59,.16)', color: '#FDEA3B' }}>当前计划 · 成就视图</span>
+        )}
+        {view === 'mindmap' && ([['current','当前计划'],['all','全部知识点']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setMindMapScope(id)} className="px-3 py-1 rounded-full text-xs font-medium"
+            style={{ background: mindMapScope === id ? 'rgba(253,234,59,.16)' : 'rgba(255,255,255,.06)',
+              color: mindMapScope === id ? '#FDEA3B' : 'rgba(255,255,255,.5)' }}>{label}</button>
+        ))}
+        {view === 'list' && ([['all','全部'],['included','已加入'],['excluded','未加入']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setListMembership(id)} className="px-3 py-1 rounded-full text-xs font-medium"
+            style={{ background: listMembership === id ? 'rgba(253,234,59,.16)' : 'rgba(255,255,255,.06)',
+              color: listMembership === id ? '#FDEA3B' : 'rgba(255,255,255,.5)' }}>{label}</button>
+        ))}
+        <span className="ml-auto text-[11px]" style={{ color: 'rgba(255,255,255,.32)' }}>
+          {view === 'star' ? `${includedConcepts.length} 个计划内知识点` :
+            view === 'mindmap' ? `${mindMapConcepts.length} 个知识点` : `${listConcepts.length} / ${concepts.length} 个知识点`}
+        </span>
       </div>
 
       {/* Hint 2 */}
@@ -1553,7 +1606,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
                 })}
 
                 {/* Stars (concepts) */}
-                {concepts.map(c => {
+                {includedConcepts.map(c => {
                   const fMatch = matchesFilter(c, filter);
                   const dimmed = filter !== 'all' && !fMatch;
                   const isSel = selected?.id === c.id;
@@ -1647,12 +1700,12 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
 
         {/* Mind map */}
         {view === 'mindmap' && (
-          <MindMapView concepts={concepts} filter={filter} ops={ops}/>
+          <MindMapView concepts={mindMapConcepts} filter={filter} ops={ops}/>
         )}
 
         {/* List */}
         {view === 'list' && (
-          <ListView concepts={concepts} filter={filter} ops={ops}/>
+          <ListView concepts={listConcepts} filter={filter} ops={ops}/>
         )}
       </div>
 

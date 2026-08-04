@@ -1,18 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, ArrowLeft, BookOpen, CalendarDays, ChevronLeft, ChevronRight,
-  Clock3, Flag, GripVertical, Layers3, Sparkles, X,
+  AlertTriangle, ArrowLeft, BookOpen, CalendarDays, ChevronDown, ChevronLeft, ChevronRight,
+  Check, Clock3, Flag, GripVertical, Layers3, Sparkles, Star, Trash2, X,
 } from 'lucide-react';
 
 export type PlanDemoScenario = 'fit' | 'slight' | 'material' | 'extreme' | 'impossible';
+export type PlanWeekendMode = 'rest' | 'study';
 
 interface KP { id: string; name: string; known?: boolean }
 interface Module { id: string; name: string; minutes: number; kps: KP[] }
-interface PlanDate { iso: string; label: string; weekday: string; modules: Module[]; phase?: 'learn' | 'review' | 'exam' }
+interface PlanDate { iso: string; label: string; weekday: string; modules: Module[]; phase?: 'learn' | 'sprint' | 'exam'; isRestDay?: boolean }
 interface PlanFrameworkScreenProps {
   onConfirm: () => void;
-  onSkip: () => void;
+  onBack: () => void;
+  onHome: () => void;
   demoScenario?: PlanDemoScenario;
+  initialState?: 'confirmation' | 'daily';
+  onViewKnowledgeSystem?: () => void;
+  weekendMode?: PlanWeekendMode;
 }
 
 const C = {
@@ -26,21 +31,29 @@ const kp = (id: string, name: string): KP => ({ id, name });
 const m = (id: string, name: string, minutes: number, names: string[]): Module => ({
   id, name, minutes, kps: names.map((name, i) => kp(`${id}-${i}`, name)),
 });
+const mKnown = (id: string, name: string, minutes: number, names: string[], knownCount: number): Module => ({
+  ...m(id, name, minutes, names),
+  kps: names.map((name, index) => ({ id: `${id}-${index}`, name, known: index < knownCount })),
+});
+const TODAY_ISO = '2026-08-04';
 
-const INITIAL_DATES: PlanDate[] = [
-  { iso: '2026-07-31', label: '7月31日', weekday: '周五 · 今天', phase: 'learn', modules: [
-    m('criminal-principles', '刑法基本原则', 28, ['罪刑法定原则', '罪刑相适应原则', '平等适用原则']),
-    m('scope', '刑法效力范围', 34, ['属地管辖', '属人管辖', '保护管辖', '普遍管辖']),
-    m('crime-concept', '犯罪概念与特征', 25, ['社会危害性', '刑事违法性', '应受惩罚性']),
+const PLAN_DATE_SEEDS: PlanDate[] = [
+  { iso: '2026-07-30', label: '7月30日', weekday: '周四 · 待补', phase: 'learn', modules: [
+    m('overdue-seed', '刑法基础导论', 20, ['刑法的任务', '刑法解释方法']),
   ]},
-  { iso: '2026-08-01', label: '8月1日', weekday: '周六 · 休息日', phase: 'learn', modules: [] },
-  { iso: '2026-08-02', label: '8月2日', weekday: '周日 · 休息日', phase: 'learn', modules: [] },
+  { iso: '2026-07-31', label: '7月31日', weekday: '周五', phase: 'learn', modules: [
+    mKnown('criminal-principles', '刑法基本原则', 28, ['罪刑法定原则', '罪刑相适应原则', '平等适用原则'], 3),
+    mKnown('scope', '刑法效力范围', 34, ['属地管辖', '属人管辖', '保护管辖', '普遍管辖'], 4),
+    mKnown('crime-concept', '犯罪概念与特征', 25, ['社会危害性', '刑事违法性', '应受惩罚性'], 3),
+  ]},
+  { iso: '2026-08-01', label: '8月1日', weekday: '周六 · 休息日', phase: 'learn', modules: [], isRestDay: true },
+  { iso: '2026-08-02', label: '8月2日', weekday: '周日 · 休息日', phase: 'learn', modules: [], isRestDay: true },
   { iso: '2026-08-03', label: '8月3日', weekday: '周一', phase: 'learn', modules: [
-    m('intent', '故意与过失', 36, ['直接故意', '间接故意', '疏忽大意过失', '过于自信过失']),
-    m('unfinished', '犯罪未完成形态', 32, ['犯罪预备', '犯罪未遂', '犯罪中止']),
+    mKnown('intent', '故意与过失', 36, ['直接故意', '间接故意', '疏忽大意过失', '过于自信过失'], 4),
+    mKnown('unfinished', '犯罪未完成形态', 32, ['犯罪预备', '犯罪未遂', '犯罪中止'], 1),
   ]},
-  { iso: '2026-08-04', label: '8月4日', weekday: '周二', phase: 'learn', modules: [
-    m('joint', '共同犯罪', 42, ['主犯认定', '从犯与胁从犯', '教唆犯', '共犯过剩']),
+  { iso: '2026-08-04', label: '8月4日', weekday: '周二 · 今天', phase: 'learn', modules: [
+    mKnown('joint', '共同犯罪', 42, ['主犯认定', '从犯与胁从犯', '教唆犯', '共犯过剩'], 3),
     m('defense', '正当化事由', 30, ['正当防卫', '紧急避险', '防卫过当']),
   ]},
   { iso: '2026-08-05', label: '8月5日', weekday: '周三', phase: 'learn', modules: [
@@ -53,14 +66,87 @@ const INITIAL_DATES: PlanDate[] = [
   { iso: '2026-08-07', label: '8月7日', weekday: '周五', phase: 'learn', modules: [
     m('bribery', '贪污贿赂犯罪', 46, ['受贿罪', '斡旋受贿', '行贿罪', '单位受贿']),
   ]},
-  { iso: '2026-09-08', label: '9月8日', weekday: '周二', phase: 'review', modules: [
+  { iso: '2026-08-24', label: '8月24日', weekday: '周一', phase: 'sprint', modules: [
     m('review-weak', '薄弱知识补强', 45, ['共同犯罪边界', '财产犯罪区分']),
   ]},
-  { iso: '2026-09-14', label: '9月14日', weekday: '周一 · 考前一天', phase: 'review', modules: [
+  { iso: '2026-08-27', label: '8月27日', weekday: '周四 · 考前一天', phase: 'sprint', modules: [
     m('review-final', '考前查漏补缺', 50, ['错题回顾', '核心规则快速复习']),
   ]},
-  { iso: '2026-09-15', label: '9月15日', weekday: '周二 · 考试日', phase: 'exam', modules: [] },
+  { iso: '2026-08-28', label: '8月28日', weekday: '周五 · 考试日', phase: 'exam', modules: [] },
 ];
+
+function buildPlanDates(seeds: PlanDate[]): PlanDate[] {
+  const seedMap = new Map(seeds.map(day => [day.iso, day]));
+  const weekdayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const result: PlanDate[] = [];
+  const cursor = new Date(2026, 6, 30);
+  const end = new Date(2026, 7, 28);
+  const generatedNames = [
+    '犯罪构成基础', '因果关系判断', '责任要素', '违法阻却事由', '财产犯罪进阶',
+    '人身犯罪进阶', '贪污贿赂辨析', '共同犯罪进阶', '罪数与竞合', '刑罚裁量',
+    '间隔复习 · 基础原则', '间隔复习 · 犯罪形态', '间隔复习 · 重点罪名',
+  ];
+  let generatedIndex = 0;
+  while (cursor <= end) {
+    const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+    const seed = seedMap.get(iso);
+    const phase: PlanDate['phase'] = iso === '2026-08-28' ? 'exam' : iso >= '2026-08-24' ? 'sprint' : 'learn';
+    const weekend = cursor.getDay() === 0 || cursor.getDay() === 6;
+    const generatedModules = !weekend && phase !== 'exam' ? [
+      m(`generated-${iso}`, phase === 'sprint' ? `冲刺 · ${generatedNames[generatedIndex % generatedNames.length]}` : generatedNames[generatedIndex % generatedNames.length],
+        36 + generatedIndex % 4 * 4, ['核心概念', '判断规则', '易错辨析', ...(generatedIndex % 2 ? ['典型例题'] : [])]),
+      ...(generatedIndex % 3 === 1 ? [m(`interval-${iso}`, '间隔复习', 18, ['昨日回顾', '薄弱点抽检'])] : []),
+    ] : [];
+    if (!seed && generatedModules.length) generatedIndex += 1;
+    result.push(seed ?? {
+      iso,
+      label: `${cursor.getMonth() + 1}月${cursor.getDate()}日`,
+      weekday: `${weekdayNames[cursor.getDay()]}${weekend ? ' · 休息日' : ''}`,
+      phase,
+      modules: generatedModules,
+      isRestDay: weekend,
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
+
+const INITIAL_DATES = buildPlanDates(PLAN_DATE_SEEDS);
+
+function applyWeekendMode(plan: PlanDate[], mode: PlanWeekendMode): PlanDate[] {
+  if (mode === 'rest') return plan;
+  return plan.map(day => {
+    if (!day.isRestDay || day.phase === 'exam') return day;
+    return {
+      ...day,
+      isRestDay: false,
+      modules: [m(`weekend-${day.iso}`, '周末学习安排', 32, ['本周重点回顾', '易错点抽检', '下周内容预习'])],
+    };
+  });
+}
+
+function rebalanceFuturePlan(plan: PlanDate[], lockedModuleId?: string, lockedIso?: string): PlanDate[] {
+  const futureDays = plan.filter(day => day.iso >= TODAY_ISO && day.phase !== 'exam');
+  const eligible = futureDays.filter(day => !day.isRestDay);
+  if (!eligible.length) return plan;
+  const allFutureModules = futureDays.flatMap(day => day.modules);
+  if (allFutureModules.length < eligible.length) return plan;
+  const locked = lockedModuleId ? allFutureModules.find(mod => mod.id === lockedModuleId) : undefined;
+  const queue = allFutureModules.filter(mod => mod.id !== lockedModuleId);
+  const base = Math.floor(allFutureModules.length / eligible.length);
+  const extra = allFutureModules.length % eligible.length;
+  const modulesByIso = new Map<string, Module[]>();
+  eligible.forEach((day, index) => modulesByIso.set(day.iso, []));
+  if (locked && lockedIso && modulesByIso.has(lockedIso)) modulesByIso.get(lockedIso)!.push(locked);
+  eligible.forEach((day, index) => {
+    const target = modulesByIso.get(day.iso)!;
+    const capacity = base + (index < extra ? 1 : 0);
+    while (target.length < capacity && queue.length) target.push(queue.shift()!);
+  });
+  while (queue.length) modulesByIso.get(eligible[eligible.length - 1].iso)!.push(queue.shift()!);
+  const futureIso = new Set(futureDays.map(day => day.iso));
+  return plan.map(day => futureIso.has(day.iso) ? { ...day, modules: modulesByIso.get(day.iso) ?? [] } : day);
+}
 
 const EXCLUDED_SEED = [
   m('optional-1', '低频司法解释', 24, ['特殊时效规则', '域外判例辨析']),
@@ -91,9 +177,9 @@ function formatHours(value: number) {
 }
 
 export default function PlanFrameworkScreen({
-  onConfirm, onSkip, demoScenario = 'fit',
+  onConfirm, onBack, onHome, demoScenario = 'fit', initialState = 'confirmation', onViewKnowledgeSystem, weekendMode = 'rest',
 }: PlanFrameworkScreenProps) {
-  const [dates, setDates] = useState(INITIAL_DATES);
+  const [dates, setDates] = useState(() => applyWeekendMode(INITIAL_DATES, weekendMode));
   const [view, setView] = useState<'week' | 'month'>('week');
   const [weeklyDays, setWeeklyDays] = useState([1, 2, 3, 4, 5]);
   const [dailyLimit, setDailyLimit] = useState(8);
@@ -101,12 +187,16 @@ export default function PlanFrameworkScreen({
   const [excluded, setExcluded] = useState(EXCLUDED_SEED);
   const [moduleId, setModuleId] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<{ kind: 'module' | 'kp'; moduleId: string; kpId?: string; label: string } | null>(null);
-  const [drag, setDrag] = useState<{ moduleId: string; fromIso: string } | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [drag, setDrag] = useState<{ kind: 'module' | 'kp'; moduleId: string; kpId?: string; fromIso: string; label: string } | null>(null);
+  const [saved, setSaved] = useState(initialState === 'daily');
+  const [bookmarked, setBookmarked] = useState<Set<string>>(new Set(['criminal-principles-0']));
+  const [showMasteryHint, setShowMasteryHint] = useState(false);
   const [forceConfirm, setForceConfirm] = useState(false);
 
   const scenario = scenarioData[demoScenario];
   const allModules = dates.flatMap(d => d.modules);
+  const planStudyDays = dates.filter(day => day.modules.length > 0).length;
+  const planRestDays = dates.filter(day => day.isRestDay).length;
   const activeModuleIndex = allModules.findIndex(item => item.id === moduleId);
   const activeModule = activeModuleIndex >= 0 ? allModules[activeModuleIndex] : null;
   const includedCount = Math.max(0, scenario.included - excluded.length * 2);
@@ -122,16 +212,40 @@ export default function PlanFrameworkScreen({
   };
   const overloaded = demoScenario !== 'fit' || calculatedHours > dailyLimit;
   const danger = demoScenario === 'extreme' || demoScenario === 'impossible';
+  const dailyMode = initialState === 'daily' || saved;
 
-  const moveModule = (toIso: string) => {
+  const moveItem = (toIso: string) => {
     if (!drag || drag.fromIso === toIso) return setDrag(null);
+    if (drag.kind === 'kp' && drag.kpId) {
+      let moving: KP | undefined;
+      setDates(prev => {
+        const updated = prev.map(day => ({ ...day, modules: day.modules.map(mod => {
+        const found = mod.id === drag.moduleId ? mod.kps.find(item => item.id === drag.kpId) : undefined;
+        if (found) moving = found;
+        return mod.id === drag.moduleId ? { ...mod, kps: mod.kps.filter(item => item.id !== drag.kpId) } : mod;
+      }).filter(mod => mod.kps.length > 0) })).map(day => {
+        if (day.iso !== toIso || !moving) return day;
+        const manualId = `manual-${toIso}`;
+        const existing = day.modules.find(mod => mod.id === manualId);
+        return existing
+          ? { ...day, isRestDay: false, modules: day.modules.map(mod => mod.id === manualId ? { ...mod, kps: [...mod.kps, moving!] } : mod) }
+          : { ...day, isRestDay: false, modules: [...day.modules, { id: manualId, name: '手动调入', minutes: 8, kps: [moving] }] };
+        });
+        return rebalanceFuturePlan(updated, `manual-${toIso}`, toIso);
+      });
+      setDrag(null);
+      return;
+    }
     let moving: Module | undefined;
     const without = dates.map(day => {
       const found = day.modules.find(item => item.id === drag.moduleId);
       if (found) moving = found;
       return { ...day, modules: day.modules.filter(item => item.id !== drag.moduleId) };
     });
-    if (moving) setDates(without.map(day => day.iso === toIso ? { ...day, modules: [...day.modules, moving!] } : day));
+    if (moving) {
+      const moved = without.map(day => day.iso === toIso ? { ...day, isRestDay: false, modules: [...day.modules, moving!] } : day);
+      setDates(rebalanceFuturePlan(moved, moving.id, toIso));
+    }
     setDrag(null);
   };
 
@@ -139,11 +253,11 @@ export default function PlanFrameworkScreen({
     if (!confirmRemove) return;
     if (confirmRemove.kind === 'module') {
       let removed: Module | undefined;
-      setDates(prev => prev.map(day => {
+      setDates(prev => rebalanceFuturePlan(prev.map(day => {
         const found = day.modules.find(item => item.id === confirmRemove.moduleId);
         if (found) removed = found;
         return { ...day, modules: day.modules.filter(item => item.id !== confirmRemove.moduleId) };
-      }));
+      })));
       if (removed) setExcluded(prev => [...prev, removed!]);
       setModuleId(null);
     } else {
@@ -162,6 +276,24 @@ export default function PlanFrameworkScreen({
     setCustomOpen(false);
   };
 
+  const toggleKnown = (targetModuleId: string, kpId: string) => setDates(prev => prev.map(day => ({
+    ...day,
+    modules: day.modules.map(mod => mod.id === targetModuleId
+      ? { ...mod, kps: mod.kps.map(item => item.id === kpId ? { ...item, known: !item.known } : item) }
+      : mod),
+  })));
+
+  const setWeeklyDaysAndReflow: React.Dispatch<React.SetStateAction<number[]>> = (value) => {
+    const next = typeof value === 'function' ? value(weeklyDays) : value;
+    setWeeklyDays(next);
+    setDates(prev => rebalanceFuturePlan(prev.map(day => {
+      if (day.iso < TODAY_ISO || day.phase === 'exam') return day;
+      const jsDay = new Date(`${day.iso}T12:00:00`).getDay();
+      const planWeekday = jsDay === 0 ? 7 : jsDay;
+      return { ...day, isRestDay: !next.includes(planWeekday) };
+    })));
+  };
+
   const requestSave = () => {
     if (danger || demoScenario === 'material') setForceConfirm(true);
     else setSaved(true);
@@ -171,14 +303,18 @@ export default function PlanFrameworkScreen({
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: C.bg, color: C.ink }}>
       <header style={{ height: 54, padding: '0 24px', display: 'flex', alignItems: 'center', gap: 12,
         background: C.card, borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
-        <button onClick={onSkip} style={iconButton}><ArrowLeft size={17} /></button>
+        <button onClick={onBack} style={iconButton}><ArrowLeft size={17} /></button>
         <strong style={{ fontSize: 17 }}>学习计划</strong>
-        <span style={{ fontSize: 11, color: C.mut }}>首次确认</span>
+        <span style={{ fontSize: 11, color: C.mut }}>{dailyMode ? '日常管理' : '首次确认'}</span>
         <div style={{ flex: 1 }} />
+        {dailyMode && onViewKnowledgeSystem && <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 10, background: C.panel }}>
+          <button style={{ ...tabButton, background: C.card, color: C.ink }}>学习计划</button>
+          <button onClick={onViewKnowledgeSystem} style={tabButton}>知识体系</button>
+        </div>}
       </header>
 
       <main style={{ flex: 1, overflowY: 'auto', padding: '12px 24px 88px' }}>
-        <section style={{ ...card, padding: '14px 16px', marginBottom: 12, borderColor: danger ? '#F3B8BA' : C.line }}>
+        {!dailyMode && <section style={{ ...card, padding: '14px 16px', marginBottom: 12, borderColor: danger ? '#F3B8BA' : C.line }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ width: 30, height: 30, borderRadius: 9, background: danger ? C.redBg : C.blueBg,
               color: danger ? C.red : C.blue, display: 'grid', placeItems: 'center', flexShrink: 0 }}>
@@ -194,7 +330,7 @@ export default function PlanFrameworkScreen({
 
           <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 7, color: C.mut, fontSize: 10.5 }}>
             <span>12份资料</span><span>→</span><span>24个章节</span><span>→</span>
-            <span>164个知识点</span><span>→</span><strong style={{ color: C.blue }}>46天日历排程</strong>
+            <span>164个知识点</span><span>→</span><strong style={{ color: C.blue }}>30天日历排程</strong>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', marginTop: 10,
@@ -202,9 +338,9 @@ export default function PlanFrameworkScreen({
             <SummaryItem icon={<BookOpen size={15} />} label="计划范围"
               value={`${summary.included} / 164 已加入`} sub={`覆盖率 ${summary.coverage}%`} />
             <SummaryItem icon={<CalendarDays size={15} />} label="计划周期"
-              value="46个自然日" sub={`${summary.days}个计划日 · ${46 - summary.days}个休息日`} />
+              value="30个自然日" sub={`${planStudyDays}个任务学习日 · ${planRestDays}个休息日`} />
             <SummaryItem icon={<Layers3 size={15} />} label="学习阶段"
-              value={`${Math.max(1, summary.days - 7)}个新学日`} sub="7个集中复习日" />
+              value={`${Math.max(1, summary.days - 7)}个新学日`} sub="7个冲刺日 · 新学含间隔复习" />
             <SummaryItem icon={<Clock3 size={15} />} label="每日负荷"
               value={`平均 ${formatHours(summary.hours)}`} sub={`约${summary.dailyKps}个知识点`} />
           </div>
@@ -233,18 +369,20 @@ export default function PlanFrameworkScreen({
               </div>
               {customOpen && (
                 <CustomPanel
-                  weeklyDays={weeklyDays} setWeeklyDays={setWeeklyDays}
+                  weeklyDays={weeklyDays} setWeeklyDays={setWeeklyDaysAndReflow}
                   dailyLimit={dailyLimit} setDailyLimit={setDailyLimit}
                   dates={dates} setDates={setDates} excluded={excluded} setExcluded={setExcluded}
                 />
               )}
             </div>
           )}
-        </section>
+        </section>}
 
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, padding: '0 2px' }}>
           <div>
-            <strong style={{ display: 'block', fontSize: 13 }}>计划日历</strong>
+            <strong style={{ display: 'block', fontSize: 13 }}>计划日历
+              {dailyMode && <span style={{ marginLeft: 8, fontSize: 9.5, color: C.mut, fontWeight: 500 }}>30天 · {planStudyDays}个任务学习日</span>}
+            </strong>
             <span style={{ fontSize: 9.5, color: C.mut }}>同一份计划，切换不同时间视图</span>
           </div>
           <div style={{ flex: 1 }} />
@@ -252,21 +390,24 @@ export default function PlanFrameworkScreen({
         </div>
 
         {view === 'week' ? (
-          <WeekSchedule dates={dates} drag={drag} setDrag={setDrag} moveModule={moveModule}
-            openModule={setModuleId} requestRemove={(mod) => setConfirmRemove({ kind: 'module', moduleId: mod.id, label: mod.name })} />
+          <WeekSchedule dates={dates} drag={drag} setDrag={setDrag} moveItem={moveItem}
+            openModule={setModuleId} dailyMode={dailyMode} bookmarked={bookmarked}
+            onKnown={toggleKnown} onMasteryHint={() => setShowMasteryHint(true)}
+            onBookmark={(kpId) => setBookmarked(current => { const next = new Set(current); next.has(kpId) ? next.delete(kpId) : next.add(kpId); return next; })}
+            requestRemove={(mod) => setConfirmRemove({ kind: 'module', moduleId: mod.id, label: mod.name })} />
         ) : (
           <MonthSchedule dates={dates} drag={drag} setDrag={setDrag}
-            moveModule={moveModule} openModule={setModuleId}
+            moveItem={moveItem} openModule={setModuleId} dailyMode={dailyMode} onReturnToSchedule={() => setView('week')}
             requestRemove={(mod) => setConfirmRemove({ kind: 'module', moduleId: mod.id, label: mod.name })} />
         )}
       </main>
 
       <footer style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 24px',
         display: 'flex', justifyContent: 'flex-end', gap: 10, background: C.card, borderTop: `1px solid ${C.line}` }}>
-        {saved ? (
+        {dailyMode ? (
           <>
-            <button onClick={onSkip} style={secondaryButton}>回到首页</button>
-            <button onClick={onConfirm} style={primaryButton}>查看计划概览 →</button>
+            <button onClick={onHome} style={secondaryButton}>回到首页</button>
+            <button onClick={onConfirm} style={primaryButton}>开始今日学习 →</button>
           </>
         ) : (
           <button onClick={requestSave} style={{ ...primaryButton, background: danger ? C.red : C.ink }}>
@@ -277,16 +418,32 @@ export default function PlanFrameworkScreen({
 
       {activeModule && (
         <ModulePopover module={activeModule} index={activeModuleIndex} total={allModules.length}
+          dailyMode={dailyMode} bookmarked={bookmarked}
           onClose={() => setModuleId(null)}
           onPrev={() => setModuleId(allModules[Math.max(0, activeModuleIndex - 1)].id)}
           onNext={() => setModuleId(allModules[Math.min(allModules.length - 1, activeModuleIndex + 1)].id)}
-          onKnown={(kpId) => setDates(prev => prev.map(day => ({ ...day, modules: day.modules.map(mod =>
-            mod.id === activeModule.id ? { ...mod, kps: mod.kps.map(item => item.id === kpId ? { ...item, known: !item.known } : item) } : mod,
-          ) })))}
+          onKnown={(kpId) => toggleKnown(activeModule.id, kpId)} onMasteryHint={() => setShowMasteryHint(true)}
+          onBookmark={(kpId) => setBookmarked(current => { const next = new Set(current); next.has(kpId) ? next.delete(kpId) : next.add(kpId); return next; })}
+          onDragKP={(item) => {
+            const fromDay = dates.find(day => day.modules.some(mod => mod.id === activeModule.id));
+            if (fromDay) setDrag({ kind: 'kp', moduleId: activeModule.id, kpId: item.id, fromIso: fromDay.iso, label: item.name });
+            setModuleId(null);
+          }}
           onRemoveModule={() => setConfirmRemove({ kind: 'module', moduleId: activeModule.id, label: activeModule.name })}
           onRemoveKP={(item) => setConfirmRemove({ kind: 'kp', moduleId: activeModule.id, kpId: item.id, label: item.name })}
         />
       )}
+
+      {showMasteryHint && <div style={{ position: 'absolute', left: '50%', bottom: 78, transform: 'translateX(-50%)', zIndex: 140,
+        padding: '9px 14px', borderRadius: 10, background: C.ink, color: '#fff', fontSize: 10.5, boxShadow: '0 8px 24px #0003' }}>
+        勾选表示“我已经掌握”；将跳过首次学习，并在之后安排复习验证。
+        <button onClick={() => setShowMasteryHint(false)} style={{ marginLeft: 10, border: 0, background: 'transparent', color: C.yellow, cursor: 'pointer' }}>知道了</button>
+      </div>}
+
+      {drag?.kind === 'kp' && <div style={{ position: 'absolute', left: '50%', bottom: 76, transform: 'translateX(-50%)', zIndex: 130,
+        background: C.ink, color: '#fff', padding: '8px 14px', borderRadius: 10, fontSize: 10.5, boxShadow: '0 8px 24px #0003' }}>
+        正在移动「{drag.label}」——拖到时间轴的目标日期
+      </div>}
 
       {confirmRemove && (
         <ConfirmModal title={`将“${confirmRemove.label}”移出当前计划？`}
@@ -326,47 +483,74 @@ function Segment({ value, onChange }: { value: 'week' | 'month'; onChange: (valu
   </div>;
 }
 
-function WeekSchedule({ dates, drag, setDrag, moveModule, openModule, requestRemove }: {
-  dates: PlanDate[]; drag: { moduleId: string; fromIso: string } | null;
-  setDrag: (value: { moduleId: string; fromIso: string } | null) => void;
-  moveModule: (iso: string) => void; openModule: (id: string) => void; requestRemove: (mod: Module) => void;
+type PlanDrag = { kind: 'module' | 'kp'; moduleId: string; kpId?: string; fromIso: string; label: string };
+
+function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemove, dailyMode,
+  bookmarked, onKnown, onBookmark, onMasteryHint }: {
+  dates: PlanDate[]; drag: PlanDrag | null;
+  setDrag: (value: PlanDrag | null) => void;
+  moveItem: (iso: string) => void; openModule: (id: string) => void; requestRemove: (mod: Module) => void;
+  dailyMode: boolean; bookmarked: Set<string>;
+  onKnown: (moduleId: string, kpId: string) => void; onBookmark: (kpId: string) => void; onMasteryHint: () => void;
 }) {
+  const today = dates.find(day => day.iso === TODAY_ISO);
+  const defaultExpanded = today?.modules.find(mod => mod.kps.some(item => item.known) && mod.kps.some(item => !item.known))
+    ?? today?.modules.find(mod => mod.kps.some(item => !item.known));
+  const [expandedModuleId, setExpandedModuleId] = useState<string | null>(dailyMode ? defaultExpanded?.id ?? null : null);
+  const todayRowRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!dailyMode) return;
+    if (defaultExpanded) setExpandedModuleId(defaultExpanded.id);
+  }, [dailyMode, defaultExpanded?.id]);
+  useLayoutEffect(() => {
+    if (dailyMode) todayRowRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
+  }, [dailyMode]);
   return <section style={{ ...card, overflow: 'hidden' }}>
-    <div style={{ display: 'grid', gridTemplateColumns: '126px 1fr', padding: '8px 14px',
+    <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', padding: '8px 14px',
       background: '#F7F8FA', fontSize: 10, color: C.mut, fontWeight: 700 }}>
       <span>日期时间轴</span><span>学习任务 · 可跨日期拖拽</span>
     </div>
     {dates.map((day, index) => {
       const phaseChanged = index === 0 || dates[index - 1].phase !== day.phase;
-      const phaseColor = day.phase === 'review' ? '#7C5CFC' : day.phase === 'exam' ? C.red : C.blue;
-      const phaseLabel = day.phase === 'review' ? '集中复习 · 9月8日—9月14日'
-        : day.phase === 'exam' ? '考试 · 9月15日' : '新学 + 间隔复习 · 7月31日—9月7日';
-      const isRest = day.modules.length === 0 && day.phase !== 'exam';
+      const phaseColor = day.phase === 'sprint' ? '#E58A00' : day.phase === 'exam' ? C.red : C.blue;
+      const phaseLabel = day.phase === 'sprint' ? '冲刺 · 8月24日—8月27日'
+        : day.phase === 'exam' ? '考试 · 8月28日' : '新学（含间隔复习） · 7月30日—8月23日';
+      const isRest = !!day.isRestDay;
+      const isToday = day.iso === TODAY_ISO;
       return <React.Fragment key={day.iso}>
-        {phaseChanged && <div style={{ padding: '6px 14px 6px 126px', background: `${phaseColor}0D`,
+        {phaseChanged && <div style={{ padding: '6px 14px 6px 150px', background: `${phaseColor}0D`,
           borderTop: `1px solid ${phaseColor}22`, color: phaseColor, fontSize: 10, fontWeight: 700 }}>
           {day.phase === 'exam' && <Flag size={10} style={{ display: 'inline', marginRight: 5 }} />}{phaseLabel}
         </div>}
-        <div onDragOver={e => e.preventDefault()} onDrop={() => moveModule(day.iso)}
-          style={{ display: 'grid', gridTemplateColumns: '126px 1fr', minHeight: day.phase === 'exam' ? 48 : isRest ? 34 : 62,
-            borderTop: `1px solid ${C.line}`, background: isRest ? '#FAFAFB' : drag ? '#FBFDFF' : C.card }}>
-          <div style={{ padding: isRest ? '5px 12px 5px 27px' : '9px 12px 9px 27px', borderRight: `1px solid ${C.line}`, position: 'relative' }}>
+        <div ref={isToday ? todayRowRef : undefined} onDragOver={e => e.preventDefault()} onDrop={() => moveItem(day.iso)}
+          style={{ display: 'grid', gridTemplateColumns: '150px 1fr', minHeight: day.phase === 'exam' ? 44 : isRest ? 38 : 62,
+            borderTop: `1px solid ${C.line}`, background: isToday ? '#FFFBEA' : isRest ? '#FAFAFB' : drag ? '#FBFDFF' : C.card,
+            boxShadow: isToday ? `inset 4px 0 0 ${C.yellow}` : 'none' }}>
+          <div style={{ padding: isRest ? '8px 10px 8px 27px' : '9px 12px 9px 27px', borderRight: `1px solid ${C.line}`, position: 'relative',
+            display: isRest ? 'flex' : 'block', alignItems: 'center', gap: 7 }}>
             <span style={{ position: 'absolute', left: 13, top: 0, bottom: 0, width: 1, background: `${phaseColor}35` }} />
-            <span style={{ position: 'absolute', left: 9, top: isRest ? 11 : 16, width: 9, height: 9, borderRadius: '50%',
-              background: day.weekday.includes('休息') ? '#D8DADF' : day.weekday.includes('今天') ? C.yellow : phaseColor,
-              border: `2px solid ${C.card}`, boxShadow: `0 0 0 1px ${phaseColor}55` }} />
+            <span style={{ position: 'absolute', left: isToday ? 7 : 9, top: isRest ? 14 : isToday ? 14 : 16, width: isToday ? 13 : 9, height: isToday ? 13 : 9, borderRadius: '50%',
+              background: isRest ? '#D8DADF' : isToday ? C.yellow : phaseColor,
+              border: `2px solid ${isToday ? '#FFFBEA' : C.card}`, boxShadow: `0 0 0 ${isToday ? 2 : 1}px ${isToday ? '#E5C90088' : `${phaseColor}55`}` }} />
             <strong style={{ display: isRest ? 'inline' : 'block', fontSize: isRest ? 10.5 : 12 }}>{day.label}</strong>
-            <span style={{ fontSize: 9.5, color: day.modules.length ? C.mut : C.faint, marginLeft: isRest ? 6 : 0 }}>{day.weekday}</span>
+            <span style={{ fontSize: 9.5, color: day.modules.length ? C.mut : C.faint }}>{day.weekday.replace(' · 休息日', '').replace(' · 今天', '')}</span>
+            {isToday && <span style={{ display: 'inline-block', marginLeft: 6, padding: '2px 6px', borderRadius: 9,
+              background: '#D6B900', color: '#fff', fontSize: 8, fontWeight: 800 }}>今天</span>}
             {day.modules.length > 0 && <span style={{ display: 'block', marginTop: 3, fontSize: 9, color: phaseColor }}>
               {day.modules.reduce((n, mod) => n + mod.minutes, 0)}分钟
             </span>}
           </div>
-          <div style={{ padding: isRest ? '4px 10px' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
+          <div style={{ padding: isRest ? '7px 10px' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
             {day.phase === 'exam'
               ? <span style={{ color: C.red, fontSize: 11, fontWeight: 700 }}>⚑ 考试日 · 不安排学习任务</span>
-              : day.modules.length === 0 && <span style={{ color: C.faint, fontSize: 9.5 }}>休息间隔 · 可拖入任务</span>}
-            {day.modules.map(mod => <ModuleTodo key={mod.id} mod={mod} iso={day.iso}
-              dragging={drag?.moduleId === mod.id} setDrag={setDrag} openModule={openModule} requestRemove={requestRemove} />)}
+              : day.modules.length === 0 && <span style={{ color: C.faint, fontSize: 9.5 }}>{isRest ? '休息日 · 可拖入任务' : '当日暂无任务 · 可拖入任务'}</span>}
+            {day.modules.map(mod => dailyMode ? <InlineModule key={mod.id} mod={mod} iso={day.iso}
+              expanded={expandedModuleId === mod.id} active={isToday && expandedModuleId === mod.id}
+              onToggle={() => setExpandedModuleId(current => current === mod.id ? null : mod.id)}
+              dragging={drag?.moduleId === mod.id} setDrag={setDrag} requestRemove={requestRemove}
+              bookmarked={bookmarked} onKnown={(kpId) => onKnown(mod.id, kpId)} onBookmark={onBookmark} onMasteryHint={onMasteryHint} />
+              : <ModuleTodo key={mod.id} mod={mod} iso={day.iso}
+                dragging={drag?.moduleId === mod.id} setDrag={setDrag} openModule={openModule} requestRemove={requestRemove} />)}
           </div>
         </div>
       </React.Fragment>;
@@ -374,15 +558,61 @@ function WeekSchedule({ dates, drag, setDrag, moveModule, openModule, requestRem
   </section>;
 }
 
-function MonthSchedule({ dates, drag, setDrag, moveModule, openModule, requestRemove }: {
+function InlineModule({ mod, iso, expanded, active, onToggle, dragging, setDrag, requestRemove,
+  bookmarked, onKnown, onBookmark, onMasteryHint }: {
+  mod: Module; iso: string; expanded: boolean; active: boolean; onToggle: () => void; dragging: boolean;
+  setDrag: (value: PlanDrag | null) => void; requestRemove: (mod: Module) => void;
+  bookmarked: Set<string>; onKnown: (kpId: string) => void; onBookmark: (kpId: string) => void; onMasteryHint: () => void;
+}) {
+  const completed = mod.kps.filter(item => item.known).length;
+  return <div style={{ border: `1px solid ${active ? '#E8D34E' : C.line}`, borderRadius: 8,
+    background: active ? '#FFFDF4' : C.card, overflow: 'hidden', opacity: dragging ? .35 : 1 }}>
+    <div draggable onDragStart={() => setDrag({ kind: 'module', moduleId: mod.id, fromIso: iso, label: mod.name })}
+      onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', cursor: 'pointer' }}>
+      <GripVertical size={13} color={C.faint} style={{ cursor: 'grab' }} />
+      {expanded ? <ChevronDown size={13} color={C.sub} /> : <ChevronRight size={13} color={C.sub} />}
+      <strong style={{ fontSize: 11.5 }}>{mod.name}</strong>
+      {active && <span style={{ padding: '2px 6px', borderRadius: 8, background: C.yellow, fontSize: 8, fontWeight: 700 }}>正在学习</span>}
+      <span style={{ marginLeft: 'auto', fontSize: 9.5, color: completed === mod.kps.length ? C.green : C.mut }}>{completed}/{mod.kps.length}</span>
+      <button onClick={e => { e.stopPropagation(); requestRemove(mod); }} title="移出当前计划" style={closeButton}><Trash2 size={12} /></button>
+    </div>
+    {expanded && <div style={{ borderTop: `1px solid ${C.line}`, paddingLeft: 32 }}>
+      {mod.kps.map((item, index) => <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8,
+        padding: '8px 10px 8px 0', borderTop: index ? `1px solid ${C.line}` : 'none' }}>
+        <button onClick={() => { if (!item.known) onMasteryHint(); onKnown(item.id); }} title="勾选表示我已经掌握"
+          style={{ width: 18, height: 18, flexShrink: 0, borderRadius: '50%', border: `2px solid ${item.known ? C.green : C.faint}`,
+            background: item.known ? C.green : C.card, display: 'grid', placeItems: 'center', padding: 0 }}>
+          {item.known && <Check size={10} color="#fff" strokeWidth={3} />}
+        </button>
+        <span style={{ flex: 1, fontSize: 10.5, color: item.known ? C.mut : C.ink,
+          textDecoration: item.known ? 'line-through' : 'none' }}>{item.name}</span>
+        <button onClick={() => onBookmark(item.id)} style={{ border: 0, background: 'transparent', padding: 2 }}>
+          <Star size={14} color={bookmarked.has(item.id) ? '#D8B800' : C.faint} fill={bookmarked.has(item.id) ? C.yellow : 'none'} />
+        </button>
+      </div>)}
+    </div>}
+  </div>;
+}
+
+function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemove, dailyMode, onReturnToSchedule }: {
   dates: PlanDate[];
-  drag: { moduleId: string; fromIso: string } | null; setDrag: (value: { moduleId: string; fromIso: string } | null) => void;
-  moveModule: (iso: string) => void; openModule: (id: string) => void; requestRemove: (mod: Module) => void;
+  drag: PlanDrag | null; setDrag: (value: PlanDrag | null) => void;
+  moveItem: (iso: string) => void; openModule: (id: string) => void; requestRemove: (mod: Module) => void;
+  dailyMode: boolean; onReturnToSchedule: () => void;
 }) {
   const [monthCursor, setMonthCursor] = useState(new Date(2026, 7, 1));
+  const [selectedIso, setSelectedIso] = useState<string | null>(dailyMode ? TODAY_ISO : null);
+  const [detailIso, setDetailIso] = useState<string | null>(null);
+  const [actionModule, setActionModule] = useState<Module | null>(null);
+  const [showGuide, setShowGuide] = useState(!dailyMode);
+  const pressTimer = useRef<number | null>(null);
+  const longPressed = useRef(false);
   const year = monthCursor.getFullYear();
   const month = monthCursor.getMonth();
   const byIso = new Map(dates.map(day => [day.iso, day]));
+  const weekendHasTasks = dates.some(day => day.iso.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)
+    && [0, 6].includes(new Date(`${day.iso}T12:00:00`).getDay()) && day.modules.length > 0);
+  const calendarColumns = weekendHasTasks ? 'repeat(7,minmax(0,1fr))' : 'repeat(5,minmax(0,1fr)) minmax(44px,.48fr) minmax(44px,.48fr)';
   const firstMondayOffset = (new Date(year, month, 1).getDay() + 6) % 7;
   const gridStart = new Date(year, month, 1 - firstMondayOffset);
   const cells = Array.from({ length: 42 }, (_, index) => {
@@ -391,64 +621,271 @@ function MonthSchedule({ dates, drag, setDrag, moveModule, openModule, requestRe
     return { iso, day: date.getDate(), current: date.getMonth() === month };
   });
   const shiftMonth = (delta: number) => setMonthCursor(new Date(year, month + delta, 1));
-  return <section style={{ ...card, overflow: 'hidden' }}>
-    <div style={{ display: 'flex', alignItems: 'center', padding: '10px 14px', borderBottom: `1px solid ${C.line}` }}>
-      <button onClick={() => shiftMonth(-1)} style={iconButton}><ChevronLeft size={15} /></button>
+  const selectedPlan = selectedIso ? byIso.get(selectedIso) : undefined;
+  const selectedTotal = selectedPlan?.modules.length ?? 0;
+  const selectedKnown = selectedPlan?.modules.filter(mod => mod.kps.every(item => item.known)).length ?? 0;
+  const monthPlans = dates.filter(day => day.iso.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`) && day.modules.length > 0);
+  const monthTotal = monthPlans.reduce((sum, day) => sum + day.modules.length, 0);
+  const monthKnown = monthPlans.reduce((sum, day) => sum + day.modules.filter(mod => mod.kps.every(item => item.known)).length, 0);
+  const completedDays = monthPlans.filter(day => day.modules.every(mod => mod.kps.every(item => item.known))).length;
+  const activeDays = monthPlans.filter(day => day.iso <= TODAY_ISO).length;
+  const overdueCount = monthPlans.filter(day => day.iso < TODAY_ISO)
+    .reduce((sum, day) => sum + day.modules.filter(mod => mod.kps.some(item => !item.known)).length, 0);
+  const detailPlan = detailIso ? byIso.get(detailIso) : undefined;
+  const startLongPress = (mod: Module) => {
+    longPressed.current = false;
+    pressTimer.current = window.setTimeout(() => {
+      longPressed.current = true;
+      setActionModule(mod);
+      setShowGuide(false);
+    }, 520);
+  };
+  const cancelLongPress = () => {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  };
+
+  const monthCalendar = <>
+    <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', borderBottom: `1px solid ${C.line}` }}>
+      <button onClick={() => { shiftMonth(-1); setSelectedIso(null); }} style={iconButton}><ChevronLeft size={15} /></button>
       <strong style={{ flex: 1, textAlign: 'center', fontSize: 13 }}>{year}年{month + 1}月</strong>
-      <button onClick={() => shiftMonth(1)} style={iconButton}><ChevronRight size={15} /></button>
+      <PhaseLegend />
+      <button onClick={() => { shiftMonth(1); setSelectedIso(null); }} style={iconButton}><ChevronRight size={15} /></button>
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', background: C.panel }}>
-      {['一','二','三','四','五','六','日'].map(day => <div key={day} style={{ padding: 7, textAlign: 'center', fontSize: 10, color: C.mut }}>{day}</div>)}
+    <div style={{ display: 'grid', gridTemplateColumns: calendarColumns, background: '#FAFAFB', borderBottom: `1px solid ${C.line}`, transition: 'grid-template-columns .25s ease' }}>
+      {['一','二','三','四','五','六','日'].map(day => <div key={day} style={{ padding: '7px 4px', textAlign: 'center', fontSize: 9.5, color: C.mut }}>{day}</div>)}
     </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: calendarColumns, padding: 8, gap: 5, transition: 'grid-template-columns .25s ease' }}>
       {cells.map((cell, index) => {
         const dayPlan = byIso.get(cell.iso);
-        const phase = dayPlan?.phase ?? (cell.iso >= '2026-07-31' && cell.iso <= '2026-09-07' ? 'learn'
-          : cell.iso >= '2026-09-08' && cell.iso <= '2026-09-14' ? 'review'
-          : cell.iso === '2026-09-15' ? 'exam' : undefined);
-        const phaseColor = phase === 'review' ? '#7C5CFC' : phase === 'exam' ? C.red : phase === 'learn' ? C.blue : 'transparent';
-        return <div key={`${cell.current}-${cell.day}-${index}`}
-          onDragOver={e => dayPlan && e.preventDefault()} onDrop={() => dayPlan && moveModule(dayPlan.iso)}
-          style={{ minHeight: 96, padding: 5, borderRight: `1px solid ${C.line}`, borderTop: `3px solid ${phaseColor}`,
-            background: cell.current ? C.card : '#FAFAFA', opacity: cell.current ? 1 : .45 }}>
-          <span style={{ fontSize: 10, color: phase === 'exam' ? C.red : C.mut }}>{cell.day}</span>
-          {phase === 'exam' && <span style={{ float: 'right', fontSize: 9, color: C.red }}>⚑ 考试</span>}
-          {dayPlan?.modules.slice(0, 3).map(mod => <div key={mod.id} draggable
-            onDragStart={() => setDrag({ moduleId: mod.id, fromIso: dayPlan.iso })}
-            onClick={() => openModule(mod.id)}
-            style={{ marginTop: 4, padding: '4px 5px', borderRadius: 5,
-              background: phase === 'review' ? '#F1EEFF' : C.blueBg,
-              fontSize: 9, color: C.ink, cursor: 'grab', display: 'grid', gridTemplateColumns: '1fr auto', gap: 2 }}>
-            <strong style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.name}</strong>
-            <button title="移出当前计划" onClick={e => { e.stopPropagation(); requestRemove(mod); }} style={miniClose}>×</button>
-            <span style={{ gridColumn: '1 / -1', color: C.mut, fontSize: 8 }}>{mod.kps.length}个知识点 · {mod.minutes}分钟</span>
+        const totalKps = dayPlan?.modules.reduce((sum, mod) => sum + mod.kps.length, 0) ?? 0;
+        const actualKnown = dayPlan?.modules.reduce((sum, mod) => sum + mod.kps.filter(item => item.known).length, 0) ?? 0;
+        const knownKps = actualKnown;
+        const totalModules = dayPlan?.modules.length ?? 0;
+        const completeModules = dayPlan?.modules.filter(mod => mod.kps.every(item => item.known)).length ?? 0;
+        const isToday = cell.iso === TODAY_ISO;
+        const isExam = dayPlan?.phase === 'exam';
+        const isOverdue = dailyMode && !!dayPlan && dayPlan.iso < TODAY_ISO && totalKps > knownKps;
+        const isRest = !!dayPlan?.isRestDay;
+        const status = totalKps === 0 ? 'empty' : knownKps === totalKps ? 'done' : knownKps > 0 ? 'partial' : 'todo';
+        const selected = selectedIso === cell.iso;
+        const statusColor = isOverdue ? '#E17100' : status === 'done' ? C.green : status === 'partial' ? '#E58A00' : C.faint;
+        const phaseBg = dayPlan?.phase === 'exam' ? '#FFE1E1' : dayPlan?.phase === 'sprint' ? '#FFEEC7' : dayPlan?.phase === 'learn' ? '#E4F0FF' : C.card;
+        const phaseBorder = dayPlan?.phase === 'exam' ? '#F4A6A6' : dayPlan?.phase === 'sprint' ? '#F1CC76' : dayPlan?.phase === 'learn' ? '#BCD8FA' : C.line;
+        const cellBg = isRest ? '#F0F2F5' : phaseBg;
+        const cellBorder = isRest ? '#D6DAE0' : phaseBorder;
+        const hiddenModules = Math.max(0, (dayPlan?.modules.length ?? 0) - 2);
+        return <button key={`${cell.current}-${cell.day}-${index}`}
+          onClick={() => {
+            if (longPressed.current) { longPressed.current = false; return; }
+            if (drag && cell.current) { moveItem(cell.iso); return; }
+            if (dailyMode && cell.current) setSelectedIso(cell.iso);
+            if (!dailyMode && dayPlan) setDetailIso(dayPlan.iso);
+          }}
+          onDragOver={e => dayPlan && e.preventDefault()} onDrop={() => dayPlan && moveItem(dayPlan.iso)}
+          style={{ position: 'relative', height: dailyMode ? 56 : 88, padding: 6, borderRadius: 8, overflow: 'hidden',
+            border: isToday ? `2px solid #E2BF00` : selected ? `2px solid ${C.ink}` : `1px solid ${cellBorder}`,
+            background: cellBg,
+            boxShadow: isToday ? '0 0 0 2px #FFF1A5' : 'none',
+            opacity: cell.current ? 1 : .32, cursor: dailyMode && cell.current ? 'pointer' : 'default', textAlign: 'left' }}>
+          {dailyMode ? <>
+            <span style={{ fontSize: 9.5, color: isToday ? C.ink : C.mut, fontWeight: isToday ? 800 : 500 }}>{cell.day}</span>
+            {isToday && <span style={{ position: 'absolute', top: 6, right: 6, fontSize: 7.5, color: C.amber }}>今天</span>}
+          </> : <div style={{ position: 'absolute', left: 7, right: 7, top: 6, display: 'flex', alignItems: 'center', minWidth: 0 }}>
+            <span style={{ flex: 1, fontSize: 8, color: C.blue, fontWeight: 700 }}>{hiddenModules > 0 ? `+${hiddenModules}` : ''}</span>
+            {isToday && <span style={{ marginRight: 5, fontSize: 7.5, color: C.amber }}>今天</span>}
+            <strong style={{ fontSize: 9.5, color: isToday ? C.ink : C.mut }}>{cell.day}</strong>
+          </div>}
+          {isExam && <Flag size={10} color={C.red} style={{ position: 'absolute', top: 7, right: 7 }} />}
+          {dailyMode && isExam && <strong style={{ position: 'absolute', left: 3, right: 3, top: '52%', transform: 'translateY(-50%)', textAlign: 'center', fontSize: 9, color: C.red }}>考试日</strong>}
+          {dailyMode && totalModules > 0 && <div style={{ position: 'absolute', left: 3, right: 3, top: '54%', transform: 'translateY(-50%)', textAlign: 'center' }}>
+            <ModuleProgressDots modules={dayPlan!.modules} overdue={isOverdue} />
+            <strong style={{ display: 'block', marginTop: 5, fontSize: 8.5, color: statusColor, whiteSpace: 'nowrap' }}>
+              {completeModules === totalModules ? '✓ 已完成' : isOverdue ? `${totalModules - completeModules}个模块待补` : `${totalModules - completeModules}个模块待办`}
+            </strong>
+          </div>}
+          {dailyMode && isRest && <span style={{ position: 'absolute', left: 0, right: 0, top: '54%', transform: 'translateY(-50%)', textAlign: 'center', fontSize: 8.5, color: '#8D939D' }}>休</span>}
+          {!dailyMode && isRest && <span style={{ position: 'absolute', left: 0, right: 0, top: '54%', transform: 'translateY(-50%)', textAlign: 'center', fontSize: 8.5, color: '#8D939D' }}>休息日</span>}
+          {!dailyMode && dayPlan?.modules.slice(0, 2).map(mod => <div key={mod.id} draggable
+            onDragStart={() => setDrag({ kind: 'module', moduleId: mod.id, fromIso: dayPlan.iso, label: mod.name })}
+            onPointerDown={() => startLongPress(mod)} onPointerUp={cancelLongPress} onPointerCancel={cancelLongPress}
+            onClick={e => { e.stopPropagation(); if (!longPressed.current) openModule(mod.id); longPressed.current = false; }}
+            style={{ marginTop: 3, padding: '5px 5px', borderRadius: 5,
+              background: dayPlan.phase === 'sprint' ? '#FFF0D8' : 'rgba(255,255,255,.78)',
+              fontSize: 8.5, color: C.ink, cursor: 'grab', display: 'block', position: 'relative', top: 17 }}>
+            <strong style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mod.name}</strong>
           </div>)}
-          {(dayPlan?.modules.length ?? 0) > 3 && <span style={{ fontSize: 9, color: C.blue }}>+{dayPlan!.modules.length - 3}项</span>}
-        </div>;
+        </button>;
       })}
     </div>
+    {!dailyMode && showGuide && <div style={{ position: 'absolute', left: 18, bottom: 14, zIndex: 4, maxWidth: 250,
+      padding: '9px 30px 9px 11px', borderRadius: 9, background: C.ink, color: '#fff', boxShadow: '0 8px 24px #0003', fontSize: 9.5 }}>
+      拖动模块可调整日期；长按可查看更多操作
+      <button onClick={() => setShowGuide(false)} style={{ position: 'absolute', right: 7, top: 7, border: 0, background: 'transparent', color: '#fff' }}><X size={12} /></button>
+    </div>}
+    {!dailyMode && drag && <div style={{ position: 'absolute', left: '50%', bottom: 14, zIndex: 5, transform: 'translateX(-50%)',
+      padding: '8px 12px', borderRadius: 20, background: C.ink, color: '#fff', boxShadow: '0 8px 24px #0003', fontSize: 9.5 }}>
+      正在调整「{drag.label}」· 点选目标日期
+    </div>}
+  </>;
+
+  if (dailyMode) return <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.75fr) minmax(250px, .75fr)', gap: 12 }}>
+    <div style={{ ...card, overflow: 'hidden', position: 'relative' }}>{monthCalendar}</div>
+    <aside style={{ ...card, padding: 14, minHeight: 342 }}>
+      {selectedIso ? <>
+        <button onClick={() => setSelectedIso(null)} style={{ ...ghostSmall, padding: 0, color: C.mut }}>← 返回本月成就</button>
+        <div style={{ marginTop: 15 }}>
+          <span style={{ fontSize: 10, color: C.mut }}>单日进度</span>
+          <h3 style={{ margin: '4px 0 2px', fontSize: 18 }}>{selectedPlan?.label ?? `${month + 1}月${Number(selectedIso.slice(-2))}日`}</h3>
+          <span style={{ fontSize: 10.5, color: C.sub }}>{selectedPlan?.weekday ?? '无学习安排'}</span>
+        </div>
+        {selectedTotal > 0 ? <>
+          <div style={{ display: 'flex', alignItems: 'end', gap: 6, marginTop: 14 }}>
+            <strong style={{ fontSize: 28 }}>{selectedKnown}</strong><span style={{ color: C.mut, marginBottom: 4 }}>/ {selectedTotal} 个模块完成</span>
+          </div>
+          <div style={{ height: 7, borderRadius: 6, background: C.panel, marginTop: 8, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${selectedTotal ? selectedKnown / selectedTotal * 100 : 0}%`, background: C.green }} />
+          </div>
+          <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}` }}>
+            {selectedPlan?.modules.map(mod => <button key={mod.id} onClick={() => openModule(mod.id)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 0', border: 0,
+                borderBottom: `1px solid ${C.line}`, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+              <span style={{ flex: 1, fontSize: 11.5, fontWeight: 700 }}>{mod.name}</span>
+              <span style={{ fontSize: 9.5, color: C.mut }}>{mod.kps.filter(item => item.known).length}/{mod.kps.length}</span>
+              <ChevronRight size={13} color={C.faint} />
+            </button>)}
+          </div>
+          <button onClick={onReturnToSchedule} style={{ ...secondarySmall, width: '100%', marginTop: 16 }}>定位到日程视图</button>
+        </> : <div style={{ marginTop: 46, textAlign: 'center', color: C.mut }}>
+          <CalendarDays size={26} style={{ marginBottom: 8 }} />
+          <p style={{ margin: 0, fontSize: 11 }}>这一天没有安排学习任务</p>
+        </div>}
+      </> : <>
+        <span style={{ fontSize: 10, color: C.mut }}>本月计划进度</span>
+        <h3 style={{ margin: '5px 0 0', fontSize: 18 }}>你正在稳步推进</h3>
+        <div style={{ marginTop: 12, padding: '10px 0', borderTop: `1px solid ${C.line}`, borderBottom: `1px solid ${C.line}` }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 5 }}>
+            <strong style={{ fontSize: 30, color: C.green }}>{monthKnown}</strong><span style={{ fontSize: 11, color: C.mut }}>/ {monthTotal} 个模块任务</span>
+          </div>
+          <div style={{ height: 7, borderRadius: 6, background: C.panel, marginTop: 10, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${monthTotal ? monthKnown / monthTotal * 100 : 0}%`, background: C.green }} />
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+          <AchievementStat value={`${completedDays}/${activeDays}`} label="完成学习日" />
+          <AchievementStat value={`${Math.max(0, monthTotal - monthKnown)}`} label="模块待办" suffix="个" />
+          <AchievementStat value="2" label="连续学习" suffix="天" />
+          <AchievementStat value={`${overdueCount}`} label="当前欠账" suffix="项" />
+        </div>
+        <div style={{ marginTop: 14, padding: 11, borderRadius: 9, background: C.greenBg }}>
+          <strong style={{ display: 'block', fontSize: 11, color: C.green }}>下一个里程碑</strong>
+          <span style={{ display: 'block', marginTop: 4, fontSize: 10, color: C.sub }}>再完成 4 个模块任务，推进至下一学习阶段</span>
+        </div>
+        <p style={{ margin: '14px 0 0', fontSize: 9.5, color: C.mut }}>点击日期查看当天完成情况与模块</p>
+      </>}
+    </aside>
   </section>;
+
+  return <section style={{ ...card, overflow: 'hidden', position: 'relative' }}>
+    {monthCalendar}
+    {detailPlan && <DayPlanSheet day={detailPlan} openModule={openModule} onClose={() => setDetailIso(null)} />}
+    {actionModule && <TouchActionSheet module={actionModule} onClose={() => setActionModule(null)}
+      onAdjust={() => {
+        const fromDay = dates.find(day => day.modules.some(mod => mod.id === actionModule.id));
+        if (fromDay) setDrag({ kind: 'module', moduleId: actionModule.id, fromIso: fromDay.iso, label: actionModule.name });
+        setActionModule(null);
+        setShowGuide(false);
+      }}
+      onRemove={() => { requestRemove(actionModule); setActionModule(null); }} />}
+  </section>;
+}
+
+function PhaseLegend() {
+  return <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginRight: 8 }}>
+    {([['新学', C.blue], ['冲刺', '#E58A00'], ['考试', C.red]] as const).map(([label, color]) =>
+      <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 8.5, color: C.mut }}>
+        <i style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />{label}
+      </span>)}
+  </div>;
+}
+
+function ModuleProgressDots({ modules, overdue }: { modules: Module[]; overdue: boolean }) {
+  return <div aria-label={`共${modules.length}个模块`} style={{ display: 'flex', justifyContent: 'center', gap: 4 }}>
+    {modules.map(mod => {
+      const completed = mod.kps.filter(item => item.known).length;
+      const done = completed === mod.kps.length;
+      const partial = completed > 0 && !done;
+      const color = overdue && !done ? '#E17100' : done ? C.green : partial ? '#E58A00' : '#BCC2CC';
+      return <i key={mod.id} style={{ width: 6, height: 6, borderRadius: '50%', border: `1px solid ${color}`,
+        background: done ? color : partial ? `linear-gradient(90deg, ${color} 50%, transparent 50%)` : 'transparent' }} />;
+    })}
+  </div>;
+}
+
+function DayPlanSheet({ day, openModule, onClose }: { day: PlanDate; openModule: (id: string) => void; onClose: () => void }) {
+  return <div style={overlay} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ width: 430, maxWidth: '88%', maxHeight: '72%', overflowY: 'auto',
+      background: C.card, borderRadius: 16, padding: 16, boxShadow: '0 18px 60px #0003' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div style={{ flex: 1 }}><strong style={{ fontSize: 16 }}>{day.label}</strong><span style={{ display: 'block', marginTop: 2, fontSize: 10, color: C.mut }}>{day.weekday} · 当日完整计划</span></div>
+        <button onClick={onClose} style={iconButton}><X size={16} /></button>
+      </div>
+      <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}` }}>
+        {day.modules.map(mod => <button key={mod.id} onClick={() => { onClose(); openModule(mod.id); }} style={{ width: '100%', padding: '11px 2px',
+          border: 0, borderBottom: `1px solid ${C.line}`, background: 'transparent', display: 'flex', textAlign: 'left', cursor: 'pointer' }}>
+          <strong style={{ flex: 1, fontSize: 12 }}>{mod.name}</strong><ChevronRight size={14} color={C.faint} />
+        </button>)}
+      </div>
+    </div>
+  </div>;
+}
+
+function TouchActionSheet({ module, onClose, onRemove, onAdjust }: {
+  module: Module; onClose: () => void; onRemove: () => void; onAdjust?: () => void;
+}) {
+  return <div style={overlay} onClick={onClose}>
+    <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: 16, right: 16, bottom: 16,
+      background: C.card, borderRadius: 16, padding: 14, boxShadow: '0 -8px 40px #0002' }}>
+      <strong style={{ display: 'block', fontSize: 13 }}>{module.name}</strong>
+      <span style={{ display: 'block', marginTop: 2, fontSize: 9.5, color: C.mut }}>模块操作</span>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 12 }}>
+        <button onClick={onAdjust ?? onClose} style={secondarySmall}>调整日期</button>
+        <button onClick={onRemove} style={{ ...secondarySmall, color: C.red }}><Trash2 size={12} /> 移出当前计划</button>
+      </div>
+      <button onClick={onClose} style={{ ...ghostSmall, width: '100%', marginTop: 10 }}>取消</button>
+    </div>
+  </div>;
+}
+
+function AchievementStat({ value, label, suffix }: { value: string; label: string; suffix?: string }) {
+  return <div style={{ padding: 10, borderRadius: 9, background: '#F7F8FA' }}>
+    <strong style={{ fontSize: 17 }}>{value}<small style={{ marginLeft: 2, color: C.mut, fontSize: 9 }}>{suffix}</small></strong>
+    <span style={{ display: 'block', marginTop: 3, color: C.mut, fontSize: 9 }}>{label}</span>
+  </div>;
 }
 
 function ModuleTodo({ mod, iso, dragging, setDrag, openModule, requestRemove }: {
   mod: Module; iso: string; dragging: boolean;
-  setDrag: (value: { moduleId: string; fromIso: string } | null) => void;
+  setDrag: (value: PlanDrag | null) => void;
   openModule: (id: string) => void; requestRemove: (mod: Module) => void;
 }) {
-  return <div draggable onDragStart={() => setDrag({ moduleId: mod.id, fromIso: iso })}
+  return <div draggable onDragStart={() => setDrag({ kind: 'module', moduleId: mod.id, fromIso: iso, label: mod.name })}
     onClick={() => openModule(mod.id)}
     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '6px 8px', border: `1px solid ${C.line}`,
       borderRadius: 8, cursor: 'pointer', opacity: dragging ? .35 : 1 }}>
     <GripVertical size={13} color={C.faint} style={{ cursor: 'grab' }} />
     <strong style={{ fontSize: 11.5, flex: 1 }}>{mod.name}</strong>
     <span style={{ fontSize: 10, color: C.mut }}>{mod.kps.length}个知识点 · {mod.minutes}分钟</span>
-    <button onClick={e => { e.stopPropagation(); requestRemove(mod); }} title="移出当前计划" style={closeButton}><X size={11} /></button>
+    <button onClick={e => { e.stopPropagation(); requestRemove(mod); }} title="移出当前计划" style={closeButton}><Trash2 size={12} /></button>
   </div>;
 }
 
-function ModulePopover({ module, index, total, onClose, onPrev, onNext, onKnown, onRemoveModule, onRemoveKP }: {
+function ModulePopover({ module, index, total, onClose, onPrev, onNext, onKnown, onRemoveModule, onRemoveKP,
+  dailyMode, bookmarked, onBookmark, onDragKP, onMasteryHint }: {
   module: Module; index: number; total: number; onClose: () => void; onPrev: () => void; onNext: () => void;
   onKnown: (id: string) => void; onRemoveModule: () => void; onRemoveKP: (kp: KP) => void;
+  dailyMode: boolean; bookmarked: Set<string>; onBookmark: (id: string) => void; onDragKP: (kp: KP) => void;
+  onMasteryHint: () => void;
 }) {
   return <div style={overlay} onClick={onClose}>
     <div style={{ width: 430, maxWidth: '90%', background: C.card, borderRadius: 16, padding: 18,
@@ -463,18 +900,31 @@ function ModulePopover({ module, index, total, onClose, onPrev, onNext, onKnown,
         <button onClick={onClose} style={iconButton}><X size={16} /></button>
       </div>
       <div style={{ marginTop: 14, border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden' }}>
-        {module.kps.map((item, i) => <div key={item.id} style={{ padding: '9px 10px', display: 'flex', alignItems: 'center',
+        {module.kps.map((item, i) => <div key={item.id} draggable
+          onDragStart={() => onDragKP(item)}
+          style={{ padding: '9px 10px', display: 'flex', alignItems: 'center',
           gap: 8, borderTop: i ? `1px solid ${C.line}` : 'none' }}>
-          <GripVertical size={12} color={C.faint} />
+          <GripVertical size={12} color={C.faint} style={{ cursor: 'grab' }} />
+          {dailyMode && <button onClick={() => { if (!item.known) onMasteryHint(); onKnown(item.id); }}
+            title="勾选表示我已经掌握" style={{ width: 19, height: 19, flexShrink: 0, borderRadius: '50%',
+              border: `2px solid ${item.known ? C.green : C.faint}`, background: item.known ? C.green : C.card,
+              display: 'grid', placeItems: 'center', cursor: 'pointer', padding: 0 }}>
+            {item.known && <Check size={11} color="#fff" strokeWidth={3} />}
+          </button>}
           <span style={{ flex: 1, fontSize: 12, color: item.known ? C.mut : C.ink,
             textDecoration: item.known ? 'line-through' : 'none' }}>{item.name}</span>
-          <button onClick={() => onKnown(item.id)} style={ghostSmall}>{item.known ? '已会 ✓' : '我已经会了'}</button>
-          <button onClick={() => onRemoveKP(item)} style={closeButton}><X size={11} /></button>
+          {!dailyMode && <button onClick={() => onKnown(item.id)} style={ghostSmall}>{item.known ? '已会 ✓' : '我已经会了'}</button>}
+          {dailyMode && <button onClick={() => onBookmark(item.id)} title={bookmarked.has(item.id) ? '取消收藏' : '收藏'}
+            style={{ border: 0, background: 'transparent', padding: 3, cursor: 'pointer' }}>
+            <Star size={15} color={bookmarked.has(item.id) ? C.yellow : C.faint} fill={bookmarked.has(item.id) ? C.yellow : 'none'} />
+          </button>}
+          <button onClick={() => onRemoveKP(item)} title="移出当前计划" style={closeButton}><Trash2 size={12} /></button>
         </div>)}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', marginTop: 12 }}>
-        <span style={{ fontSize: 10.5, color: C.mut, flex: 1 }}>左右滑动或使用箭头预览其他模块</span>
-        <button onClick={onRemoveModule} style={{ ...ghostSmall, color: C.red }}>整个模块移出计划</button>
+        <span style={{ fontSize: 10.5, color: C.mut, flex: 1 }}>拖动知识点到时间轴可调整日期</span>
+        <button onClick={onRemoveModule} style={{ ...ghostSmall, color: C.red, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Trash2 size={12} />整个模块移出计划</button>
       </div>
     </div>
   </div>;
@@ -571,7 +1021,9 @@ const primarySmall: React.CSSProperties = { border: 0, borderRadius: 8, backgrou
 const secondarySmall: React.CSSProperties = { ...primarySmall, color: C.sub, background: C.card, border: `1px solid ${C.line}` };
 const ghostSmall: React.CSSProperties = { border: 0, background: 'transparent', color: C.blue, fontSize: 9.5,
   fontWeight: 700, cursor: 'pointer' };
-const closeButton: React.CSSProperties = { border: 0, background: C.redBg, color: C.red, width: 23, height: 23,
+const closeButton: React.CSSProperties = { border: 0, background: C.panel, color: C.mut, width: 23, height: 23,
   borderRadius: 6, display: 'grid', placeItems: 'center', cursor: 'pointer' };
-const miniClose: React.CSSProperties = { border: 0, background: 'transparent', color: C.red, padding: 0, cursor: 'pointer' };
+const miniClose: React.CSSProperties = { border: 0, background: 'transparent', color: C.mut, padding: 0, cursor: 'pointer' };
+const tabButton: React.CSSProperties = { border: 0, borderRadius: 8, padding: '6px 14px', background: 'transparent',
+  color: C.sub, fontSize: 11, fontWeight: 700, cursor: 'pointer' };
 const configLabel: React.CSSProperties = { display: 'block', fontSize: 10.5, color: C.ink };

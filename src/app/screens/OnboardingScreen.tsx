@@ -2179,7 +2179,7 @@ function B7Inner({ onNext, dots }: { onNext: () => void; dots?: React.ReactNode 
       <div className="flex-1 overflow-y-auto pb-2">
         <div className="rounded-2xl p-4" style={{ background: CARD, border: `1px solid ${BORDER}` }}>
           <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="rounded-xl p-3" style={{ background: '#F6FEF9' }}><p className="text-[24px] font-bold" style={{ color: T1 }}>78%</p><p className="text-[10px]" style={{ color: GREEN }}>通过率预测 · 可信度中</p></div>
+            <div className="rounded-xl p-3" style={{ background: '#F6FEF9' }}><p className="text-[24px] font-bold" style={{ color: T1 }}>78%</p><p className="text-[10px]" style={{ color: GREEN }}>目标达成率 · 可信度中</p></div>
             <div className="rounded-xl p-3" style={{ background: '#EAF3FF' }}><p className="text-[24px] font-bold" style={{ color: T1 }}>6/12</p><p className="text-[10px]" style={{ color: BLUE }}>今日已处理知识点</p></div>
           </div>
           <div className="flex items-center gap-5 mb-3 pb-3" style={{ borderBottom: `1px solid ${BORDER}` }}>

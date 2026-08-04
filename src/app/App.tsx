@@ -47,7 +47,7 @@ import ResourceCollectionScreen from './screens/ResourceCollectionScreen';
 import PriorityTriageScreen from './screens/PriorityTriageScreen';
 import PlanGenerationLoadingScreen from './screens/PlanGenerationLoadingScreen';
 import OnboardingScreen from './screens/OnboardingScreen';
-import PlanFrameworkScreen, { type PlanDemoScenario } from './screens/PlanFrameworkScreen';
+import PlanFrameworkScreen, { type PlanDemoScenario, type PlanWeekendMode } from './screens/PlanFrameworkScreen';
 
 /**
  * 定义哪些屏幕需要隐藏顶部Tab和侧边栏（全屏模式）
@@ -114,6 +114,7 @@ function AppContent() {
   const [showGeneratedPlanReady, setShowGeneratedPlanReady] = React.useState(false);
   const [openOnboardingAtPlan, setOpenOnboardingAtPlan] = React.useState(false);
   const [planDemoScenario, setPlanDemoScenario] = React.useState<PlanDemoScenario>('fit');
+  const [planWeekendMode, setPlanWeekendMode] = React.useState<PlanWeekendMode>('rest');
   const [demoMenuOpen, setDemoMenuOpen] = React.useState(false);
   const [demoControlPosition, setDemoControlPosition] = React.useState({ left: 12, top: 72 });
   const [onboardingActiveStep, setOnboardingActiveStep] = React.useState('A1');
@@ -248,6 +249,7 @@ function AppContent() {
             onStartPractice={() => startPractice()}
             onViewKnowledgeMap={() => navigateTo('knowledge-map' as any)}
             onNavigateToFavorites={() => navigateTo('favorites')}
+            onViewPlan={() => { setCourseProgressContext('view'); navigateTo('course-progress'); }}
           />
         );
 
@@ -327,10 +329,15 @@ function AppContent() {
 
       case 'course-progress':
         return (
-          <CourseProgressScreen
+          <PlanFrameworkScreen
+            key={`daily-${planWeekendMode}`}
             onBack={() => navigateTo('dashboard')}
-            onStartPractice={() => startPractice()}
-            context={courseProgressContext}
+            onHome={() => navigateTo('dashboard')}
+            onViewKnowledgeSystem={() => navigateTo('overview' as any)}
+            onConfirm={() => startPractice()}
+            initialState="daily"
+            demoScenario="fit"
+            weekendMode={planWeekendMode}
           />
         );
 
@@ -362,9 +369,12 @@ function AppContent() {
       case 'plan-framework':
         return (
           <PlanFrameworkScreen
+            key={`confirm-${planDemoScenario}-${planWeekendMode}`}
             onConfirm={() => { setCourseProgressContext('created'); navigateTo('course-progress'); }}
-            onSkip={() => startPractice()}
+            onBack={() => navigateTo('priority-triage')}
+            onHome={() => navigateTo('dashboard')}
             demoScenario={planDemoScenario}
+            weekendMode={planWeekendMode}
           />
         );
 
@@ -463,7 +473,7 @@ function AppContent() {
                     ))}
                   </>
                 )}
-                {(currentScreen === 'plan-framework' || (currentScreen === 'onboarding' && onboardingActiveStep === 'A6')) && (
+                {(currentScreen === 'plan-framework' || currentScreen === 'course-progress' || (currentScreen === 'onboarding' && onboardingActiveStep === 'A6')) && (
                   <>
                     <div style={{ height: 1, background: '#ECEEF2', margin: '2px 0' }} />
                     {([
@@ -478,6 +488,16 @@ function AppContent() {
                         background: planDemoScenario === id ? '#EEF6FF' : 'transparent',
                         color: planDemoScenario === id ? '#2D8CFF' : '#555', fontSize: 10,
                         fontWeight: planDemoScenario === id ? 700 : 500,
+                      }}>{label}</button>
+                    ))}
+                    <div style={{ height: 1, background: '#ECEEF2', margin: '2px 0' }} />
+                    <div style={{ fontSize: 9, color: '#999', padding: '3px 7px 1px', fontWeight: 600 }}>计划日期演示</div>
+                    {([['rest', '周末休息 · 窄列'], ['study', '周末学习 · 等宽列']] as [PlanWeekendMode, string][]).map(([id, label]) => (
+                      <button key={id} onClick={() => setPlanWeekendMode(id)} style={{
+                        border: 0, borderRadius: 6, padding: '5px 7px', textAlign: 'left', cursor: 'pointer',
+                        background: planWeekendMode === id ? '#FFF7CC' : 'transparent',
+                        color: planWeekendMode === id ? '#8A7200' : '#555', fontSize: 10,
+                        fontWeight: planWeekendMode === id ? 700 : 500,
                       }}>{label}</button>
                     ))}
                   </>

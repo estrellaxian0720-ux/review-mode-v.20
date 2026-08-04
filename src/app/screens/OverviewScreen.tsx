@@ -399,7 +399,7 @@ function InfoPopover({ anchor, onClose }: { anchor: DOMRect; onClose: () => void
         {/* ① 主数字区（只读，不在浮层内切换口径） */}
         <div style={{ marginBottom: 12 }}>
           <p style={{ fontSize: 14, color: C.ink, margin: 0, fontWeight: 600 }}>
-            考试通过率预测 <span style={{ fontSize: 18, fontWeight: 800 }}>78%</span> · 可信度中
+            目标达成率预测 <span style={{ fontSize: 18, fontWeight: 800 }}>78%</span> · 可信度中
           </p>
           <p style={{ fontSize: 13, color: C.inkMuted, margin: "3px 0 0" }}>更新于 2026-07-07 06:30</p>
           <p style={{ fontSize: 12, color: C.inkMuted, margin: "2px 0 0" }}>当前口径：含自评标记（可在设置切换）</p>
@@ -589,7 +589,7 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare }: FusionCardPr
           {/* Left — pass-rate prediction */}
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: C.inkMuted, fontWeight: 500 }}>考试通过率预测</span>
+              <span style={{ fontSize: 12, color: C.inkMuted, fontWeight: 500 }}>目标达成率预测</span>
               <button onClick={(e) => onShowInfo(e.currentTarget.getBoundingClientRect())} style={{
                 width: 18, height: 18, borderRadius: "50%", background: "#EEF1F7",
                 border: "none", cursor: "pointer", display: "flex", alignItems: "center",
@@ -839,12 +839,13 @@ interface OverviewScreenProps {
   onStartPractice?: () => void;
   onViewKnowledgeMap?: () => void;
   onNavigateToFavorites?: () => void;
+  onViewPlan?: () => void;
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function OverviewScreen({
-  onViewResources, onStartMockExam, onStartPractice, onViewKnowledgeMap, onNavigateToFavorites,
+  onViewResources, onStartMockExam, onStartPractice, onViewKnowledgeMap, onNavigateToFavorites, onViewPlan,
 }: OverviewScreenProps) {
   const [infoAnchor, setInfoAnchor] = useState<DOMRect | null>(null);
   const [showShare, setShowShare] = useState(false);
@@ -913,6 +914,20 @@ export default function OverviewScreen({
                 <span>设置</span>
               </button>
             </div>
+          </div>
+
+          {/* Overview 一级信息架构：计划管时间，知识体系管掌握与结构 */}
+          <div style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 12,
+            borderRadius: 12, background: '#ECEEF2', width: 'fit-content' }}>
+            <button onClick={() => onViewPlan?.()} style={{
+              padding: '8px 22px', border: 'none', borderRadius: 9, background: 'transparent',
+              color: C.inkSub, fontSize: 13, fontWeight: 650, cursor: 'pointer',
+            }}>学习计划</button>
+            <button style={{
+              padding: '8px 22px', border: 'none', borderRadius: 9, background: '#fff',
+              color: C.ink, fontSize: 13, fontWeight: 750, cursor: 'default',
+              boxShadow: '0 1px 4px rgba(0,0,0,.08)',
+            }}>知识体系</button>
           </div>
 
           {/* Fix 8: Portrait = 220px star map, landscape = 200px */}
