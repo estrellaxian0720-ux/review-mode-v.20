@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   AlertTriangle, ArrowLeft, BookOpen, CalendarDays, ChevronDown, ChevronLeft, ChevronRight,
-  Check, Clock3, Flag, GripVertical, Layers3, Sparkles, Star, Trash2, X,
+  Check, Clock3, Flag, Grid3X3, GripVertical, Layers3, List, Sparkles, Star, Trash2, X,
 } from 'lucide-react';
 
 export type PlanDemoScenario = 'fit' | 'slight' | 'material' | 'extreme' | 'impossible';
@@ -192,6 +192,7 @@ export default function PlanFrameworkScreen({
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set(['criminal-principles-0']));
   const [showMasteryHint, setShowMasteryHint] = useState(false);
   const [forceConfirm, setForceConfirm] = useState(false);
+  const [showViewGuide, setShowViewGuide] = useState(initialState === 'daily');
 
   const scenario = scenarioData[demoScenario];
   const allModules = dates.flatMap(d => d.modules);
@@ -213,6 +214,12 @@ export default function PlanFrameworkScreen({
   const overloaded = demoScenario !== 'fit' || calculatedHours > dailyLimit;
   const danger = demoScenario === 'extreme' || demoScenario === 'impossible';
   const dailyMode = initialState === 'daily' || saved;
+  const todayPlan = dates.find(day => day.iso === TODAY_ISO);
+  const todayTodoCount = todayPlan?.modules.reduce((sum, mod) => sum + mod.kps.length, 0) ?? 0;
+  const todayKnownCount = todayPlan?.modules.reduce((sum, mod) => sum + mod.kps.filter(item => item.known).length, 0) ?? 0;
+  const todayCtaLabel = todayKnownCount === 0 ? '开始今日学习'
+    : todayKnownCount < todayTodoCount ? '继续今日学习' : '复习今日内容';
+  useEffect(() => { if (dailyMode) setShowViewGuide(true); }, [dailyMode]);
 
   const moveItem = (toIso: string) => {
     if (!drag || drag.fromIso === toIso) return setDrag(null);
@@ -294,26 +301,35 @@ export default function PlanFrameworkScreen({
     })));
   };
 
+  const activateStudyDay = (iso: string) => {
+    setDates(prev => rebalanceFuturePlan(prev.map(day => day.iso === iso
+      ? { ...day, isRestDay: false, weekday: day.weekday.replace(' · 休息日', '') }
+      : day)));
+  };
+
   const requestSave = () => {
     if (danger || demoScenario === 'material') setForceConfirm(true);
     else setSaved(true);
   };
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: C.bg, color: C.ink }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: C.bg, color: C.ink, position: 'relative' }}>
       <header style={{ height: 54, padding: '0 24px', display: 'flex', alignItems: 'center', gap: 12,
         background: C.card, borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
         <button onClick={onBack} style={iconButton}><ArrowLeft size={17} /></button>
-        <strong style={{ fontSize: 17 }}>学习计划</strong>
-        <span style={{ fontSize: 11, color: C.mut }}>{dailyMode ? '日常管理' : '首次确认'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: 3, borderRadius: 9, background: dailyMode ? C.panel : 'transparent' }}>
+          <span style={{ padding: dailyMode ? '6px 10px' : 0, borderRadius: 7, background: dailyMode ? C.card : 'transparent',
+            boxShadow: dailyMode ? '0 1px 4px #00000010' : 'none', fontSize: dailyMode ? 11 : 17, fontWeight: 800 }}>学习计划</span>
+          {dailyMode && onViewKnowledgeSystem && <button onClick={onViewKnowledgeSystem}
+            style={{ ...tabButton, padding: '6px 10px', fontSize: 10.5 }}>知识体系</button>}
+        </div>
+        <span style={{ fontSize: 10.5, color: C.mut }}>30天 · {planStudyDays}个任务学习日</span>
         <div style={{ flex: 1 }} />
-        {dailyMode && onViewKnowledgeSystem && <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 10, background: C.panel }}>
-          <button style={{ ...tabButton, background: C.card, color: C.ink }}>学习计划</button>
-          <button onClick={onViewKnowledgeSystem} style={tabButton}>知识体系</button>
-        </div>}
+        <ViewIconSwitch value={view} onChange={setView} />
       </header>
 
-      <main style={{ flex: 1, overflowY: 'auto', padding: '12px 24px 88px' }}>
+      <main style={{ flex: 1, overflowY: 'auto', padding: dailyMode && view === 'week' ? '12px 24px 82px'
+        : dailyMode ? '12px 24px' : '12px 24px 88px' }}>
         {!dailyMode && <section style={{ ...card, padding: '14px 16px', marginBottom: 12, borderColor: danger ? '#F3B8BA' : C.line }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
             <div style={{ width: 30, height: 30, borderRadius: 9, background: danger ? C.redBg : C.blueBg,
@@ -378,19 +394,10 @@ export default function PlanFrameworkScreen({
           )}
         </section>}
 
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, padding: '0 2px' }}>
-          <div>
-            <strong style={{ display: 'block', fontSize: 13 }}>计划日历
-              {dailyMode && <span style={{ marginLeft: 8, fontSize: 9.5, color: C.mut, fontWeight: 500 }}>30天 · {planStudyDays}个任务学习日</span>}
-            </strong>
-            <span style={{ fontSize: 9.5, color: C.mut }}>同一份计划，切换不同时间视图</span>
-          </div>
-          <div style={{ flex: 1 }} />
-          <Segment value={view} onChange={setView} />
-        </div>
-
         {view === 'week' ? (
           <WeekSchedule dates={dates} drag={drag} setDrag={setDrag} moveItem={moveItem}
+            view={view} onViewChange={setView}
+            showViewGuide={showViewGuide} onDismissViewGuide={() => setShowViewGuide(false)}
             openModule={setModuleId} dailyMode={dailyMode} bookmarked={bookmarked}
             onKnown={toggleKnown} onMasteryHint={() => setShowMasteryHint(true)}
             onBookmark={(kpId) => setBookmarked(current => { const next = new Set(current); next.has(kpId) ? next.delete(kpId) : next.add(kpId); return next; })}
@@ -398,23 +405,27 @@ export default function PlanFrameworkScreen({
         ) : (
           <MonthSchedule dates={dates} drag={drag} setDrag={setDrag}
             moveItem={moveItem} openModule={setModuleId} dailyMode={dailyMode} onReturnToSchedule={() => setView('week')}
+            view={view} onViewChange={setView} bookmarked={bookmarked}
+            showViewGuide={showViewGuide} onDismissViewGuide={() => setShowViewGuide(false)}
+            onKnown={toggleKnown} onMasteryHint={() => setShowMasteryHint(true)} onStartLearning={onConfirm}
+            onActivateStudyDay={activateStudyDay}
+            onBookmark={(kpId) => setBookmarked(current => { const next = new Set(current); next.has(kpId) ? next.delete(kpId) : next.add(kpId); return next; })}
             requestRemove={(mod) => setConfirmRemove({ kind: 'module', moduleId: mod.id, label: mod.name })} />
         )}
       </main>
 
-      <footer style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 24px',
+      {!dailyMode && <footer style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: '12px 24px',
         display: 'flex', justifyContent: 'flex-end', gap: 10, background: C.card, borderTop: `1px solid ${C.line}` }}>
-        {dailyMode ? (
-          <>
-            <button onClick={onHome} style={secondaryButton}>回到首页</button>
-            <button onClick={onConfirm} style={primaryButton}>开始今日学习 →</button>
-          </>
-        ) : (
-          <button onClick={requestSave} style={{ ...primaryButton, background: danger ? C.red : C.ink }}>
-            {danger ? '仍按当前计划保存' : '确认并保存计划'} →
-          </button>
-        )}
-      </footer>
+        <button onClick={requestSave} style={{ ...primaryButton, background: danger ? C.red : C.ink }}>
+          {danger ? '仍按当前计划保存' : '确认并保存计划'} →
+        </button>
+      </footer>}
+
+      {dailyMode && view === 'week' && <button onClick={onConfirm}
+        style={{ ...primaryButton, position: 'absolute', right: 24, bottom: 18, zIndex: 90, minWidth: 168,
+          padding: '13px 18px', borderRadius: 14, boxShadow: '0 10px 28px #11152735' }}>
+        {todayCtaLabel} →
+      </button>}
 
       {activeModule && (
         <ModulePopover module={activeModule} index={activeModuleIndex} total={allModules.length}
@@ -472,32 +483,36 @@ function SummaryItem({ icon, value, label, sub }: { icon: React.ReactNode; value
   </div>;
 }
 
-function Segment({ value, onChange }: { value: 'week' | 'month'; onChange: (value: 'week' | 'month') => void }) {
-  return <div style={{ display: 'flex', padding: 3, borderRadius: 9, background: C.panel }}>
-    {([['week', '日程视图'], ['month', '月历视图']] as const).map(([id, label]) =>
-      <button key={id} onClick={() => onChange(id)} style={{ border: 0, borderRadius: 7, padding: '5px 12px',
-        background: value === id ? C.card : 'transparent', color: value === id ? C.ink : C.mut,
-        fontSize: 11, fontWeight: 700, cursor: 'pointer', boxShadow: value === id ? '0 1px 4px #00000012' : 'none' }}>
-        {label}
-      </button>)}
-  </div>;
+function ViewIconSwitch({ value, onChange }: {
+  value: 'week' | 'month'; onChange: (value: 'week' | 'month') => void;
+}) {
+  const target = value === 'week' ? 'month' : 'week';
+  const label = target === 'month' ? '切换到月历视图' : '切换到日程视图';
+  return <button aria-label={label} title={label} onClick={() => onChange(target)}
+    style={{ ...iconButton, width: 40, height: 40, border: `1px solid ${C.line}`, borderRadius: 9,
+      background: C.card, color: C.ink, boxShadow: '0 1px 4px #0000000D' }}>
+    {target === 'month' ? <Grid3X3 size={15} /> : <List size={16} />}
+  </button>;
 }
 
 type PlanDrag = { kind: 'module' | 'kp'; moduleId: string; kpId?: string; fromIso: string; label: string };
 
 function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemove, dailyMode,
-  bookmarked, onKnown, onBookmark, onMasteryHint }: {
+  bookmarked, onKnown, onBookmark, onMasteryHint, view, onViewChange, showViewGuide, onDismissViewGuide }: {
   dates: PlanDate[]; drag: PlanDrag | null;
   setDrag: (value: PlanDrag | null) => void;
   moveItem: (iso: string) => void; openModule: (id: string) => void; requestRemove: (mod: Module) => void;
   dailyMode: boolean; bookmarked: Set<string>;
   onKnown: (moduleId: string, kpId: string) => void; onBookmark: (kpId: string) => void; onMasteryHint: () => void;
+  view: 'week' | 'month'; onViewChange: (value: 'week' | 'month') => void;
+  showViewGuide: boolean; onDismissViewGuide: () => void;
 }) {
   const today = dates.find(day => day.iso === TODAY_ISO);
   const defaultExpanded = today?.modules.find(mod => mod.kps.some(item => item.known) && mod.kps.some(item => !item.known))
     ?? today?.modules.find(mod => mod.kps.some(item => !item.known));
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(dailyMode ? defaultExpanded?.id ?? null : null);
   const todayRowRef = useRef<HTMLDivElement | null>(null);
+  const guideModuleId = dates.flatMap(day => day.modules)[0]?.id;
   useEffect(() => {
     if (!dailyMode) return;
     if (defaultExpanded) setExpandedModuleId(defaultExpanded.id);
@@ -505,11 +520,7 @@ function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemov
   useLayoutEffect(() => {
     if (dailyMode) todayRowRef.current?.scrollIntoView({ block: 'center', behavior: 'auto' });
   }, [dailyMode]);
-  return <section style={{ ...card, overflow: 'hidden' }}>
-    <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', padding: '8px 14px',
-      background: '#F7F8FA', fontSize: 10, color: C.mut, fontWeight: 700 }}>
-      <span>日期时间轴</span><span>学习任务 · 可跨日期拖拽</span>
-    </div>
+  return <section style={{ ...card, overflow: 'hidden', position: 'relative' }}>
     {dates.map((day, index) => {
       const phaseChanged = index === 0 || dates[index - 1].phase !== day.phase;
       const phaseColor = day.phase === 'sprint' ? '#E58A00' : day.phase === 'exam' ? C.red : C.blue;
@@ -546,6 +557,7 @@ function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemov
               : day.modules.length === 0 && <span style={{ color: C.faint, fontSize: 9.5 }}>{isRest ? '休息日 · 可拖入任务' : '当日暂无任务 · 可拖入任务'}</span>}
             {day.modules.map(mod => dailyMode ? <InlineModule key={mod.id} mod={mod} iso={day.iso}
               expanded={expandedModuleId === mod.id} active={isToday && expandedModuleId === mod.id}
+              showDragGuide={showViewGuide && mod.id === guideModuleId} onDismissDragGuide={onDismissViewGuide}
               onToggle={() => setExpandedModuleId(current => current === mod.id ? null : mod.id)}
               dragging={drag?.moduleId === mod.id} setDrag={setDrag} requestRemove={requestRemove}
               bookmarked={bookmarked} onKnown={(kpId) => onKnown(mod.id, kpId)} onBookmark={onBookmark} onMasteryHint={onMasteryHint} />
@@ -558,9 +570,10 @@ function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemov
   </section>;
 }
 
-function InlineModule({ mod, iso, expanded, active, onToggle, dragging, setDrag, requestRemove,
+function InlineModule({ mod, iso, expanded, active, showDragGuide, onDismissDragGuide, onToggle, dragging, setDrag, requestRemove,
   bookmarked, onKnown, onBookmark, onMasteryHint }: {
   mod: Module; iso: string; expanded: boolean; active: boolean; onToggle: () => void; dragging: boolean;
+  showDragGuide: boolean; onDismissDragGuide: () => void;
   setDrag: (value: PlanDrag | null) => void; requestRemove: (mod: Module) => void;
   bookmarked: Set<string>; onKnown: (kpId: string) => void; onBookmark: (kpId: string) => void; onMasteryHint: () => void;
 }) {
@@ -569,7 +582,16 @@ function InlineModule({ mod, iso, expanded, active, onToggle, dragging, setDrag,
     background: active ? '#FFFDF4' : C.card, overflow: 'hidden', opacity: dragging ? .35 : 1 }}>
     <div draggable onDragStart={() => setDrag({ kind: 'module', moduleId: mod.id, fromIso: iso, label: mod.name })}
       onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '7px 8px', cursor: 'pointer' }}>
-      <GripVertical size={13} color={C.faint} style={{ cursor: 'grab' }} />
+      <span style={{ position: 'relative', display: 'grid', placeItems: 'center' }}>
+        <GripVertical size={13} color={C.faint} style={{ cursor: 'grab' }} />
+        {showDragGuide && <span style={{ position: 'absolute', left: -5, top: 25, zIndex: 12, width: 205,
+          padding: '8px 28px 8px 10px', borderRadius: 8, background: C.ink, color: '#fff', fontSize: 9,
+          fontWeight: 500, boxShadow: '0 8px 24px #0003' }}>
+          拖动模块或知识点，可以调整到其他日期
+          <button onClick={e => { e.stopPropagation(); onDismissDragGuide(); }} style={{ position: 'absolute', right: 6, top: 6,
+            border: 0, background: 'transparent', color: '#fff', padding: 2 }}><X size={11} /></button>
+        </span>}
+      </span>
       {expanded ? <ChevronDown size={13} color={C.sub} /> : <ChevronRight size={13} color={C.sub} />}
       <strong style={{ fontSize: 11.5 }}>{mod.name}</strong>
       {active && <span style={{ padding: '2px 6px', borderRadius: 8, background: C.yellow, fontSize: 8, fontWeight: 700 }}>正在学习</span>}
@@ -594,17 +616,24 @@ function InlineModule({ mod, iso, expanded, active, onToggle, dragging, setDrag,
   </div>;
 }
 
-function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemove, dailyMode, onReturnToSchedule }: {
+function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemove, dailyMode, onReturnToSchedule,
+  view, onViewChange, bookmarked, onKnown, onBookmark, onMasteryHint, onStartLearning, onActivateStudyDay,
+  showViewGuide, onDismissViewGuide }: {
   dates: PlanDate[];
   drag: PlanDrag | null; setDrag: (value: PlanDrag | null) => void;
   moveItem: (iso: string) => void; openModule: (id: string) => void; requestRemove: (mod: Module) => void;
   dailyMode: boolean; onReturnToSchedule: () => void;
+  view: 'week' | 'month'; onViewChange: (value: 'week' | 'month') => void;
+  bookmarked: Set<string>; onKnown: (moduleId: string, kpId: string) => void; onBookmark: (kpId: string) => void;
+  onMasteryHint: () => void; onStartLearning: () => void; onActivateStudyDay: (iso: string) => void;
+  showViewGuide: boolean; onDismissViewGuide: () => void;
 }) {
   const [monthCursor, setMonthCursor] = useState(new Date(2026, 7, 1));
   const [selectedIso, setSelectedIso] = useState<string | null>(dailyMode ? TODAY_ISO : null);
   const [detailIso, setDetailIso] = useState<string | null>(null);
   const [actionModule, setActionModule] = useState<Module | null>(null);
   const [showGuide, setShowGuide] = useState(!dailyMode);
+  const [expandedInspectorModule, setExpandedInspectorModule] = useState<string | null>(null);
   const pressTimer = useRef<number | null>(null);
   const longPressed = useRef(false);
   const year = monthCursor.getFullYear();
@@ -632,6 +661,12 @@ function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemo
   const overdueCount = monthPlans.filter(day => day.iso < TODAY_ISO)
     .reduce((sum, day) => sum + day.modules.filter(mod => mod.kps.some(item => !item.known)).length, 0);
   const detailPlan = detailIso ? byIso.get(detailIso) : undefined;
+  useEffect(() => {
+    if (!dailyMode || !selectedPlan) return;
+    const next = selectedPlan.modules.find(mod => mod.kps.some(item => item.known) && mod.kps.some(item => !item.known))
+      ?? selectedPlan.modules.find(mod => mod.kps.some(item => !item.known));
+    setExpandedInspectorModule(next?.id ?? null);
+  }, [dailyMode, selectedIso]);
   const startLongPress = (mod: Module) => {
     longPressed.current = false;
     pressTimer.current = window.setTimeout(() => {
@@ -678,11 +713,11 @@ function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemo
         return <button key={`${cell.current}-${cell.day}-${index}`}
           onClick={() => {
             if (longPressed.current) { longPressed.current = false; return; }
-            if (drag && cell.current) { moveItem(cell.iso); return; }
+            if (drag && cell.current) { moveItem(cell.iso); setSelectedIso(cell.iso); return; }
             if (dailyMode && cell.current) setSelectedIso(cell.iso);
             if (!dailyMode && dayPlan) setDetailIso(dayPlan.iso);
           }}
-          onDragOver={e => dayPlan && e.preventDefault()} onDrop={() => dayPlan && moveItem(dayPlan.iso)}
+          onDragOver={e => dayPlan && e.preventDefault()} onDrop={() => { if (dayPlan) { moveItem(dayPlan.iso); setSelectedIso(dayPlan.iso); } }}
           style={{ position: 'relative', height: dailyMode ? 56 : 88, padding: 6, borderRadius: 8, overflow: 'hidden',
             border: isToday ? `2px solid #E2BF00` : selected ? `2px solid ${C.ink}` : `1px solid ${cellBorder}`,
             background: cellBg,
@@ -729,9 +764,14 @@ function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemo
     </div>}
   </>;
 
-  if (dailyMode) return <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.75fr) minmax(250px, .75fr)', gap: 12 }}>
+  if (dailyMode) {
+    const actionLabel = selectedPlan?.phase === 'exam' ? '查看考试安排'
+      : selectedPlan?.isRestDay ? '调整为学习日'
+      : selectedIso === TODAY_ISO ? '开始今日学习'
+      : selectedIso && selectedIso < TODAY_ISO ? '复习当天内容' : '查看日程详情';
+    return <section style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.75fr) minmax(250px, .75fr)', gap: 12 }}>
     <div style={{ ...card, overflow: 'hidden', position: 'relative' }}>{monthCalendar}</div>
-    <aside style={{ ...card, padding: 14, minHeight: 342 }}>
+    <aside style={{ ...card, padding: 14, minHeight: 342, maxHeight: 510, display: 'flex', flexDirection: 'column' }}>
       {selectedIso ? <>
         <button onClick={() => setSelectedIso(null)} style={{ ...ghostSmall, padding: 0, color: C.mut }}>← 返回本月成就</button>
         <div style={{ marginTop: 15 }}>
@@ -739,26 +779,46 @@ function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemo
           <h3 style={{ margin: '4px 0 2px', fontSize: 18 }}>{selectedPlan?.label ?? `${month + 1}月${Number(selectedIso.slice(-2))}日`}</h3>
           <span style={{ fontSize: 10.5, color: C.sub }}>{selectedPlan?.weekday ?? '无学习安排'}</span>
         </div>
-        {selectedTotal > 0 ? <>
+        {selectedPlan?.phase === 'exam' ? <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+            marginTop: 14, padding: '22px 18px', borderRadius: 14, textAlign: 'center',
+            background: 'linear-gradient(180deg, #FFF4F3 0%, #FFF9F6 100%)', border: '1px solid #F4C1BC' }}>
+            <div style={{ width: 52, height: 52, borderRadius: '50%', display: 'grid', placeItems: 'center',
+              background: '#FFE0DC', color: C.red, boxShadow: '0 0 0 8px #FFF0EE' }}>
+              <Flag size={24} strokeWidth={2.2} />
+            </div>
+            <span style={{ marginTop: 18, fontSize: 10, color: C.red, fontWeight: 800, letterSpacing: 1 }}>目标日</span>
+            <h3 style={{ margin: '7px 0 0', fontSize: 18 }}>准备已经完成，带着积累去应考</h3>
+            <p style={{ margin: '9px 0 0', maxWidth: 240, fontSize: 10.5, lineHeight: 1.65, color: C.sub }}>
+              你已经走过这份30天计划。今天不安排新的学习任务，专注发挥，相信自己的准备。
+            </p>
+          </div>
+          <button onClick={onReturnToSchedule}
+            style={{ ...primarySmall, width: '100%', marginTop: 12, padding: '10px 12px', background: C.ink }}>
+            查看考试安排 →
+          </button>
+        </div> : selectedTotal > 0 ? <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', alignItems: 'end', gap: 6, marginTop: 14 }}>
             <strong style={{ fontSize: 28 }}>{selectedKnown}</strong><span style={{ color: C.mut, marginBottom: 4 }}>/ {selectedTotal} 个模块完成</span>
           </div>
           <div style={{ height: 7, borderRadius: 6, background: C.panel, marginTop: 8, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${selectedTotal ? selectedKnown / selectedTotal * 100 : 0}%`, background: C.green }} />
           </div>
-          <div style={{ marginTop: 12, borderTop: `1px solid ${C.line}` }}>
-            {selectedPlan?.modules.map(mod => <button key={mod.id} onClick={() => openModule(mod.id)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 0', border: 0,
-                borderBottom: `1px solid ${C.line}`, background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
-              <span style={{ flex: 1, fontSize: 11.5, fontWeight: 700 }}>{mod.name}</span>
-              <span style={{ fontSize: 9.5, color: C.mut }}>{mod.kps.filter(item => item.known).length}/{mod.kps.length}</span>
-              <ChevronRight size={13} color={C.faint} />
-            </button>)}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', marginTop: 12, borderTop: `1px solid ${C.line}` }}>
+            {selectedPlan?.modules.map(mod => <InspectorModule key={mod.id} mod={mod} iso={selectedPlan.iso}
+              expanded={expandedInspectorModule === mod.id}
+              onToggle={() => setExpandedInspectorModule(current => current === mod.id ? null : mod.id)}
+              setDrag={setDrag} bookmarked={bookmarked} onKnown={(kpId) => onKnown(mod.id, kpId)}
+              onBookmark={onBookmark} onMasteryHint={onMasteryHint} />)}
           </div>
-          <button onClick={onReturnToSchedule} style={{ ...secondarySmall, width: '100%', marginTop: 16 }}>定位到日程视图</button>
-        </> : <div style={{ marginTop: 46, textAlign: 'center', color: C.mut }}>
+          <button onClick={selectedPlan?.isRestDay ? () => onActivateStudyDay(selectedPlan.iso)
+            : selectedIso === TODAY_ISO ? onStartLearning : onReturnToSchedule}
+            style={{ ...primarySmall, width: '100%', marginTop: 12, padding: '10px 12px' }}>{actionLabel} →</button>
+        </div> : <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', textAlign: 'center', color: C.mut }}>
           <CalendarDays size={26} style={{ marginBottom: 8 }} />
           <p style={{ margin: 0, fontSize: 11 }}>这一天没有安排学习任务</p>
+          <button onClick={selectedPlan?.isRestDay ? () => onActivateStudyDay(selectedPlan.iso) : onReturnToSchedule}
+            style={{ ...secondarySmall, marginTop: 18 }}>{actionLabel}</button>
         </div>}
       </> : <>
         <span style={{ fontSize: 10, color: C.mut }}>本月计划进度</span>
@@ -785,6 +845,7 @@ function MonthSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemo
       </>}
     </aside>
   </section>;
+  }
 
   return <section style={{ ...card, overflow: 'hidden', position: 'relative' }}>
     {monthCalendar}
@@ -819,6 +880,50 @@ function ModuleProgressDots({ modules, overdue }: { modules: Module[]; overdue: 
       return <i key={mod.id} style={{ width: 6, height: 6, borderRadius: '50%', border: `1px solid ${color}`,
         background: done ? color : partial ? `linear-gradient(90deg, ${color} 50%, transparent 50%)` : 'transparent' }} />;
     })}
+  </div>;
+}
+
+function InspectorModule({ mod, iso, expanded, onToggle, setDrag, bookmarked, onKnown, onBookmark, onMasteryHint }: {
+  mod: Module; iso: string; expanded: boolean; onToggle: () => void; setDrag: (value: PlanDrag | null) => void;
+  bookmarked: Set<string>; onKnown: (kpId: string) => void; onBookmark: (kpId: string) => void; onMasteryHint: () => void;
+}) {
+  const completed = mod.kps.filter(item => item.known).length;
+  const timer = useRef<number | null>(null);
+  const longPressed = useRef(false);
+  const startMove = (value: PlanDrag) => {
+    longPressed.current = false;
+    timer.current = window.setTimeout(() => { longPressed.current = true; setDrag(value); }, 520);
+  };
+  const cancelMove = () => { if (timer.current) window.clearTimeout(timer.current); timer.current = null; };
+  return <div style={{ borderBottom: `1px solid ${C.line}` }}>
+    <div draggable onDragStart={() => setDrag({ kind: 'module', moduleId: mod.id, fromIso: iso, label: mod.name })}
+      onPointerDown={() => startMove({ kind: 'module', moduleId: mod.id, fromIso: iso, label: mod.name })}
+      onPointerUp={cancelMove} onPointerCancel={cancelMove}
+      onClick={() => { if (longPressed.current) { longPressed.current = false; return; } onToggle(); }}
+      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 0', cursor: 'pointer' }}>
+      <GripVertical size={13} color={C.faint} />
+      {expanded ? <ChevronDown size={13} color={C.sub} /> : <ChevronRight size={13} color={C.sub} />}
+      <strong style={{ flex: 1, fontSize: 11.5 }}>{mod.name}</strong>
+      <span style={{ fontSize: 9.5, color: completed === mod.kps.length ? C.green : C.mut }}>{completed}/{mod.kps.length}</span>
+    </div>
+    {expanded && <div style={{ paddingLeft: 18, paddingBottom: 4 }}>
+      {mod.kps.map((item, index) => <div key={item.id} draggable
+        onDragStart={() => setDrag({ kind: 'kp', moduleId: mod.id, kpId: item.id, fromIso: iso, label: item.name })}
+        onPointerDown={() => startMove({ kind: 'kp', moduleId: mod.id, kpId: item.id, fromIso: iso, label: item.name })}
+        onPointerUp={cancelMove} onPointerCancel={cancelMove}
+        style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 0', borderTop: index ? `1px solid ${C.line}` : 'none' }}>
+        <GripVertical size={11} color={C.faint} />
+        <button onClick={() => { if (!item.known) onMasteryHint(); onKnown(item.id); }}
+          style={{ width: 17, height: 17, borderRadius: '50%', padding: 0, border: `2px solid ${item.known ? C.green : C.faint}`,
+            background: item.known ? C.green : C.card, display: 'grid', placeItems: 'center' }}>
+          {item.known && <Check size={9} color="#fff" strokeWidth={3} />}
+        </button>
+        <span style={{ flex: 1, fontSize: 10, color: item.known ? C.mut : C.ink, textDecoration: item.known ? 'line-through' : 'none' }}>{item.name}</span>
+        <button onClick={() => onBookmark(item.id)} style={{ border: 0, background: 'transparent', padding: 2 }}>
+          <Star size={13} color={bookmarked.has(item.id) ? '#D8B800' : C.faint} fill={bookmarked.has(item.id) ? C.yellow : 'none'} />
+        </button>
+      </div>)}
+    </div>}
   </div>;
 }
 

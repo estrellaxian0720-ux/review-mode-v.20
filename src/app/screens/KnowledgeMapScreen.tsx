@@ -410,17 +410,19 @@ function matchesFilter(c: Concept, f: Filter) {
   return true;
 }
 
-// Star fills use ONE warm-white glow hue distinguished only by brightness/size
-// (spec §星空亮度制): NOT the semantic status hues. weak=#FF6252 is the sole exception.
-function starVis(c: Concept, dimmed: boolean, sel: boolean) {
+// Onboarding 星空皮肤：深蓝星云底 + 蓝/金辉光。保留 5 态语义——
+// 已掌握=金白(goldGlow 终态)、练习中/待复习=蓝白(blueGlow)、薄弱=红色预警、未学=暗蓝灰。
+// glow 字段区分 'gold' | 'blue' | false，对应 SVG 里两个滤镜。
+type GlowKind = 'gold' | 'blue' | false;
+function starVis(c: Concept, dimmed: boolean, sel: boolean): { r: number; fill: string; op: number; glow: GlowKind } {
   const base = Math.max(2, c.deg * 0.52 + 1.5);
   const selBoost = sel ? 1.6 : 1;
   switch (c.status) {
-    case 'mastered':  return { r: base * 1.45 * selBoost, fill:'#F7F2DA', op: dimmed ? 0.16 : 0.95, glow: !dimmed }; // brightest + bloom (终态)
-    case 'learning':  return { r: base * 1.1 * selBoost,  fill:'#EAE2C6', op: dimmed ? 0.12 : 0.70, glow: false };   // medium bright
-    case 'review_due':return { r: base * selBoost,         fill:'#CFCAB6', op: dimmed ? 0.10 : 0.46, glow: false };   // dimmed warm-white (压暗压深)
-    case 'weak':      return { r: base * 1.1 * selBoost,  fill:'#FF6252', op: dimmed ? 0.12 : 0.80, glow: false };   // only warning-red exception
-    case 'new':       return { r: base * 0.7 * selBoost,  fill:'#3C3F58', op: dimmed ? 0.08 : 0.36, glow: false };   // darkest outline
+    case 'mastered':  return { r: base * 1.45 * selBoost, fill:'#FFF2A5', op: dimmed ? 0.18 : 0.98, glow: dimmed ? false : 'gold' }; // 金白终态
+    case 'learning':  return { r: base * 1.1 * selBoost,  fill:'#F2F6FF', op: dimmed ? 0.14 : 0.90, glow: dimmed ? false : 'blue' }; // 蓝白亮星
+    case 'review_due':return { r: base * selBoost,         fill:'#B8D2FF', op: dimmed ? 0.12 : 0.62, glow: false };                  // 待复习蓝
+    case 'weak':      return { r: base * 1.1 * selBoost,  fill:'#FF7A6E', op: dimmed ? 0.14 : 0.82, glow: false };                  // 薄弱红预警
+    case 'new':       return { r: base * 0.75 * selBoost, fill:'#465064', op: dimmed ? 0.10 : 0.30, glow: false };                  // 未学暗蓝灰
   }
 }
 
@@ -1267,7 +1269,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
   const [bubblePos, setBubblePos] = useState({ x: 0, y: 0 });
   const [hint1, setHint1] = useState(true);
   const [hint2, setHint2] = useState(false);
-  const [mindMapScope, setMindMapScope] = useState<'current' | 'all'>('current');
+  // 范围职责坍缩：星空/思维导图恒=当前计划；只有列表关心「是否加入计划」。
   const [listMembership, setListMembership] = useState<'all' | PlanMembership>('all');
 
   // ── 三视图共享的知识点数据（思维导图/列表可增删改，星图仅浏览） ──
@@ -1405,7 +1407,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
   const includedConcepts = useMemo(() => concepts.filter(c => c.membership === 'included'), [concepts]);
   const masteredCount = includedConcepts.filter(c => c.status === 'mastered').length;
   const litPct = Math.round(masteredCount / Math.max(1, includedConcepts.length) * 100);
-  const mindMapConcepts = mindMapScope === 'current' ? includedConcepts : concepts;
+  // 思维导图恒接当前计划；列表是唯一承担计划成员筛选的兜底视图。
   const listConcepts = listMembership === 'all' ? concepts : concepts.filter(c => c.membership === listMembership);
 
   // Spec §筛选chip: ONLY 4 resident chips — 全部 / 待复习 / 薄弱 / 已掌握.
@@ -1433,6 +1435,48 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
         <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
           {litPct}% 已亮 · 本周新点亮 8 颗
         </span>
+
+        {/* 筛选 chip：合并进 header，紧贴进度文字（原独立筛选行已删） */}
+        <div className="flex items-center gap-1.5 ml-3">
+          {FILTER_CHIPS.map(chip => (
+            <button key={chip.id}
+              onClick={() => handleFilterChange(chip.id)}
+              className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+              style={{
+                background: filter === chip.id ? 'rgba(253,234,59,0.20)' : 'rgba(255,255,255,0.06)',
+                color: filter === chip.id ? '#FDEA3B' : 'rgba(255,255,255,0.45)',
+                border: filter === chip.id ? '1px solid rgba(253,234,59,0.45)' : '1px solid transparent',
+              }}>
+              {chip.label}
+            </button>
+          ))}
+          {/* Transient「今日待学」高亮（从今日「查看全部 →」进入），非常驻 chip */}
+          {filter === 'today' && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+              style={{ background: 'rgba(45,140,255,0.16)', color: '#6FB0FF', border: '1px solid rgba(45,140,255,0.35)' }}>
+              <span>正在高亮今日那批</span>
+              <button onClick={() => handleFilterChange('all')}
+                className="transition-opacity hover:opacity-70" style={{ color: '#6FB0FF' }} aria-label="清除今日高亮">
+                <X size={12}/>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 列表态：计划成员筛选并入右侧（星空/导图恒=当前计划，不显示此切换） */}
+        {view === 'list' && (
+          <div className="flex items-center gap-1.5 ml-2">
+            {([['all','全部'],['included','已加入'],['excluded','未加入']] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setListMembership(id)}
+                className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+                style={{ background: listMembership === id ? 'rgba(253,234,59,.16)' : 'rgba(255,255,255,.06)',
+                  color: listMembership === id ? '#FDEA3B' : 'rgba(255,255,255,.5)' }}>{label}</button>
+            ))}
+            <span className="text-[11px] ml-1" style={{ color: 'rgba(255,255,255,.32)' }}>
+              {listConcepts.length} / {concepts.length}
+            </span>
+          </div>
+        )}
 
         {/* View switcher */}
         <div className="ml-auto flex items-center gap-0.5 rounded-lg p-0.5"
@@ -1463,57 +1507,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
         </div>
       )}
 
-      {/* ── Filter chips ── */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(11,13,20,0.8)' }}>
-        {FILTER_CHIPS.map(chip => (
-          <button key={chip.id}
-            onClick={() => handleFilterChange(chip.id)}
-            className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-            style={{
-              background: filter === chip.id ? 'rgba(253,234,59,0.20)' : 'rgba(255,255,255,0.06)',
-              color: filter === chip.id ? '#FDEA3B' : 'rgba(255,255,255,0.45)',
-              border: filter === chip.id ? '1px solid rgba(253,234,59,0.45)' : '1px solid transparent',
-            }}>
-            {chip.label}
-          </button>
-        ))}
-        {/* Transient「今日待学」highlight (from Today「查看全部 →」), not a resident chip */}
-        {filter === 'today' && (
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
-            style={{ background: 'rgba(45,140,255,0.16)', color: '#6FB0FF', border: '1px solid rgba(45,140,255,0.35)' }}>
-            <span>正在高亮今日那批</span>
-            <button onClick={() => handleFilterChange('all')}
-              className="transition-opacity hover:opacity-70" style={{ color: '#6FB0FF' }} aria-label="清除今日高亮">
-              <X size={12}/>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* 范围控制按视图分层：星空固定当前计划，导图可看全量，列表承担全局兜底。 */}
-      <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(11,13,20,0.88)' }}>
-        <span className="text-[11px]" style={{ color: 'rgba(255,255,255,.38)' }}>查看范围</span>
-        {view === 'star' && (
-          <span className="px-3 py-1 rounded-full text-xs font-medium"
-            style={{ background: 'rgba(253,234,59,.16)', color: '#FDEA3B' }}>当前计划 · 成就视图</span>
-        )}
-        {view === 'mindmap' && ([['current','当前计划'],['all','全部知识点']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setMindMapScope(id)} className="px-3 py-1 rounded-full text-xs font-medium"
-            style={{ background: mindMapScope === id ? 'rgba(253,234,59,.16)' : 'rgba(255,255,255,.06)',
-              color: mindMapScope === id ? '#FDEA3B' : 'rgba(255,255,255,.5)' }}>{label}</button>
-        ))}
-        {view === 'list' && ([['all','全部'],['included','已加入'],['excluded','未加入']] as const).map(([id, label]) => (
-          <button key={id} onClick={() => setListMembership(id)} className="px-3 py-1 rounded-full text-xs font-medium"
-            style={{ background: listMembership === id ? 'rgba(253,234,59,.16)' : 'rgba(255,255,255,.06)',
-              color: listMembership === id ? '#FDEA3B' : 'rgba(255,255,255,.5)' }}>{label}</button>
-        ))}
-        <span className="ml-auto text-[11px]" style={{ color: 'rgba(255,255,255,.32)' }}>
-          {view === 'star' ? `${includedConcepts.length} 个计划内知识点` :
-            view === 'mindmap' ? `${mindMapConcepts.length} 个知识点` : `${listConcepts.length} / ${concepts.length} 个知识点`}
-        </span>
-      </div>
+      {/* 筛选 chips 与「查看范围」两行已合并进 header，此处不再占用常驻空间 */}
 
       {/* Hint 2 */}
       {hint2 && (
@@ -1540,23 +1534,36 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
               preserveAspectRatio="xMidYMid meet"
               style={{ display:'block' }}>
               <defs>
-                <filter id="bloom" x="-80%" y="-80%" width="260%" height="260%">
-                  <feGaussianBlur stdDeviation="4" result="b"/>
+                {/* onboarding 星空皮肤：蓝/金辉光 + 星云径向渐变 */}
+                <filter id="blueGlow" x="-400%" y="-400%" width="900%" height="900%">
+                  <feGaussianBlur stdDeviation="2.4" result="b"/>
                   <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
-                <filter id="bloomSm" x="-60%" y="-60%" width="220%" height="220%">
-                  <feGaussianBlur stdDeviation="2" result="b"/>
+                <filter id="goldGlow" x="-400%" y="-400%" width="900%" height="900%">
+                  <feGaussianBlur stdDeviation="3.6" result="b"/>
                   <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
                 </filter>
+                <radialGradient id="km-nebula">
+                  <stop offset="0" stopColor="#275CCB" stopOpacity=".22"/>
+                  <stop offset="1" stopColor="#061127" stopOpacity="0"/>
+                </radialGradient>
+                <radialGradient id="km-space" cx="62%" cy="34%" r="90%">
+                  <stop offset="0" stopColor="#19376F"/>
+                  <stop offset="0.3" stopColor="#0B1C42"/>
+                  <stop offset="0.66" stopColor="#050B20"/>
+                  <stop offset="1" stopColor="#020511"/>
+                </radialGradient>
               </defs>
 
-              {/* Deep space background */}
-              <rect width={SVG_W} height={SVG_H} fill="#0B0D14"/>
+              {/* Deep space background — onboarding 深蓝星云底 */}
+              <rect width={SVG_W} height={SVG_H} fill="url(#km-space)"/>
+              <ellipse cx={SVG_W * 0.68} cy={SVG_H * 0.42} rx={SVG_W * 0.34} ry={SVG_H * 0.4} fill="url(#km-nebula)"/>
+              <ellipse cx={SVG_W * 0.26} cy={SVG_H * 0.22} rx={SVG_W * 0.22} ry={SVG_H * 0.2} fill="#7436B8" opacity=".07"/>
 
               {/* Dust stars (fixed background) */}
               <g>
                 {DUST.map((d, i) => (
-                  <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#B8C0D8" opacity={d.op}/>
+                  <circle key={i} cx={d.x} cy={d.y} r={d.r} fill="#F5F8FF" opacity={d.op}/>
                 ))}
               </g>
 
@@ -1591,16 +1598,17 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
                   </g>
                 ))}
 
-                {/* Relation lines (LOD 2) */}
+                {/* Relation lines (LOD 2) — onboarding 冷蓝连线 */}
                 {visibleRelations.map((r, i) => {
                   const lit = r.from.status === 'mastered' || r.to.status === 'mastered';
                   return (
                     <line key={i}
                       x1={r.from.sx} y1={r.from.sy}
                       x2={r.to.sx} y2={r.to.sy}
-                      stroke={lit ? '#5577CC' : '#2A3055'}
+                      stroke={lit ? '#C8D9F6' : '#3A5590'}
                       strokeWidth={0.6/scale}
-                      opacity={lit ? 0.45 : 0.18}
+                      opacity={lit ? 0.34 : 0.14}
+                      strokeLinecap="round"
                       style={{ pointerEvents:'none' }}/>
                   );
                 })}
@@ -1611,16 +1619,27 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
                   const dimmed = filter !== 'all' && !fMatch;
                   const isSel = selected?.id === c.id;
                   const v = starVis(c, dimmed, isSel);
+                  const glowId = v.glow === 'gold' ? 'url(#goldGlow)' : v.glow === 'blue' ? 'url(#blueGlow)' : undefined;
+                  const isGold = v.glow === 'gold';
                   return (
                     <g key={c.id}
                       onClick={(e) => handleStarClick(e, c)}
                       style={{ cursor: lod >= 1 ? 'pointer' : 'default', pointerEvents: lod >= 1 ? 'all' : 'none' }}>
                       {v.glow && (
-                        <circle cx={c.sx} cy={c.sy} r={v.r * 2.2} fill={v.fill} opacity={v.op * 0.25}
-                          filter="url(#bloom)" style={{ pointerEvents:'none' }}/>
+                        <circle cx={c.sx} cy={c.sy} r={v.r * 2.8} fill={isGold ? '#FFECA0' : '#B8D7FF'}
+                          opacity={isGold ? 0.11 : 0.06} style={{ pointerEvents:'none' }}/>
+                      )}
+                      {/* 已掌握终态：十字闪烁（onboarding 手法） */}
+                      {isGold && lod >= 1 && (
+                        <>
+                          <line x1={c.sx - v.r * 2.2} y1={c.sy} x2={c.sx + v.r * 2.2} y2={c.sy}
+                            stroke="#FFF1A2" strokeWidth={0.18/scale} opacity={0.7} style={{ pointerEvents:'none' }}/>
+                          <line x1={c.sx} y1={c.sy - v.r * 3} x2={c.sx} y2={c.sy + v.r * 3}
+                            stroke="#FFF1A2" strokeWidth={0.14/scale} opacity={0.6} style={{ pointerEvents:'none' }}/>
+                        </>
                       )}
                       <circle cx={c.sx} cy={c.sy} r={v.r} fill={v.fill} opacity={v.op}
-                        filter={v.glow ? 'url(#bloomSm)' : undefined}/>
+                        filter={glowId}/>
                       {isSel && (
                         <circle cx={c.sx} cy={c.sy} r={v.r + 2.5/scale}
                           fill="none" stroke="#F5F0D0" strokeWidth={1/scale} opacity={0.9}/>
@@ -1630,7 +1649,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
                         <text x={c.sx} y={c.sy - v.r - 3/scale}
                           textAnchor="middle"
                           fontSize={9/scale}
-                          fill={isSel ? '#F5F0D0' : 'rgba(220,210,170,0.75)'}
+                          fill={isSel ? '#F5F0D0' : 'rgba(220,232,255,0.8)'}
                           style={{ pointerEvents:'none', userSelect:'none' }}>
                           {c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name}
                         </text>
@@ -1700,7 +1719,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
 
         {/* Mind map */}
         {view === 'mindmap' && (
-          <MindMapView concepts={mindMapConcepts} filter={filter} ops={ops}/>
+          <MindMapView concepts={includedConcepts} filter={filter} ops={ops}/>
         )}
 
         {/* List */}

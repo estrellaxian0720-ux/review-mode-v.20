@@ -24,6 +24,14 @@ interface OnboardingScreenProps {
   onActiveStepChange?: (step: Step) => void;
 }
 
+interface StudyIdentity {
+  goalType: GoalType;
+  subject: string;
+  school: string;
+  major: string;
+  planName: string;
+}
+
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const BG     = '#F6F6F6';
 const CARD   = '#FFFFFF';
@@ -48,15 +56,6 @@ const PRIMARY_GOALS: { id: GoalType; label: string; icon: string }[] = [
   { id: 'other',    label: '其他',        icon: '◇' },
 ];
 
-const SECONDARY_GOALS: Record<GoalType, string[]> = {
-  college:  ['理工类', '经管类', '医学类', '其他'],
-  postgrad: ['理工类', '经管类', '医学类', '其他'],
-  civil:    ['国考', '省考', '事业单位', '其他'],
-  cert:     ['CPA·财会类', '法考·法律类', '教师资格证', '执医·医学类', '其他'],
-  language: ['四六级', '雅思', '托福', '其他语言考试'],
-  other:    ['理工类', '经管类', '医学类', '其他知识类', '语言类'],
-};
-
 const SUBJECTS_BY_GOAL: Record<GoalType, string[]> = {
   college:  ['高等数学', '大学物理', '线性代数', '概率论', '有机化学'],
   postgrad: ['数学一', '政治', '英语一', '专业课'],
@@ -65,6 +64,17 @@ const SUBJECTS_BY_GOAL: Record<GoalType, string[]> = {
   language: ['词汇', '听力', '阅读', '写作', '口语'],
   other:    ['自定义科目'],
 };
+
+const CERTIFICATE_EXAMS = ['法考', 'CPA', '教师资格证', '执业医师', '其他'];
+const CERTIFICATE_SUBJECTS: Record<string, string[]> = {
+  '法考': ['刑法', '民法', '行政法', '理论法', '商法', '诉讼法'],
+  'CPA': ['会计', '审计', '财务成本管理', '经济法', '税法', '公司战略与风险管理'],
+  '教师资格证': ['综合素质', '教育知识与能力', '学科知识与教学能力'],
+  '执业医师': ['基础医学综合', '医学人文综合', '临床医学综合', '预防医学综合'],
+  '其他': [],
+};
+const POSTGRAD_MAJOR_COURSES = ['数据结构', '计算机组成原理', '管理学', '西医综合', '法学综合', '其他'];
+const LANGUAGE_EXAMS = ['四六级', '雅思', '托福', '其他'];
 
 // Cohort counts by secondary goal — tiered aggregation, omit when below threshold
 const COHORT_COUNTS: Record<string, string> = {
@@ -89,12 +99,6 @@ const SCORE_DEFAULTS: Record<GoalType, { target: string; total: string }> = {
   language: { target: '60',  total: '100' },
   other:    { target: '60',  total: '100' },
 };
-
-function getDefaultSpaceName(goalType: GoalType, detail: string): string {
-  const label = PRIMARY_GOALS.find(g => g.id === goalType)?.label ?? '';
-  if (detail && detail !== '其他') return `${label}·${detail}`;
-  return `${label}备考`;
-}
 
 // ── Shared components ──────────────────────────────────────────────────────────
 
@@ -204,33 +208,67 @@ function PlanHeader({ active }: { active: 0 | 1 | 2 | 3 }) {
 
 // ── A1: Goal & Direction ───────────────────────────────────────────────────────
 
-function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => void }) {
-  const [primaryGoal, setPrimaryGoal]     = useState<GoalType | null>(null);
-  const [detail, setDetail]               = useState('');
-  const [bgFields, setBgFields]           = useState(['', '', '']);
+function buildDefaultPlanName(goalType: GoalType, subject: string, school: string, major: string, certificateExam = '', languageExam = ''): string {
+  if (goalType === 'college') return [school, major, subject].filter(Boolean).join(' · ') || '大学课程';
+  if (goalType === 'postgrad') return ['考研', subject].filter(Boolean).join(' · ');
+  if (goalType === 'civil') return ['考公', subject].filter(Boolean).join(' · ');
+  if (goalType === 'cert') return [certificateExam || '资格证', subject].filter(Boolean).join(' · ');
+  if (goalType === 'language') return [languageExam || '语言考试', subject].filter(Boolean).join(' · ');
+  return subject;
+}
+
+function A1Screen({ onNext }: { onNext: (identity: StudyIdentity) => void }) {
+  const [primaryGoal, setPrimaryGoal]     = useState<GoalType | null>('college');
+  const [subject, setSubject]             = useState(SUBJECTS_BY_GOAL.college[0]);
+  const [customSubject, setCustomSubject] = useState(false);
+  const [certificateExam, setCertificateExam] = useState(CERTIFICATE_EXAMS[0]);
+  const [postgradMajorCourse, setPostgradMajorCourse] = useState(POSTGRAD_MAJOR_COURSES[0]);
+  const [customPostgradCourse, setCustomPostgradCourse] = useState('');
+  const [languageExam, setLanguageExam] = useState(LANGUAGE_EXAMS[0]);
+  const [customLanguageExam, setCustomLanguageExam] = useState('');
+  const [school, setSchool]               = useState('');
+  const [major, setMajor]                 = useState('');
+  const [planName, setPlanName]           = useState('');
+  const [nameEdited, setNameEdited]       = useState(false);
   const [showModal, setShowModal]         = useState(false);
   const [langConfirmed, setLangConfirmed] = useState(false);
   const [schoolOpen, setSchoolOpen]       = useState(false);
+  const schoolInputRef = useRef<HTMLInputElement>(null);
+  const [schoolMenuRect, setSchoolMenuRect] = useState<{left:number;top:number;width:number}|null>(null);
   const schools = ['北京大学','北京理工大学','北京师范大学','北京航空航天大学','清华大学','复旦大学','上海交通大学','浙江大学'];
-  const matchedSchools = schools.filter(s => !bgFields[2] || s.includes(bgFields[2])).slice(0, 5);
+  const matchedSchools = schools.filter(s => !school || s.includes(school)).slice(0, 5);
 
-  const isLanguage   = primaryGoal === 'language' || (primaryGoal === 'other' && detail === '语言类');
-  const canProceed   = !!primaryGoal && (!isLanguage || langConfirmed);
-  const cohortCount  = detail ? (COHORT_COUNTS[detail] ?? '5,000+') : primaryGoal ? '10,000+' : null;
+  const isLanguage   = primaryGoal === 'language';
+  const resolvedSubject = primaryGoal === 'postgrad' && subject === '专业课'
+    ? (postgradMajorCourse === '其他' ? customPostgradCourse.trim() : postgradMajorCourse.trim())
+    : subject.trim();
+  const resolvedLanguageExam = languageExam === '其他' ? customLanguageExam.trim() : languageExam;
+  const canProceed   = !!primaryGoal && !!resolvedSubject && !!planName.trim() && (!isLanguage || (langConfirmed && !!resolvedLanguageExam));
+  const cohortCount  = primaryGoal ? '10,000+' : null;
+  const defaultPlanName = primaryGoal ? buildDefaultPlanName(primaryGoal, resolvedSubject, school.trim(), major.trim(), certificateExam, resolvedLanguageExam) : '';
+
+  useEffect(() => {
+    if (!nameEdited) setPlanName(defaultPlanName);
+  }, [defaultPlanName, nameEdited]);
 
   const handlePrimary = (g: GoalType) => {
-    if (g !== primaryGoal) { setDetail(''); setLangConfirmed(false); setBgFields(['', '', '']); }
+    if (g !== primaryGoal) {
+      const nextSubject = g === 'cert' ? CERTIFICATE_SUBJECTS[CERTIFICATE_EXAMS[0]][0] : SUBJECTS_BY_GOAL[g][0] === '自定义科目' ? '' : SUBJECTS_BY_GOAL[g][0];
+      setSubject(nextSubject); setCustomSubject(g === 'other'); setSchool(''); setMajor(''); setLangConfirmed(false); setNameEdited(false);
+      setCertificateExam(CERTIFICATE_EXAMS[0]); setPostgradMajorCourse(POSTGRAD_MAJOR_COURSES[0]); setCustomPostgradCourse('');
+      setLanguageExam(LANGUAGE_EXAMS[0]); setCustomLanguageExam('');
+    }
     setPrimaryGoal(g);
     if (g === 'language') setShowModal(true);
   };
 
-  const handleDetail = (val: string) => {
-    setDetail(val);
-    if ((primaryGoal === 'language' || (primaryGoal === 'other' && val === '语言类')) && val) setShowModal(true);
-  };
-
   const inputBase: React.CSSProperties = {
     background: CARD, border: `1px solid ${BORDER}`, color: T2,
+  };
+  const openSchoolMenu = () => {
+    const rect = schoolInputRef.current?.getBoundingClientRect();
+    if (rect) setSchoolMenuRect({left:rect.left,top:rect.bottom+4,width:rect.width});
+    setSchoolOpen(true);
   };
 
   return (
@@ -239,17 +277,19 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
 
       <div className="flex-1 flex flex-col gap-2.5 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
         <div>
-          <div className="grid grid-cols-3 gap-2">
+          <FieldLabel>你正在准备什么方向的考试？</FieldLabel>
+          <div className="grid grid-cols-6 gap-1.5" role="radiogroup" aria-label="准备类型">
             {PRIMARY_GOALS.map(p => (
               <button key={p.id} onClick={() => handlePrimary(p.id)}
-                className="h-[62px] flex items-center justify-center gap-2 px-2 rounded-xl text-center transition-all"
+                role="radio" aria-checked={primaryGoal === p.id}
+                className="h-10 flex items-center justify-start gap-1.5 px-3 rounded-lg text-left transition-all"
                 style={{
                   background: primaryGoal === p.id ? '#FFFBDE' : CARD,
-                  border: `2px solid ${primaryGoal === p.id ? PRIMARY : BORDER}`,
-                  boxShadow: primaryGoal === p.id ? '0 2px 8px rgba(253,199,0,0.18)' : 'none',
+                  border: `1.5px solid ${primaryGoal === p.id ? '#D9B900' : BORDER}`,
                 }}>
-                <span style={{ fontSize: 18 }}>{p.icon}</span>
-                <span className="text-[12px] font-semibold leading-tight" style={{ color: T2 }}>
+                <span className="w-3 h-3 rounded-full flex items-center justify-center" style={{border:`1.5px solid ${primaryGoal===p.id?'#A88300':'#BBB'}`}}>{primaryGoal===p.id&&<i className="w-1.5 h-1.5 rounded-full" style={{background:'#A88300'}}/>}</span>
+                <span className="text-[14px] leading-none" aria-hidden="true">{p.icon}</span>
+                <span className="text-[10.5px] font-semibold leading-tight" style={{ color: T2 }}>
                   {p.label}
                 </span>
               </button>
@@ -259,27 +299,23 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
 
         <div className="flex flex-col gap-2.5 pb-1 pt-2.5" style={{ borderTop: `1px solid ${BORDER}` }}>
           {primaryGoal && <div className="grid grid-cols-2 gap-2">
-            {primaryGoal === 'other' ? (
-              <label className="col-span-2"><FieldLabel>你准备学习什么？（选填）</FieldLabel><input value={detail} onChange={e=>setDetail(e.target.value)} placeholder="输入学习方向" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
-            ) : <>
-              <label><FieldLabel>{primaryGoal==='civil'?'考公类型':primaryGoal==='cert'?'资格类型':primaryGoal==='language'?'语言考试类型':'学科大类'}（选填）</FieldLabel>
-                <select value={detail} onChange={e=>handleDetail(e.target.value)} className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}><option value="">暂未确定</option>{SECONDARY_GOALS[primaryGoal].map(v=><option key={v}>{v}</option>)}</select>
+            {primaryGoal==='cert'&&<div className="col-span-2"><FieldLabel>你要参加什么考试？</FieldLabel><div className="flex flex-wrap gap-1.5">{CERTIFICATE_EXAMS.map(exam=><button type="button" key={exam} onClick={()=>{setCertificateExam(exam);const options=CERTIFICATE_SUBJECTS[exam];setCustomSubject(exam==='其他');setSubject(options[0]||'');}} className="px-2.5 py-1.5 rounded-full text-[11px] font-medium" style={{background:certificateExam===exam?'#EAF3FF':'#F3F4F6',color:certificateExam===exam?BLUE:T3,border:`1px solid ${certificateExam===exam?BLUE:'transparent'}`}}>{exam}</button>)}</div></div>}
+            {primaryGoal==='language'&&<div className="col-span-2"><FieldLabel>你要参加什么考试？</FieldLabel><div className="flex flex-wrap gap-1.5">{LANGUAGE_EXAMS.map(exam=><button type="button" key={exam} onClick={()=>{setLanguageExam(exam);setCustomLanguageExam('');}} className="px-2.5 py-1.5 rounded-full text-[11px] font-medium" style={{background:languageExam===exam?'#EAF3FF':'#F3F4F6',color:languageExam===exam?BLUE:T3,border:`1px solid ${languageExam===exam?BLUE:'transparent'}`}}>{exam}</button>)}</div>{languageExam==='其他'&&<input autoFocus value={customLanguageExam} onChange={e=>setCustomLanguageExam(e.target.value)} placeholder="输入具体语言考试" className="w-full mt-2 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/>}</div>}
+            <div className="col-span-2">
+              <FieldLabel>科目（单选）</FieldLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {primaryGoal !== 'other' && (primaryGoal==='cert'?CERTIFICATE_SUBJECTS[certificateExam]:SUBJECTS_BY_GOAL[primaryGoal]).map(s=><button type="button" key={s} onClick={()=>{setSubject(s);setCustomSubject(false);}} className="px-2.5 py-1.5 rounded-full text-[11px] font-medium" style={{background:!customSubject&&subject===s?'#EAF3FF':'#F3F4F6',color:!customSubject&&subject===s?BLUE:T3,border:`1px solid ${!customSubject&&subject===s?BLUE:'transparent'}`}}>{s}</button>)}
+                <button type="button" onClick={()=>{setCustomSubject(true);setSubject('');}} className="px-2.5 py-1.5 rounded-full text-[11px] font-medium" style={{background:customSubject?'#EAF3FF':'#F3F4F6',color:customSubject?BLUE:T3,border:`1px solid ${customSubject?BLUE:'transparent'}`}}>其他</button>
+              </div>
+              {customSubject&&<input autoFocus value={subject} onChange={e=>setSubject(e.target.value)} placeholder="输入其他科目" className="w-full mt-2 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/>}
+            </div>
+            {primaryGoal==='postgrad'&&subject==='专业课'&&<div className="col-span-2"><FieldLabel>具体专业课</FieldLabel><select value={postgradMajorCourse} onChange={e=>setPostgradMajorCourse(e.target.value)} className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}>{POSTGRAD_MAJOR_COURSES.map(course=><option key={course}>{course}</option>)}</select>{postgradMajorCourse==='其他'&&<input autoFocus value={customPostgradCourse} onChange={e=>setCustomPostgradCourse(e.target.value)} placeholder="输入具体专业课" className="w-full mt-2 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/>}</div>}
+            {(primaryGoal==='college'||primaryGoal==='postgrad') && <>
+              <label className="relative"><FieldLabel>学校（选填）</FieldLabel>
+                <div className="relative"><Search size={14} className="absolute left-3 top-2.5" color={T4}/><input ref={schoolInputRef} value={school} onFocus={openSchoolMenu} onBlur={()=>setTimeout(()=>setSchoolOpen(false),120)} onChange={e=>{setSchool(e.target.value);openSchoolMenu();}} placeholder="搜索或输入学校" className="w-full pl-8 pr-8 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/><ChevronDown size={14} className="absolute right-3 top-2.5" color={T4}/></div>
               </label>
-              {(primaryGoal==='college'||primaryGoal==='postgrad') && <>
-                <label><FieldLabel>细分专业（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,bgFields[1],bgFields[2]])} list="major-options" placeholder="搜索或选择专业" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
-                <label><FieldLabel>{primaryGoal==='college'?'课程':'备考科目'}（选填）</FieldLabel><input value={bgFields[1]} onChange={e=>setBgFields([bgFields[0],e.target.value,bgFields[2]])} placeholder="搜索或输入课程" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
-                <label className="relative"><FieldLabel>学校（选填）</FieldLabel>
-                  <div className="relative"><Search size={14} className="absolute left-3 top-2.5" color={T4}/><input value={bgFields[2]} onFocus={()=>setSchoolOpen(true)} onBlur={()=>setTimeout(()=>setSchoolOpen(false),120)} onChange={e=>{setBgFields([bgFields[0],bgFields[1],e.target.value]);setSchoolOpen(true);}} placeholder="搜索或输入学校" className="w-full pl-8 pr-8 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/><ChevronDown size={14} className="absolute right-3 top-2.5" color={T4}/></div>
-                  {schoolOpen && <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl overflow-hidden" style={{background:CARD,border:`1px solid ${BORDER}`,boxShadow:'0 10px 24px rgba(20,35,60,.12)'}}>
-                    {matchedSchools.map(s=><button type="button" key={s} onMouseDown={e=>e.preventDefault()} onClick={()=>{setBgFields([bgFields[0],bgFields[1],s]);setSchoolOpen(false);}} className="w-full text-left px-3 py-2 text-[11px] hover:bg-gray-50" style={{color:T2}}>{s}</button>)}
-                    {bgFields[2] && !schools.includes(bgFields[2]) && <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSchoolOpen(false)} className="w-full text-left px-3 py-2 text-[11px]" style={{color:BLUE,borderTop:`1px solid ${BORDER}`}}>使用当前输入：{bgFields[2]}</button>}
-                  </div>}
-                </label>
-                <datalist id="major-options"><option>计算机科学与技术</option><option>临床医学</option><option>工商管理</option><option>法学</option></datalist>
-              </>}
-              {primaryGoal==='civil' && <label><FieldLabel>考公科目（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,'',''])} placeholder="如：行测、申论" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>}
-              {primaryGoal==='cert' && <label><FieldLabel>具体考试（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,'',''])} placeholder={detail==='其他'?'请输入资格考试名称':'搜索或输入考试'} className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>}
-              {primaryGoal==='language' && <label><FieldLabel>目标级别或分数（选填）</FieldLabel><input value={bgFields[0]} onChange={e=>setBgFields([e.target.value,'',''])} placeholder="如：雅思 7 分" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>}
+              <label><FieldLabel>专业（选填）</FieldLabel><input value={major} onChange={e=>setMajor(e.target.value)} list="major-options" placeholder="搜索或输入专业" className="w-full px-3 py-2 rounded-xl text-[12px] outline-none" style={inputBase}/></label>
+              <datalist id="major-options"><option>计算机科学与技术</option><option>临床医学</option><option>工商管理</option><option>法学</option></datalist>
             </>}
           </div>}
 
@@ -287,22 +323,29 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
             <div className="px-3 py-2.5 rounded-xl"
               style={{ background: '#FFFBDE', border: `1px solid #FFE562` }}>
               <span className="text-[12px]" style={{ color: '#7A6400' }}>
-                已选择 {detail}，将使用自己的资料继续（暂无示例包）
+                已选择 {subject}，将使用自己的资料继续（暂无示例包）
               </span>
             </div>
           )}
         </div>
       </div>
 
-      <div className="pb-4 pt-2">
-        {primaryGoal && primaryGoal !== 'language' && cohortCount && <div className="flex items-center justify-center gap-2 mb-4">
+      <div className="pb-4 pt-3 px-1 flex-shrink-0" style={{background:BG,borderTop:`1px solid ${BORDER}`}}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className="text-[11px] font-semibold flex-shrink-0" style={{color:T2}}>计划名称</span>
+          <input aria-label="学习计划名称" value={planName} onChange={e=>{setPlanName(e.target.value);setNameEdited(true);}} placeholder="选择科目后生成计划名称" className="flex-1 min-w-0 px-3 py-2 rounded-lg text-[13px] font-semibold outline-none" style={{background:CARD,border:`1px solid ${BORDER}`,color:T1}}/>
+          {nameEdited&&<button type="button" onClick={()=>setNameEdited(false)} className="text-[10px] font-semibold flex-shrink-0" style={{color:BLUE}}>恢复自动命名</button>}
+        </div>
+        {primaryGoal && primaryGoal !== 'language' && cohortCount && <div className="flex items-center justify-center gap-2 mb-3">
           <div className="flex -space-x-2">{[12,32,47,5].map((n,i)=><img key={n} src={`https://i.pravatar.cc/48?img=${n}`} className="w-7 h-7 rounded-full object-cover" style={{border:`2px solid ${BG}`,zIndex:4-i}} alt="正在学习的同学"/>)}</div>
-          <span className="text-[11.5px]" style={{color:T3}}>已有 <strong style={{color:'#7A6400'}}>{cohortCount} 位同学</strong>正在学习{detail?`「${detail}」`:`「${PRIMARY_GOALS.find(g=>g.id===primaryGoal)?.label}」`}</span>
+          <span className="text-[11.5px]" style={{color:T3}}>已有 <strong style={{color:'#7A6400'}}>{cohortCount} 位同学</strong>正在学习「{resolvedSubject || PRIMARY_GOALS.find(g=>g.id===primaryGoal)?.label}」</span>
         </div>}
-        <CTAButton onClick={() => onNext(primaryGoal!, detail)} disabled={!canProceed}>
-          下一步：设置复习科目 →
+          <CTAButton onClick={() => onNext({goalType:primaryGoal!,subject:resolvedSubject,school:school.trim(),major:major.trim(),planName:planName.trim()})} disabled={!canProceed}>
+          下一步：设置计划详情 →
         </CTAButton>
       </div>
+
+      {schoolOpen && schoolMenuRect && createPortal(<div className="rounded-xl overflow-hidden" style={{position:'fixed',left:schoolMenuRect.left,top:schoolMenuRect.top,width:schoolMenuRect.width,zIndex:80,background:CARD,border:`1px solid ${BORDER}`,boxShadow:'0 12px 32px rgba(20,35,60,.18)'}}>{matchedSchools.map(s=><button type="button" key={s} onMouseDown={e=>e.preventDefault()} onClick={()=>{setSchool(s);setSchoolOpen(false);}} className="w-full text-left px-3 py-2 text-[11px] hover:bg-gray-50" style={{color:T2}}>{s}</button>)}{school&& !schools.includes(school)&&<button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSchoolOpen(false)} className="w-full text-left px-3 py-2 text-[11px]" style={{color:BLUE,borderTop:`1px solid ${BORDER}`}}>使用当前输入：{school}</button>}</div>,document.body)}
 
       {/* Language warning modal — bottom sheet */}
       {showModal && (
@@ -313,7 +356,7 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
               <h3 className="text-[17px] font-bold pr-4" style={{ color: T1 }}>
                 当前版本暂未针对语言学习优化
               </h3>
-              <button onClick={() => { setShowModal(false); setDetail(''); setLangConfirmed(false); }}>
+              <button onClick={() => { setShowModal(false); setSubject(''); setLangConfirmed(false); }}>
                 <X size={18} color={T4} />
               </button>
             </div>
@@ -321,7 +364,7 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
               云记目前更适合需要理解、整理和记忆的知识类科目。四六级、雅思、托福等语言考试涉及词汇、听力、口语等专项训练，当前版本暂不能提供完整支持。
             </p>
             <button
-              onClick={() => { setShowModal(false); setDetail(''); setLangConfirmed(false); }}
+              onClick={() => { setShowModal(false); setSubject(''); setLangConfirmed(false); }}
               className="w-full py-3.5 rounded-full text-[15px] font-bold mb-3"
               style={{ background: PRIMARY, color: '#7A6400' }}>
               返回选择其他类型
@@ -344,7 +387,7 @@ function A1Screen({ onNext }: { onNext: (goalType: GoalType, detail: string) => 
 const FAMILIARITY = [
   { id: 'beginner',     icon: '○', label: '零基础',   sub: '系统从头学',  isDefault: false },
   { id: 'intermediate', icon: '◐', label: '学过一遍', sub: '需要巩固',    isDefault: true  },
-  { id: 'advanced',     icon: '◕', label: '冲刺复习', sub: '查漏补缺',    isDefault: false },
+  { id: 'advanced',     icon: '◕', label: '比较熟悉', sub: '掌握较多',    isDefault: false },
   { id: 'custom',       icon: '⚙', label: '自定义',  sub: '掌握程度',    isDefault: false },
 ];
 const CUSTOM_PCTS = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90];
@@ -357,17 +400,15 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function A2Screen({ goalType, goalDetail, onNext, onBack }: {
-  goalType: GoalType; goalDetail: string; onNext: () => void; onBack: () => void;
+function A2Screen({ goalType, onNext, onBack }: {
+  goalType: GoalType; onNext: () => void; onBack: () => void;
 }) {
-  const { weeklyStudyDays, setWeeklyStudyDays } = useApp();
+  const { weeklyStudyDays, setWeeklyStudyDays, planMethod, setPlanMethod } = useApp();
   const defaultScores = SCORE_DEFAULTS[goalType];
   const defaultDate = (() => {
     const d = new Date(); d.setDate(d.getDate() + 7);
     return d.toISOString().split('T')[0];
   })();
-  const [spaceName, setSpaceName]     = useState(() => getDefaultSpaceName(goalType, goalDetail));
-  const [subjects, setSubjects]       = useState<Set<string>>(() => new Set([SUBJECTS_BY_GOAL[goalType][0]]));
   const [examDate, setExamDate]       = useState(defaultDate);
   const [targetScore, setTargetScore] = useState(defaultScores.target);
   const [totalScore, setTotalScore]   = useState(defaultScores.total);
@@ -379,17 +420,30 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
   const [reminderDenied, setReminderDenied] = useState(false);
   const [reminderTime, setReminderTime] = useState('19:00');
   const [customReminder, setCustomReminder] = useState(false);
+  const [planMethodTouched, setPlanMethodTouched] = useState(false);
 
   const daysLeft = examDate
     ? Math.max(0, Math.ceil((new Date(examDate).getTime() - Date.now()) / 86400000))
     : null;
+  const effectiveStudyDays = useMemo(() => {
+    if (!examDate) return 0;
+    const cursor = new Date(); cursor.setHours(0, 0, 0, 0);
+    const deadline = new Date(`${examDate}T00:00:00`);
+    let count = 0;
+    while (cursor < deadline) {
+      const weekday = cursor.getDay() === 0 ? 7 : cursor.getDay();
+      if (weeklyStudyDays.includes(weekday)) count += 1;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return count;
+  }, [examDate, weeklyStudyDays]);
+  const recommendedPlanMethod = effectiveStudyDays < 7 ? 'SPRINT_ONLY' : 'SYSTEM_PLANNED';
 
-  const availSubjects = SUBJECTS_BY_GOAL[goalType];
-  const canProceed = spaceName && examDate && targetScore && totalScore && familiarity && !scoreError;
+  useEffect(() => {
+    if (!planMethodTouched) setPlanMethod(recommendedPlanMethod);
+  }, [planMethodTouched, recommendedPlanMethod, setPlanMethod]);
 
-  const toggleSubject = (s: string) => {
-    const next = new Set(subjects); next.has(s) ? next.delete(s) : next.add(s); setSubjects(next);
-  };
+  const canProceed = examDate && targetScore && totalScore && familiarity && !scoreError;
   const toggleStudyDay = (day: number) => {
     const next = weeklyStudyDays.includes(day)
       ? weeklyStudyDays.filter(value => value !== day)
@@ -420,153 +474,22 @@ function A2Screen({ goalType, goalDetail, onNext, onBack }: {
     background: CARD, border: `1px solid ${err ? RED : BORDER}`, color: T2,
   });
 
+  const examDateField = <div><FieldLabel>考试日期</FieldLabel><input type="date" value={examDate} onChange={e=>setExamDate(e.target.value)} min={new Date().toISOString().split('T')[0]} className={inputCls} style={inputStyle()}/>{daysLeft!==null&&<p className="text-[11px] mt-0.5" style={{color:BLUE}}>距考试还有 {daysLeft} 天 · {effectiveStudyDays} 个有效学习日</p>}</div>;
+  const rhythmField = <div><div className="flex items-center justify-between mb-1.5"><FieldLabel>每周复习节奏</FieldLabel><span className="text-[10px] font-semibold" style={{color:BLUE}}>每周 {weeklyStudyDays.length} 天</span></div><div className="grid grid-cols-7 gap-1">{['一','二','三','四','五','六','日'].map((label,index)=>{const day=index+1;const active=weeklyStudyDays.includes(day);return <button key={day} type="button" onClick={()=>toggleStudyDay(day)} aria-pressed={active} className="h-7 rounded-lg text-[10px] font-bold" style={{background:active?PRIMARY:'#F3F4F6',color:active?'#6B5900':T4,border:`1px solid ${active?'#D9B900':BORDER}`}}>{label}</button>;})}</div><p className="text-[10px] mt-1.5" style={{color:T4}}>周末默认休息，点击日期可调整</p></div>;
+  const methodField = <div><FieldLabel>复习方式</FieldLabel><div className="grid grid-cols-2 gap-1.5">{([['SYSTEM_PLANNED','系统安排','根据剩余时间安排新学与冲刺'],['SPRINT_ONLY','只做冲刺','跳过新学阶段，直接全量抽检']] as const).map(([value,label,description])=>{const active=planMethod===value;const recommended=recommendedPlanMethod===value;return <button key={value} type="button" onClick={()=>{setPlanMethod(value);setPlanMethodTouched(true);}} aria-pressed={active} className="relative min-h-[58px] rounded-xl px-2.5 py-2 text-left transition-all" style={{background:active?'#FFFBDE':CARD,border:`1.5px solid ${active?PRIMARY:BORDER}`}}><p className="text-[11.5px] font-semibold leading-tight pr-4" style={{color:T2}}>{label}</p>{recommended&&<span className="absolute top-1.5 right-1.5 px-1 rounded text-[8px] font-bold" style={{background:'#F0F0F0',color:'#888'}}>推荐</span>}<p className="text-[9.5px] leading-[1.35] mt-1" style={{color:T4}}>{description}</p></button>;})}</div></div>;
+  const reminderField = <div className="pt-2" style={{borderTop:`1px solid ${BORDER}`}}><div className="flex items-center justify-between"><div><p className="text-[12px] font-semibold" style={{color:T2}}>复习提醒</p><p className="text-[10px]" style={{color:T4}}>按你的节奏提醒当天任务</p></div><button onClick={toggleReminder} className="w-11 h-6 rounded-full p-0.5 transition-colors" style={{background:reminderEnabled?GREEN:'#D6D8DC'}}><span className="block w-5 h-5 rounded-full bg-white transition-transform" style={{transform:reminderEnabled?'translateX(20px)':'translateX(0)'}}/></button></div>{reminderDenied&&!reminderEnabled&&<p className="text-[10px] mt-2" style={{color:'#A06B00'}}>需要开启通知权限才能设置复习提醒，可在系统设置中授权。</p>}{reminderEnabled&&<div className="mt-2"><div className="flex flex-wrap gap-1.5">{[['10:00','上午 10:00'],['12:00','中午 12:00'],['14:00','下午 2:00'],['19:00','晚上 7:00']].map(([value,label])=><button key={value} onClick={()=>{setReminderTime(value);setCustomReminder(false);}} className="px-2.5 py-1.5 rounded-lg text-[10px]" style={{background:!customReminder&&reminderTime===value?'#EAF3FF':CARD,border:`1px solid ${!customReminder&&reminderTime===value?BLUE:BORDER}`,color:!customReminder&&reminderTime===value?BLUE:T3}}>{label}</button>)}<button onClick={()=>setCustomReminder(true)} className="px-2.5 py-1.5 rounded-lg text-[10px]" style={{background:customReminder?'#EAF3FF':CARD,border:`1px solid ${customReminder?BLUE:BORDER}`,color:customReminder?BLUE:T3}}>其他时间</button></div>{customReminder&&<input type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)} className="w-full mt-2 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputStyle()}/>}</div>}</div>;
+  const scoreField = <div><FieldLabel>目标分数 / 总分</FieldLabel><div className="flex items-center gap-2"><input type="number" value={targetScore} onChange={e=>{setTargetScore(e.target.value);validateScore(e.target.value,totalScore);}} placeholder="目标分" className={`${inputCls} flex-1`} style={inputStyle(!!scoreError)}/><span className="text-[13px] flex-shrink-0" style={{color:T4}}>/</span><input type="number" value={totalScore} onChange={e=>{setTotalScore(e.target.value);validateScore(targetScore,e.target.value);}} placeholder="总分" className={`${inputCls} flex-1`} style={inputStyle()}/></div>{scoreError&&<p className="text-[11px] mt-0.5" style={{color:RED}}>{scoreError}</p>}</div>;
+  const familiarityField = <div><FieldLabel>当前熟悉度</FieldLabel><div className="grid grid-cols-2 gap-1.5">{FAMILIARITY.map(f=><button key={f.id} onClick={()=>setFamiliarity(f.id)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all relative" style={{background:familiarity===f.id?'#FFFBDE':CARD,border:`1.5px solid ${familiarity===f.id?PRIMARY:BORDER}`}}>{f.isDefault&&<span className="absolute top-1 right-1 px-1 rounded text-[8px] font-bold leading-tight" style={{background:'#F0F0F0',color:'#AAA'}}>默认</span>}<span className="text-[15px] leading-none flex-shrink-0" style={{color:familiarity===f.id?'#7A6400':T4}}>{f.icon}</span><div className="min-w-0"><p className="text-[12px] font-semibold leading-tight truncate" style={{color:T2}}>{f.label}</p><p className="text-[10px] leading-tight" style={{color:T4}}>{f.sub}</p></div></button>)}</div>{familiarity==='custom'&&<select value={customPct} onChange={e=>setCustomPct(e.target.value)} className="w-full mt-1.5 px-3 py-2 rounded-xl text-[13px] outline-none" style={inputStyle()}>{CUSTOM_PCTS.map(p=><option key={p} value={String(p)}>{p}%</option>)}</select>}</div>;
+  const languageField = <div><FieldLabel>输出语种</FieldLabel><select value={lang} onChange={e=>setLang(e.target.value)} className={inputCls} style={inputStyle()}><option>简体中文</option><option>English</option><option>繁體中文</option></select><p className="text-[11px] mt-0.5" style={{color:'#BBB'}}>用于后续练习题与 AI Tutor 回复</p></div>;
+
   return (
     <div className="flex flex-col h-full px-5">
       <PlanHeader active={1}/>
 
       <div className="flex-1 overflow-y-auto pb-2" style={{ scrollbarWidth: 'none' }}>
         <div className="grid grid-cols-2 gap-x-5">
-
-          {/* ── LEFT COLUMN ── */}
-          <div className="space-y-3 pr-4" style={{ borderRight: `1px solid ${BORDER}` }}>
-            {/* 1. Space name */}
-            <div>
-              <FieldLabel>学习空间名称</FieldLabel>
-              <input value={spaceName} onChange={e => setSpaceName(e.target.value)}
-                placeholder="如「法考备考 2026」"
-                className={inputCls} style={inputStyle()} />
-            </div>
-
-            {/* 2. Subjects */}
-            <div>
-              <FieldLabel>复习科目</FieldLabel>
-              <div className="flex flex-wrap gap-1.5">
-                {availSubjects.map(s => (
-                  <button key={s} onClick={() => toggleSubject(s)}
-                    className="px-2.5 py-1 rounded-full text-[12px] font-medium transition-all"
-                    style={{
-                      background: subjects.has(s) ? '#EAF3FF' : '#F3F4F6',
-                      color:      subjects.has(s) ? BLUE : T3,
-                      border:     `1px solid ${subjects.has(s) ? BLUE : 'transparent'}`,
-                    }}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 3. Target / Total score — paired */}
-            <div>
-              <FieldLabel>目标分数 / 总分</FieldLabel>
-              <div className="flex items-center gap-2">
-                <input type="number" value={targetScore}
-                  onChange={e => { setTargetScore(e.target.value); validateScore(e.target.value, totalScore); }}
-                  placeholder="目标分" className={`${inputCls} flex-1`} style={inputStyle(!!scoreError)} />
-                <span className="text-[13px] flex-shrink-0" style={{ color: T4 }}>/</span>
-                <input type="number" value={totalScore}
-                  onChange={e => { setTotalScore(e.target.value); validateScore(targetScore, e.target.value); }}
-                  placeholder="总分" className={`${inputCls} flex-1`} style={inputStyle()} />
-              </div>
-              {scoreError && <p className="text-[11px] mt-0.5" style={{ color: RED }}>{scoreError}</p>}
-            </div>
-
-            {/* 4. Familiarity — 2×2 grid */}
-            <div>
-              <FieldLabel>当前熟悉度</FieldLabel>
-              <div className="grid grid-cols-2 gap-1.5">
-                {FAMILIARITY.map(f => (
-                  <button key={f.id} onClick={() => setFamiliarity(f.id)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all relative"
-                    style={{
-                      background: familiarity === f.id ? '#FFFBDE' : CARD,
-                      border: `1.5px solid ${familiarity === f.id ? PRIMARY : BORDER}`,
-                    }}>
-                    {f.isDefault && (
-                      <span className="absolute top-1 right-1 px-1 rounded text-[8px] font-bold leading-tight"
-                        style={{ background: '#F0F0F0', color: '#AAA' }}>默认</span>
-                    )}
-                    <span className="text-[15px] leading-none flex-shrink-0"
-                      style={{ color: familiarity === f.id ? '#7A6400' : T4 }}>{f.icon}</span>
-                    <div className="min-w-0">
-                      <p className="text-[12px] font-semibold leading-tight truncate" style={{ color: T2 }}>{f.label}</p>
-                      <p className="text-[10px] leading-tight" style={{ color: T4 }}>{f.sub}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              {familiarity === 'custom' && (
-                <select value={customPct} onChange={e => setCustomPct(e.target.value)}
-                  className="w-full mt-1.5 px-3 py-2 rounded-xl text-[13px] outline-none"
-                  style={inputStyle()}>
-                  {CUSTOM_PCTS.map(p => <option key={p} value={String(p)}>{p}%</option>)}
-                </select>
-              )}
-            </div>
-
-          </div>
-
-          {/* ── RIGHT COLUMN ── */}
-          <div className="space-y-3">
-            {/* 1. Exam date */}
-            <div>
-              <FieldLabel>考试日期</FieldLabel>
-              <input type="date" value={examDate}
-                onChange={e => setExamDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                className={inputCls} style={inputStyle()} />
-              {daysLeft !== null && (
-                <p className="text-[11px] mt-0.5" style={{ color: BLUE }}>距考试还有 {daysLeft} 天</p>
-              )}
-            </div>
-
-            {/* 2. Language */}
-            <div>
-              <FieldLabel>输出语种</FieldLabel>
-              <select value={lang} onChange={e => setLang(e.target.value)}
-                className={inputCls} style={inputStyle()}>
-                <option>简体中文</option>
-                <option>English</option>
-                <option>繁體中文</option>
-              </select>
-              <p className="text-[11px] mt-0.5" style={{ color: '#BBB' }}>用于后续练习题与 AI Tutor 回复</p>
-            </div>
-
-            {/* 只设置周期性可用时间；具体日期任务由 AI 拆解后生成。 */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <FieldLabel>每周学习节奏</FieldLabel>
-                <span className="text-[10px] font-semibold" style={{color:BLUE}}>每周 {weeklyStudyDays.length} 天</span>
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {['一','二','三','四','五','六','日'].map((label, index) => {
-                  const day = index + 1;
-                  const active = weeklyStudyDays.includes(day);
-                  return <button key={day} type="button" onClick={() => toggleStudyDay(day)}
-                    aria-pressed={active}
-                    className="h-7 rounded-lg text-[10px] font-bold"
-                    style={{background:active?PRIMARY:'#F3F4F6',color:active?'#6B5900':T4,border:`1px solid ${active?'#D9B900':BORDER}`}}>{label}</button>;
-                })}
-              </div>
-              <p className="text-[10px] mt-1.5" style={{color:T4}}>
-                周末默认休息，点击日期可调整
-              </p>
-            </div>
-
-            <div className="pt-2" style={{borderTop:`1px solid ${BORDER}`}}>
-              <div className="flex items-center justify-between">
-                <div><p className="text-[12px] font-semibold" style={{color:T2}}>复习提醒</p><p className="text-[10px]" style={{color:T4}}>按你的节奏提醒当天任务</p></div>
-                <button onClick={toggleReminder} className="w-11 h-6 rounded-full p-0.5 transition-colors" style={{background:reminderEnabled?GREEN:'#D6D8DC'}}><span className="block w-5 h-5 rounded-full bg-white transition-transform" style={{transform:reminderEnabled?'translateX(20px)':'translateX(0)'}}/></button>
-              </div>
-              {reminderDenied && !reminderEnabled && <p className="text-[10px] mt-2" style={{color:'#A06B00'}}>需要开启通知权限才能设置复习提醒，可在系统设置中授权。</p>}
-              {reminderEnabled && <div className="mt-2">
-                <div className="flex flex-wrap gap-1.5">
-                  {[['10:00','上午 10:00'],['12:00','中午 12:00'],['14:00','下午 2:00'],['19:00','晚上 7:00']].map(([value,label])=><button key={value} onClick={()=>{setReminderTime(value);setCustomReminder(false);}} className="px-2.5 py-1.5 rounded-lg text-[10px]" style={{background:!customReminder&&reminderTime===value?'#EAF3FF':CARD,border:`1px solid ${!customReminder&&reminderTime===value?BLUE:BORDER}`,color:!customReminder&&reminderTime===value?BLUE:T3}}>{label}</button>)}
-                  <button onClick={()=>setCustomReminder(true)} className="px-2.5 py-1.5 rounded-lg text-[10px]" style={{background:customReminder?'#EAF3FF':CARD,border:`1px solid ${customReminder?BLUE:BORDER}`,color:customReminder?BLUE:T3}}>其他时间</button>
-                </div>
-                {customReminder && <input type="time" value={reminderTime} onChange={e=>setReminderTime(e.target.value)} className="w-full mt-2 px-3 py-2 rounded-xl text-[12px] outline-none" style={inputStyle()}/>}
-              </div>}
-            </div>
-          </div>
+          <div className="space-y-3 pr-4" style={{borderRight:`1px solid ${BORDER}`}}>{examDateField}{rhythmField}{methodField}{reminderField}</div>
+          <div className="space-y-3">{scoreField}{familiarityField}{languageField}</div>
         </div>
       </div>
 
@@ -2458,6 +2381,7 @@ export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = o
   const [stepIdx, setStepIdx]       = useState(() => initialStep ? Math.max(0, STEPS_WITH_SAMPLE.indexOf(initialStep)) : 0);
   const [goalType, setGoalType]     = useState<GoalType>('cert');
   const [goalDetail, setGoalDetail] = useState('法考·法律类');
+  const [studyIdentity, setStudyIdentity] = useState<StudyIdentity>({goalType:'cert',subject:'刑法',school:'',major:'',planName:'资格证 · 刑法'});
   const [materialSource, setMaterialSource] = useState<'REAL_UPLOAD' | 'SAMPLE'>('SAMPLE');
   const [spaceCreated, setSpaceCreated] = useState(false);
   const [resumeDemoAtEnd, setResumeDemoAtEnd] = useState(false);
@@ -2496,10 +2420,10 @@ export default function OnboardingScreen({ onComplete, onSkip, onEnterSample = o
   const renderStep = () => {
     switch (step) {
       case 'A1': return (
-        <A1Screen onNext={(gt, gd) => { setGoalType(gt); setGoalDetail(gd); next(); }} />
+        <A1Screen onNext={(identity) => { setStudyIdentity(identity); setGoalType(identity.goalType); setGoalDetail(identity.subject); next(); }} />
       );
       case 'A2': return (
-        <A2Screen goalType={goalType} goalDetail={goalDetail} onNext={next} onBack={back} />
+        <A2Screen goalType={studyIdentity.goalType} onNext={next} onBack={back} />
       );
       case 'B1': return <B1Screen onNext={next} />;
       case 'A3': return (

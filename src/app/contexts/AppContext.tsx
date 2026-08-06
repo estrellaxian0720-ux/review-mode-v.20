@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useTransition } 
 import type { Screen } from '../types/navigation';
 import type { Resource, ResourceForTriage } from '../types/resource';
 import type { ExamConfig, ExamResults } from '../types/exam';
+import type { PlanMethod } from '../types/study';
 
 /**
  * 顶部Tab类型（全局）
@@ -44,6 +45,8 @@ interface AppState {
   dailyStudyHours: number;
   /** 1=周一 … 7=周日；默认工作日学习。 */
   weeklyStudyDays: number[];
+  /** 只决定进入自动阶段拆分或既有全冲刺分支。 */
+  planMethod: PlanMethod;
   
   // 进度追踪
   overallMastery: number;
@@ -88,6 +91,7 @@ interface AppActions {
   setPracticeStartingPoint: (id: string | undefined) => void;
   setDailyStudyHours: (hours: number) => void;
   setWeeklyStudyDays: (days: number[]) => void;
+  setPlanMethod: (method: PlanMethod) => void;
   
   // 进度操作
   updateMastery: (mastery: number) => void;
@@ -227,6 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [practiceStartingPoint, setPracticeStartingPoint] = useState<string | undefined>(undefined);
   const [dailyStudyHours, setDailyStudyHours] = useState(2);
   const [weeklyStudyDays, setWeeklyStudyDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [planMethod, setPlanMethod] = useState<PlanMethod>('SYSTEM_PLANNED');
   
   // 进度追踪
   const [overallMastery, setOverallMastery] = useState(68);
@@ -327,6 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     practiceStartingPoint,
     dailyStudyHours,
     weeklyStudyDays,
+    planMethod,
     overallMastery,
     showPivotPopup,
     showMasteryCompletion,
@@ -350,6 +356,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPracticeStartingPoint,
     setDailyStudyHours,
     setWeeklyStudyDays,
+    setPlanMethod,
     updateMastery,
     setShowPivotPopup,
     setShowMasteryCompletion,

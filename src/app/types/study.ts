@@ -46,11 +46,42 @@ export type PracticeMode =
   | 'true-false';// 判断题
 
 /**
+ * 计划方式：仅决定进入既有的自动拆分或全冲刺分支。
+ */
+export type PlanMethod = 'SYSTEM_PLANNED' | 'SPRINT_ONLY';
+
+export interface PlanPhaseAllocation {
+  learnDays: number;
+  sprintDays: number;
+  sprintTrigger: 'USER_SELECTED' | 'DEADLINE_FORCED' | 'STAGE_SCHEDULED';
+}
+
+/** 将设置项映射到既有阶段算法；工作量、容量与出题逻辑保持不变。 */
+export function resolvePlanPhaseAllocation(
+  planMethod: PlanMethod,
+  effectiveStudyDays: number,
+  fullSprintThreshold = 7,
+): PlanPhaseAllocation {
+  const days = Math.max(0, Math.floor(effectiveStudyDays));
+  if (planMethod === 'SPRINT_ONLY') {
+    return { learnDays: 0, sprintDays: days, sprintTrigger: 'USER_SELECTED' };
+  }
+  if (days < fullSprintThreshold) {
+    return { learnDays: 0, sprintDays: days, sprintTrigger: 'DEADLINE_FORCED' };
+  }
+  const sprintDays = Math.ceil(days * 0.2);
+  return { learnDays: days - sprintDays, sprintDays, sprintTrigger: 'STAGE_SCHEDULED' };
+}
+
+/**
  * 学习计划配置
  */
 export interface StudyPlanConfig {
   /** 学习空间ID */
   spaceId: string;
+
+  /** 计划方式；默认由系统按剩余时间安排。 */
+  planMethod: PlanMethod;
   
   /** 目标分数 */
   targetScore: number;
