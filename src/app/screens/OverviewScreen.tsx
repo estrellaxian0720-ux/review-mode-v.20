@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import {
   Star, FolderOpen, Settings, Info, X,
-  TrendingUp, AlertTriangle, RotateCcw, BookOpen, Share2,
+  TrendingUp, AlertTriangle, BookOpen, Share2, ChevronRight,
 } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
 
@@ -284,12 +284,16 @@ function StarMapPreview({ height, onClick, onShare }: { height: number; onClick:
           borderRadius: 13, padding: "9px 12px",
           display: "flex", flexDirection: "column", gap: 5,
         }}>
-          {/* Total account — spec 行321 正向叙事 */}
+          {/* Total account — spec 行321 正向叙事。「已点亮 X 颗」与「本周新增」并成一排；
+              不再重复写「41% 的星空被照亮」（100/241 已隐含比例）。 */}
           <p style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,248,220,0.95)", lineHeight: 1.35, margin: 0 }}>
             你已点亮{" "}
             <span style={{ fontSize: 18, fontWeight: 800, color: "#FFD080", letterSpacing: -0.5 }}>100</span>
             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.32)", fontWeight: 400 }}>/241</span>
-            {" "}颗 · <strong style={{ color: "#FFD080" }}>41%</strong> 的刑法星空被照亮
+            {" "}颗
+            <span style={{ fontSize: 11, fontWeight: 400, color: "rgba(255,255,255,0.42)" }}>
+              {" "}· 本周新增 <strong style={{ color: "rgba(255,238,140,0.72)", fontWeight: 700 }}>8</strong>
+            </span>
           </p>
           {/* Achievement badges */}
           <div style={{ display: "flex", gap: 6 }}>
@@ -313,13 +317,6 @@ function StarMapPreview({ height, onClick, onShare }: { height: number; onClick:
                 <div style={{ fontSize: 13, fontWeight: 800, color: "#A0BEFF", lineHeight: 1.1 }}>18h 20m</div>
               </div>
             </div>
-          </div>
-          {/* New this week — 同侪排名 + 虚拟头像堆已上移到顶部「预测分数」旁（见 FusionCard A-top）。
-              此处星图 HUD 只保留最轻的「本周新点亮」一行，不再重复画排名。 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-            <p style={{ fontSize: 11, color: "rgba(255,255,255,0.42)", margin: 0, lineHeight: 1.45 }}>
-              本周新点亮 <strong style={{ color: "rgba(255,238,140,0.62)" }}>8</strong> 颗
-            </p>
           </div>
         </div>
 
@@ -552,18 +549,6 @@ function SharePosterModal({ onClose }: { onClose: () => void }) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function RiskTag({ icon, label, color, bg }: { icon: React.ReactNode; label: string; color: string; bg: string }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 4,
-      fontSize: 11, fontWeight: 500, color, background: bg,
-      borderRadius: 6, padding: "3px 8px",
-    }}>
-      {icon}{label}
-    </span>
-  );
-}
-
 // ── Fusion Card ───────────────────────────────────────────────────────────────
 
 interface FusionCardProps {
@@ -571,9 +556,10 @@ interface FusionCardProps {
   onShowInfo: (rect: DOMRect) => void;
   onMapClick: () => void;
   onShare: () => void;
+  onOpenLeaderboard: () => void;
 }
 
-function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare }: FusionCardProps) {
+function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare, onOpenLeaderboard }: FusionCardProps) {
   const unlearnedPct = STAGES.find(s => s.label === "未学")!.pct;
 
   return (
@@ -602,42 +588,57 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare }: FusionCardPr
               <span style={{ fontSize: 46, fontWeight: 800, color: C.ink, lineHeight: 1, letterSpacing: "-1px" }}>
                 78%
               </span>
-              <div>
-                <div style={{ fontSize: 12, color: C.mastered, fontWeight: 600, marginBottom: 4 }}>
-                  较上周 +6%
-                </div>
-                <span style={{ fontSize: 11, color: C.inkMuted, background: "#F0F2F6", borderRadius: 6, padding: "2px 8px" }}>
-                  可信度 中
-                </span>
+              {/* 可信度已收进达成率 ⓘ 弹窗（见 InfoPopover），首页不再单独展示，避免重复。 */}
+              <div style={{ fontSize: 12, color: C.mastered, fontWeight: 600 }}>
+                较上周 +6%
               </div>
             </div>
 
-            {/* 同侪临场 / 陪伴：虚拟头像堆 + 「已超过 X% 同学」，紧贴预测分数下方。
-                口径=竞争临场 + 陪伴，不贬低用户；头像为示意元素，暂不支持点击。 */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12 }}>
-              <div style={{ display: "flex", flexShrink: 0 }}>
-                {[
-                  { bg: "linear-gradient(135deg,#FFB74D,#F57C00)", ch: "李" },
-                  { bg: "linear-gradient(135deg,#64B5F6,#1976D2)", ch: "王" },
-                  { bg: "linear-gradient(135deg,#81C784,#388E3C)", ch: "张" },
-                  { bg: "linear-gradient(135deg,#BA68C8,#7B1FA2)", ch: "陈" },
-                  { bg: "linear-gradient(135deg,#4DB6AC,#00796B)", ch: "刘" },
-                ].map((a, i) => (
-                  <span key={i} style={{
-                    width: 22, height: 22, borderRadius: "50%", background: a.bg,
-                    border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.16)",
-                    marginLeft: i === 0 ? 0 : -7, zIndex: 5 - i, position: "relative",
-                    display: "inline-flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.95)",
-                  }}>
-                    {a.ch}
-                  </span>
-                ))}
-              </div>
-              <p style={{ fontSize: 12, color: C.inkMuted, margin: 0, lineHeight: 1.4 }}>
-                已超过 <strong style={{ color: C.ink, fontWeight: 800 }}>68%</strong> 同学 · 还有 32% 在你前面
-              </p>
-            </div>
+            {/* 同侪临场 / 排行榜入口（未来功能）：单句随处境切换——
+                过半(>50%)展示成就「已超过 X% 同学」；未过半(≤50%)展示追赶「还有 X% 同学在你前面」，
+                制造竞争紧迫感。整行可点击，› 暗示可进入排行榜。口径=竞争临场 + 陪伴，头像为示意元素。 */}
+            {(() => {
+              const beatPct = 68; // 已超过的同学占比
+              const ahead = 100 - beatPct; // 在你前面的占比
+              const isAhead = beatPct > 50;
+              return (
+                <button
+                  onClick={onOpenLeaderboard}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8, marginTop: 12,
+                    background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%",
+                  }}
+                >
+                  <div style={{ display: "flex", flexShrink: 0 }}>
+                    {[
+                      { bg: "linear-gradient(135deg,#FFB74D,#F57C00)", ch: "李" },
+                      { bg: "linear-gradient(135deg,#64B5F6,#1976D2)", ch: "王" },
+                      { bg: "linear-gradient(135deg,#81C784,#388E3C)", ch: "张" },
+                      { bg: "linear-gradient(135deg,#BA68C8,#7B1FA2)", ch: "陈" },
+                      { bg: "linear-gradient(135deg,#4DB6AC,#00796B)", ch: "刘" },
+                    ].map((a, i) => (
+                      <span key={i} style={{
+                        width: 22, height: 22, borderRadius: "50%", background: a.bg,
+                        border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.16)",
+                        marginLeft: i === 0 ? 0 : -7, zIndex: 5 - i, position: "relative",
+                        display: "inline-flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.95)",
+                      }}>
+                        {a.ch}
+                      </span>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 12, color: C.inkSub, margin: 0, lineHeight: 1.4, textAlign: "left" }}>
+                    {isAhead ? (
+                      <>已超过 <strong style={{ color: C.ink, fontWeight: 800 }}>{beatPct}%</strong> 同学</>
+                    ) : (
+                      <>还有 <strong style={{ color: C.weak, fontWeight: 800 }}>{ahead}%</strong> 同学在你前面</>
+                    )}
+                  </p>
+                  <ChevronRight size={14} color={C.inkMuted} style={{ flexShrink: 0 }} />
+                </button>
+              );
+            })()}
           </div>
 
           {/* Vertical divider */}
@@ -666,49 +667,8 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare }: FusionCardPr
       {/* ── A-mid: Star map — no padding, fills full card width ── */}
       <StarMapPreview height={mapHeight} onClick={onMapClick} onShare={onShare} />
 
-      {/* Fix 10: Stage bar legend readable at small size */}
-      <div style={{ padding: "13px 20px 17px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 9, gap: 8, flexWrap: "wrap" }}>
-          {/* 风险标签放在进度条上方、与标题同一行（标题右侧），紧邻当前学习阶段 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.inkMuted, letterSpacing: "0.04em" }}>
-              当前学习阶段
-            </div>
-            <RiskTag icon={<AlertTriangle size={10} />} label="薄弱 24 个" color={C.weak} bg={C.weakBg} />
-            <RiskTag icon={<RotateCcw size={10} />} label="到期复习 17 个" color={C.reviewDue} bg="#F0F2F6" />
-          </div>
-          {/* 当前熟悉程度 — read-only system indicator (spec 行346) */}
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }} title="由你的练习数据自动评估，不支持手动修改">
-            <span style={{ fontSize: 11, color: C.inkMuted }}>当前熟悉程度</span>
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.mastered }}>中等</span>
-            <span style={{
-              width: 14, height: 14, borderRadius: "50%", background: "#EEF1F7",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              color: C.inkMuted, flexShrink: 0,
-            }}>
-              <Info size={9} />
-            </span>
-          </div>
-        </div>
-
-        {/* Legend — 8px dots, 11px labels */}
-        <div style={{ display: "flex", gap: 14, marginBottom: 8, flexWrap: "wrap" }}>
-          {STAGES.map(s => (
-            <div key={s.label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
-              <span style={{ fontSize: 11, color: C.inkMuted }}>{s.label}</span>
-              <span style={{ fontSize: 11, color: C.inkSub, fontWeight: 600 }}>{s.pct}%</span>
-            </div>
-          ))}
-        </div>
-
-        {/* 4-segment bar — 8px height */}
-        <div style={{ display: "flex", borderRadius: 5, overflow: "hidden", height: 8, gap: 1.5 }}>
-          {STAGES.map(s => (
-            <div key={s.label} style={{ flex: s.pct, background: s.color, minWidth: 2 }} />
-          ))}
-        </div>
-      </div>
+      {/* 「当前学习阶段」整块（四段掌握轴 / 薄弱 / 到期复习 / 当前熟悉程度）已下沉到知识地图详情页，
+          概览首页只呈现「达成率 + 星空成就」，行动入口交由下方「建议下一步」。详见 KnowledgeMapScreen 顶部统计条。 */}
     </div>
   );
 }
@@ -916,19 +876,8 @@ export default function OverviewScreen({
             </div>
           </div>
 
-          {/* Overview 一级信息架构：计划管时间，知识体系管掌握与结构 */}
-          <div style={{ display: 'flex', gap: 4, padding: 4, marginBottom: 12,
-            borderRadius: 12, background: '#ECEEF2', width: 'fit-content' }}>
-            <button onClick={() => onViewPlan?.()} style={{
-              padding: '8px 22px', border: 'none', borderRadius: 9, background: 'transparent',
-              color: C.inkSub, fontSize: 13, fontWeight: 650, cursor: 'pointer',
-            }}>学习计划</button>
-            <button style={{
-              padding: '8px 22px', border: 'none', borderRadius: 9, background: '#fff',
-              color: C.ink, fontSize: 13, fontWeight: 750, cursor: 'default',
-              boxShadow: '0 1px 4px rgba(0,0,0,.08)',
-            }}>知识体系</button>
-          </div>
+          {/* 概览首页默认即「知识体系概览」，不再放置「学习计划 ⇄ 知识体系」大切换；
+              两者切换下沉为知识地图详情页顶栏的小开关（详见 KnowledgeMapScreen）。 */}
 
           {/* Fix 8: Portrait = 220px star map, landscape = 200px */}
           <FusionCard
@@ -936,6 +885,7 @@ export default function OverviewScreen({
             onShowInfo={(rect) => setInfoAnchor(rect)}
             onMapClick={handleMapClick}
             onShare={() => setShowShare(true)}
+            onOpenLeaderboard={() => { /* 排行榜为未来功能入口，暂不导航 */ }}
           />
 
           {/* Fix 8: Portrait = column direction, landscape = row */}

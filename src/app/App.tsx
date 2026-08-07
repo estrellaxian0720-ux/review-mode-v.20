@@ -116,7 +116,8 @@ function AppContent() {
   const [planDemoScenario, setPlanDemoScenario] = React.useState<PlanDemoScenario>('fit');
   const [planWeekendMode, setPlanWeekendMode] = React.useState<PlanWeekendMode>('rest');
   const [demoMenuOpen, setDemoMenuOpen] = React.useState(false);
-  const [demoControlPosition, setDemoControlPosition] = React.useState({ left: 12, top: 72 });
+  // null = 未手动拖动，默认锚定顶部 Tab 栏右上角（随横竖屏自适应贴右，不遮挡页面内容）
+  const [demoControlPosition, setDemoControlPosition] = React.useState<{ left: number; top: number } | null>(null);
   const [onboardingActiveStep, setOnboardingActiveStep] = React.useState('A1');
   const generationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -265,6 +266,7 @@ function AppContent() {
         return (
           <KnowledgeMapScreen
             onBack={() => navigateTo('overview' as any)}
+            onViewPlan={() => { setCourseProgressContext('view'); navigateTo('course-progress'); }}
           />
         );
 
@@ -430,7 +432,10 @@ function AppContent() {
               });
             }}
             style={{
-              position: 'absolute', left: demoControlPosition.left, top: demoControlPosition.top, zIndex: 310,
+              position: 'absolute',
+              left: demoControlPosition ? demoControlPosition.left : frameW - 96,
+              top: demoControlPosition ? demoControlPosition.top : 14,
+              zIndex: 310,
               cursor: 'move', userSelect: 'none',
             }}
           >
