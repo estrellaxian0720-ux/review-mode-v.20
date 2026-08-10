@@ -38,9 +38,12 @@ import TodayScreen from './screens/TodayScreen';
 import OverviewScreen from './screens/OverviewScreen';
 import KnowledgeMapScreen from './screens/KnowledgeMapScreen';
 import PracticeScreen from './screens/PracticeScreen';
+import PracticeReportScreen, { type PracticeReportMode } from './screens/PracticeReportScreen';
 import CourseProgressScreen from './screens/CourseProgressScreen';
 import MockExamScreen from './screens/MockExamScreen';
 import MockTestSetupScreen from './screens/MockTestSetupScreen';
+import MockExamHistoryScreen, { type MockHistoryRecord } from './screens/MockExamHistoryScreen';
+import MockExamHistoryDetailScreen from './screens/MockExamHistoryDetailScreen';
 import PostExamReportScreen from './screens/PostExamReportScreen';
 import ResourcesScreen from './screens/ResourcesScreen';
 import ResourceCollectionScreen from './screens/ResourceCollectionScreen';
@@ -57,7 +60,7 @@ const FULLSCREEN_SCREENS = ['practice', 'mock-exam', 'resource-collection', 'pri
 /**
  * 定义哪些屏幕需要隐藏侧边栏
  */
-const HIDE_SIDEBAR_SCREENS = [...FULLSCREEN_SCREENS, 'exam-report'];
+const HIDE_SIDEBAR_SCREENS = [...FULLSCREEN_SCREENS, 'exam-report', 'practice-report', 'mock-exam-history', 'mock-exam-history-detail'];
 
 /**
  * 主应用内容组件
@@ -119,6 +122,8 @@ function AppContent() {
   // null = 未手动拖动，默认锚定顶部 Tab 栏右上角（随横竖屏自适应贴右，不遮挡页面内容）
   const [demoControlPosition, setDemoControlPosition] = React.useState<{ left: number; top: number } | null>(null);
   const [onboardingActiveStep, setOnboardingActiveStep] = React.useState('A1');
+  const [selectedMockHistory, setSelectedMockHistory] = React.useState<MockHistoryRecord | null>(null);
+  const [practiceReportMode, setPracticeReportMode] = React.useState<PracticeReportMode>('SECTION_EXITED');
   const generationTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   React.useEffect(() => {
@@ -236,7 +241,6 @@ function AppContent() {
             onStartPractice={() => startPractice()}
             onViewResources={commonProps.onViewResources}
             onStartMockExam={commonProps.onStartMockExam}
-            onViewKnowledgeMap={() => navigateTo('knowledge-map' as any)}
             onViewPlan={() => { setCourseProgressContext('view'); navigateTo('course-progress'); }}
             onViewAllSpaces={() => navigateTo('space-selector')}
           />
@@ -266,7 +270,6 @@ function AppContent() {
         return (
           <KnowledgeMapScreen
             onBack={() => navigateTo('overview' as any)}
-            onViewPlan={() => { setCourseProgressContext('view'); navigateTo('course-progress'); }}
           />
         );
 
@@ -274,16 +277,33 @@ function AppContent() {
         return (
           <PracticeScreen
               onBack={exitPractice}
+              onShowReport={(mode) => {
+                setPracticeReportMode(mode);
+                navigateTo('practice-report');
+              }}
               startingPointId={practiceStartingPoint}
               dailyHours={dailyStudyHours}
               masteryPercentage={overallMastery}
             />
         );
 
+      case 'practice-report':
+        return (
+          <PracticeReportScreen
+            mode={practiceReportMode}
+            onBackToToday={() => {
+              setTopTab('review-mode');
+              setReviewModeTab('dashboard');
+              navigateTo('dashboard');
+            }}
+            onContinuePractice={() => navigateTo('practice')}
+          />
+        );
+
       case 'resources':
         return (
           <ResourcesScreen
-              onBack={() => navigateTo('dashboard')}
+              onBack={() => navigateTo('overview' as any)}
               onNavigateToCollection={() => navigateTo('resource-collection')}
               onNavigateToDashboard={commonProps.onNavigateToDashboard}
               onStartMockExam={commonProps.onStartMockExam}
@@ -335,7 +355,7 @@ function AppContent() {
             key={`daily-${planWeekendMode}`}
             onBack={() => navigateTo('dashboard')}
             onHome={() => navigateTo('dashboard')}
-            onViewKnowledgeSystem={() => navigateTo('overview' as any)}
+            onViewKnowledgeSystem={() => navigateTo('knowledge-map' as any)}
             onConfirm={() => startPractice()}
             initialState="daily"
             demoScenario="fit"
@@ -355,8 +375,40 @@ function AppContent() {
                 setReviewModeTab('dashboard');
                 navigateTo('dashboard');
               }}
+              onViewHistory={() => navigateTo('mock-exam-history')}
             />
         );
+
+      case 'mock-exam-history':
+        return (
+          <MockExamHistoryScreen
+            onBack={() => navigateTo('mock-exam-setup')}
+            onResume={() => navigateTo('mock-exam')}
+            onOpenRecord={(record) => {
+              setSelectedMockHistory(record);
+              navigateTo('mock-exam-history-detail');
+            }}
+          />
+        );
+
+      case 'mock-exam-history-detail':
+        return selectedMockHistory ? (
+          <MockExamHistoryDetailScreen
+            record={selectedMockHistory}
+            onBack={() => navigateTo('mock-exam-history')}
+            onRetake={() => {
+              setExamConfig({
+                scope: { type: 'all', selectedIds: [] },
+                numberOfQuestions: selectedMockHistory.questionCount,
+                questionTypes: ['single', 'truefalse', 'fill', 'multiple', 'shortanswer'],
+                difficulty: 'auto',
+                preferNewQuestions: false,
+                estimatedMinutes: selectedMockHistory.durationMinutes || 25,
+              });
+              navigateTo('mock-exam');
+            }}
+          />
+        ) : <MockExamHistoryScreen onBack={() => navigateTo('mock-exam-setup')} onResume={() => navigateTo('mock-exam')} onOpenRecord={(record) => { setSelectedMockHistory(record); navigateTo('mock-exam-history-detail'); }} />;
 
       case 'all-notes':
         return (
@@ -404,7 +456,6 @@ function AppContent() {
             onStartPractice={() => startPractice()}
             onViewResources={commonProps.onViewResources}
             onStartMockExam={commonProps.onStartMockExam}
-            onViewKnowledgeMap={() => navigateTo('knowledge-map' as any)}
             onViewPlan={() => { setCourseProgressContext('view'); navigateTo('course-progress'); }}
           />
         );
@@ -534,7 +585,7 @@ function AppContent() {
           )}
 
           {/* 屏幕内容 */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className={`flex-1 min-h-0 overflow-hidden relative ${showReviewModeBottomTab ? 'pb-16' : ''}`}>
             {renderScreen()}
           </div>
 

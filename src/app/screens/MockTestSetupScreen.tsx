@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, Search, X, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, Search, X, Info, History } from 'lucide-react';
 
 /**
  * 模考设置页（组卷设置） — Prompt 1
@@ -252,9 +252,9 @@ export function MockTestSetupScreen({
           {/* 历史模考入口 */}
           <button
             onClick={onViewHistory}
-            className="absolute right-0 top-1 text-[13px] text-[#2D8CFF] hover:underline"
+            className="absolute right-0 top-0 inline-flex items-center gap-1.5 rounded-lg border border-[#D8E7FF] bg-white px-3 py-2 text-[12px] font-semibold text-[#2D8CFF] shadow-sm hover:border-[#9DC4FF]"
           >
-            历史模考 ›
+            <History className="w-3.5 h-3.5" />历史模考
           </button>
         </div>
       </div>

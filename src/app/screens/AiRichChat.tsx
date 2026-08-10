@@ -929,8 +929,16 @@ export function AiFloatingWindow({
   return (
     <div
       ref={dragRef}
-      style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 999, width: minimized ? 220 : 360 }}
-      className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden transition-[width] duration-200"
+      style={{
+        position: 'fixed',
+        left: position.x,
+        top: position.y,
+        zIndex: 999,
+        // 固定默认尺寸、不可调节：宽 = 1/3 屏宽；高 = 上下轻微留白（收起时仅标题条高度）
+        width: minimized ? 240 : '33.333vw',
+        height: minimized ? undefined : 'calc(100vh - 32px)',
+      }}
+      className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col"
     >
       {/* Handle */}
       <div
@@ -953,7 +961,7 @@ export function AiFloatingWindow({
 
       {!minimized && (
         <>
-          <div className="h-[280px] overflow-y-auto px-3 py-3 space-y-3 bg-gray-50">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 bg-gray-50">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full text-center">
                 <CloudAvatar size={28} />

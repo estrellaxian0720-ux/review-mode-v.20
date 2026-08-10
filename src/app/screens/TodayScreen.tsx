@@ -66,7 +66,6 @@ interface TodayScreenProps {
   onStartPractice?: (practiceType?: PracticeType) => void;
   onViewResources?: () => void;
   onStartMockExam?: () => void;
-  onViewKnowledgeMap?: () => void;
   onViewPlan?: () => void;
   onViewAllSpaces?: () => void;
 }
@@ -1181,7 +1180,7 @@ function ModuleSection({
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function TodayScreen({
-  onStartPractice, onViewResources, onStartMockExam, onViewKnowledgeMap, onViewPlan, onViewAllSpaces,
+  onStartPractice, onViewResources, onStartMockExam, onViewPlan, onViewAllSpaces,
 }: TodayScreenProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const { orientation, todayDemoScenario } = useApp();

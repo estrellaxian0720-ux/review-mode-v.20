@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { ArrowLeft, X, AlertTriangle, RotateCcw, List } from 'lucide-react';
+import { ArrowLeft, X, AlertTriangle, RotateCcw, List, Search, Plus, Minus, Maximize2 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -1259,10 +1259,9 @@ function ConceptFlashcardModal({ concept, answer, onClose, onSaveAnswer }: {
 interface KnowledgeMapScreenProps {
   onBack: () => void;
   defaultFilter?: Filter;
-  onViewPlan?: () => void; // 顶栏「学习计划 ⇄ 知识体系」小切换：切到计划页
 }
 
-export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onViewPlan }: KnowledgeMapScreenProps) {
+export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: KnowledgeMapScreenProps) {
   const [view, setView] = useState<ViewMode>('star');
   const [filter, setFilter] = useState<Filter>(defaultFilter);
   const [scale, setScale] = useState(0.42);
@@ -1270,10 +1269,9 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
   const [panY, setPanY] = useState(0);
   const [selected, setSelected] = useState<Concept | null>(null);
   const [bubblePos, setBubblePos] = useState({ x: 0, y: 0 });
-  const [hint1, setHint1] = useState(true);
-  const [hint2, setHint2] = useState(false);
+  const [starSearch, setStarSearch] = useState('');
   // 范围职责坍缩：星空/思维导图恒=当前计划；只有列表关心「是否加入计划」。
-  const [listMembership, setListMembership] = useState<'all' | PlanMembership>('all');
+  const [listMembership, setListMembership] = useState<'all' | PlanMembership>('included');
 
   // ── 三视图共享的知识点数据（思维导图/列表可增删改，星图仅浏览） ──
   const [concepts, setConcepts] = useState<Concept[]>(CONCEPTS);
@@ -1356,12 +1354,10 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
 
   const handleViewChange = (v: ViewMode) => {
     setView(v);
-    if (hint1) { setHint1(false); setTimeout(() => setHint2(true), 50); }
   };
 
   const handleFilterChange = (f: Filter) => {
     setFilter(f);
-    if (hint2) setHint2(false);
     setSelected(null);
   };
 
@@ -1424,10 +1420,10 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
     return {
       weak, reviewDue,
       segs: [
-        { label: '已验证掌握', pct: pct(mastered),  color: '#00A63E', filter: 'mastered' as Filter },
-        { label: '学习中',     pct: pct(learning),  color: '#2D8CFF', filter: 'learning' as Filter },
-        { label: '待复习',     pct: pct(reviewDue), color: '#8E99B0', filter: 'review' as Filter },
-        { label: '未学',       pct: pct(unlearned), color: '#CCCCCC', filter: 'new' as Filter },
+        { label: '已掌握', count: mastered, pct: pct(mastered),  color: '#00A63E', filter: 'mastered' as Filter },
+        { label: '学习中', count: learning, pct: pct(learning),  color: '#2D8CFF', filter: 'learning' as Filter },
+        { label: '待复习', count: reviewDue, pct: pct(reviewDue), color: '#697386', filter: 'review' as Filter },
+        { label: '未学', count: unlearned, pct: pct(unlearned), color: '#555B66', filter: 'new' as Filter },
       ],
     };
   }, [includedConcepts]);
@@ -1440,49 +1436,34 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
   return (
     <div className="w-full h-full flex flex-col" style={{ background: '#0B0D14' }}>
       {/* ── Header ── */}
-      <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5"
+      <div className="flex-shrink-0 flex items-center gap-3 px-5 py-3"
         style={{ background: 'rgba(11,13,20,0.95)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <button onClick={() => onBack()} className="flex items-center gap-1.5 text-sm transition-opacity hover:opacity-80"
           style={{ color: 'rgba(255,255,255,0.65)' }}>
           <ArrowLeft size={16}/>
           <span>返回</span>
         </button>
-        <div className="w-px h-4" style={{ background: 'rgba(255,255,255,0.12)' }}/>
-
-        {/* 「学习计划 ⇄ 知识体系」小切换（由概览首页下沉至此）：当前在知识体系态 */}
-        <div className="flex items-center gap-0.5 rounded-lg p-0.5" style={{ background: 'rgba(255,255,255,0.07)' }}>
-          <button onClick={() => onViewPlan?.()}
-            className="px-2.5 py-1 text-xs font-medium rounded-md transition-all"
-            style={{ background: 'transparent', color: 'rgba(255,255,255,0.5)' }}>
-            学习计划
-          </button>
-          <button
-            className="px-2.5 py-1 text-xs font-semibold rounded-md transition-all"
-            style={{ background: 'rgba(253,234,59,0.16)', color: '#FDEA3B', cursor: 'default' }}>
-            知识体系
-          </button>
+        <div className="w-px h-8" style={{ background: 'rgba(255,255,255,0.12)' }}/>
+        <div className="min-w-0">
+          <h1 className="text-base font-semibold leading-tight" style={{ color: 'rgba(255,255,255,.9)' }}>刑法 · 知识体系</h1>
+          <p className="text-[11px] mt-1" style={{ color: 'rgba(255,255,255,.4)' }}>
+            {includedConcepts.length} 个知识点 · 已掌握 {masteredCount}（{litPct}%）
+          </p>
         </div>
-
-        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
-          {litPct}% 已亮 · 本周新点亮 8 颗
-        </span>
 
         {/* 列表态：计划成员筛选（星空/导图恒=当前计划，不显示此切换） */}
         {view === 'list' && (
           <div className="flex items-center gap-1.5 ml-2">
-            {([['all','全部'],['included','已加入'],['excluded','未加入']] as const).map(([id, label]) => (
+            {([['included',`当前计划 ${includedConcepts.length}`],['all',`知识库全部 ${concepts.length}`],['excluded',`未纳入 ${concepts.length - includedConcepts.length}`]] as const).map(([id, label]) => (
               <button key={id} onClick={() => setListMembership(id)}
                 className="px-2.5 py-1 rounded-full text-xs font-medium transition-all"
                 style={{ background: listMembership === id ? 'rgba(253,234,59,.16)' : 'rgba(255,255,255,.06)',
                   color: listMembership === id ? '#FDEA3B' : 'rgba(255,255,255,.5)' }}>{label}</button>
             ))}
-            <span className="text-[11px] ml-1" style={{ color: 'rgba(255,255,255,.32)' }}>
-              {listConcepts.length} / {concepts.length}
-            </span>
           </div>
         )}
 
-        {/* 右侧：主切换（星空 ⇄ 思维导图，二者数据同=当前计划，仅呈现不同）+ 独立「全部知识点」入口。
+        {/* 右侧：主切换（星空 ⇄ 思维导图，二者数据同=当前计划，仅呈现不同）+ 独立「知识点列表」入口。
             方案A：列表数据范围不同（含未加入计划的兜底），不与可视化视图平级，单独成入口。 */}
         <div className="ml-auto flex items-center gap-2">
           <div className="flex items-center gap-0.5 rounded-lg p-0.5"
@@ -1501,14 +1482,14 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
           </div>
           <button
             onClick={() => handleViewChange(view === 'list' ? 'star' : 'list')}
-            title="全部知识点（含未加入计划，可恢复）"
+            title="知识点列表（可切换当前计划与知识库全部）"
             className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all"
             style={{
               background: view === 'list' ? 'rgba(253,234,59,0.16)' : 'rgba(255,255,255,0.07)',
               color: view === 'list' ? '#FDEA3B' : 'rgba(255,255,255,0.5)',
               border: view === 'list' ? '1px solid rgba(253,234,59,0.4)' : '1px solid transparent',
             }}>
-            <List size={13}/> 全部知识点
+            <List size={13}/> 知识点列表
           </button>
         </div>
       </div>
@@ -1520,8 +1501,8 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
         <div className="flex-shrink-0 px-4 py-2.5"
           style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
           <div className="flex items-center gap-2 flex-wrap" style={{ marginBottom: 8 }}>
-            <span className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.55)', letterSpacing: '0.04em' }}>
-              当前学习阶段
+            <span className="text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              掌握进度
             </span>
             {/* 薄弱/到期 = 状态快捷入口（点击进入选中态，与段同一套筛选） */}
             <button onClick={() => toggleFilter('weak')}
@@ -1536,7 +1517,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
               style={{ color: 'rgba(255,255,255,0.6)',
                 background: filter === 'review' ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.08)',
                 border: filter === 'review' ? '1px solid rgba(255,255,255,0.4)' : '1px solid transparent' }}>
-              <RotateCcw size={10}/> 到期复习 {stageStats.reviewDue} 个
+              <RotateCcw size={10}/> 今日到期 {stageStats.reviewDue} 个
             </button>
             {filter !== 'all' && (
               <button onClick={() => handleFilterChange('all')}
@@ -1545,67 +1526,24 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
                 <X size={11}/> 清除筛选
               </button>
             )}
-            <div className="ml-auto flex items-center gap-1.5" title="由练习数据自动评估，不支持手动修改">
-              <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>当前熟悉程度</span>
-              <span className="text-xs font-bold" style={{ color: '#3DDC84' }}>中等</span>
-            </div>
           </div>
-          {/* Legend = 可点图例（点某项进入该状态筛选，选中高亮） */}
-          <div className="flex gap-2 flex-wrap" style={{ marginBottom: 6 }}>
+          {/* 加宽分段条直接承载名称、数量、比例，同时作为筛选器。 */}
+          <div className="flex overflow-hidden" style={{ borderRadius: 8, height: 38, gap: 2 }}>
             {stageStats.segs.map(s => {
               const active = filter === s.filter;
               return (
                 <button key={s.label} onClick={() => toggleFilter(s.filter)}
-                  className="flex items-center gap-1.5 px-1.5 py-0.5 rounded transition-all"
-                  style={{ background: active ? 'rgba(255,255,255,0.1)' : 'transparent',
-                    border: active ? '1px solid rgba(255,255,255,0.25)' : '1px solid transparent',
-                    opacity: filter === 'all' || active ? 1 : 0.5 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, flexShrink: 0 }}/>
-                  <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.55)' }}>{s.label}</span>
-                  <span className="text-[11px] font-semibold" style={{ color: 'rgba(255,255,255,0.8)' }}>{s.pct}%</span>
+                  title={`${s.label} ${s.count} 个，占 ${s.pct}%`}
+                  style={{ flex: Math.max(1, s.pct), background: s.color, minWidth: 34, border: 'none',
+                    cursor: 'pointer', padding: '0 8px', height: '100%', color: '#fff',
+                    opacity: filter === 'all' || active ? 1 : 0.4,
+                    outline: active ? '2px solid rgba(255,255,255,0.9)' : 'none', outlineOffset: -2,
+                    fontSize: 11, fontWeight: 650, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {s.pct >= 12 ? `${s.label} ${s.count} · ${s.pct}%` : `${s.pct}%`}
                 </button>
               );
             })}
           </div>
-          {/* 4-segment bar = 可点分段条 */}
-          <div className="flex overflow-hidden" style={{ borderRadius: 5, height: 8, gap: 1.5 }}>
-            {stageStats.segs.map(s => {
-              const active = filter === s.filter;
-              return (
-                <button key={s.label} onClick={() => toggleFilter(s.filter)}
-                  title={`${s.label} ${s.pct}%`}
-                  style={{ flex: Math.max(1, s.pct), background: s.color, minWidth: 2, border: 'none',
-                    cursor: 'pointer', padding: 0, height: '100%',
-                    opacity: filter === 'all' || active ? 1 : 0.4,
-                    outline: active ? '1.5px solid rgba(255,255,255,0.9)' : 'none', outlineOffset: -1.5 }}/>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Hint 1 */}
-      {hint1 && view === 'star' && (
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-1.5"
-          style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>
-            三个视图职责不同：星空看成就，导图理结构，列表管全量
-          </span>
-          <button onClick={() => { setHint1(false); setHint2(true); }}
-            style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>×</button>
-        </div>
-      )}
-
-      {/* 筛选 chips 与「查看范围」两行已合并进 header，此处不再占用常驻空间 */}
-
-      {/* Hint 2 */}
-      {hint2 && (
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-1.5"
-          style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-          <span className="text-xs" style={{ color: 'rgba(255,255,255,0.32)' }}>
-            点这里筛选查看范围：只看薄弱 / 已掌握
-          </span>
-          <button onClick={() => setHint2(false)} style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>×</button>
         </div>
       )}
 
@@ -1617,6 +1555,17 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
           <div ref={svgContainerRef} className="absolute inset-0 cursor-grab active:cursor-grabbing select-none"
             onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
             onWheel={onWheel} onClick={() => setSelected(null)}>
+            <div className="absolute z-20 left-4 top-4 flex items-center gap-2 rounded-lg px-3 py-2"
+              style={{ background: 'rgba(11,13,20,.78)', border: '1px solid rgba(255,255,255,.1)', backdropFilter: 'blur(10px)' }}>
+              <Search size={14} color="rgba(255,255,255,.45)"/>
+              <input value={starSearch} onChange={e => setStarSearch(e.target.value)} placeholder="搜索知识点"
+                className="bg-transparent outline-none text-xs w-40" style={{ color: 'rgba(255,255,255,.85)' }}/>
+            </div>
+            <div className="absolute z-20 right-4 bottom-4 flex flex-col gap-1">
+              <button title="放大" onClick={e => { e.stopPropagation(); setScale(s => Math.min(5, s * 1.2)); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Plus size={15}/></button>
+              <button title="缩小" onClick={e => { e.stopPropagation(); setScale(s => Math.max(.28, s / 1.2)); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Minus size={15}/></button>
+              <button title="适应画布" onClick={e => { e.stopPropagation(); setScale(1.06); setPanX(0); setPanY(0); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Maximize2 size={15}/></button>
+            </div>
             <svg
               width="100%" height="100%"
               viewBox={`0 0 ${SVG_W} ${SVG_H}`}
@@ -1705,7 +1654,8 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
                 {/* Stars (concepts) */}
                 {includedConcepts.map(c => {
                   const fMatch = matchesFilter(c, filter);
-                  const dimmed = filter !== 'all' && !fMatch;
+                  const searchMatch = !starSearch.trim() || c.name.toLowerCase().includes(starSearch.trim().toLowerCase());
+                  const dimmed = (filter !== 'all' && !fMatch) || !searchMatch;
                   const isSel = selected?.id === c.id;
                   const v = starVis(c, dimmed, isSel);
                   const glowId = v.glow === 'gold' ? 'url(#goldGlow)' : v.glow === 'blue' ? 'url(#blueGlow)' : undefined;
@@ -1734,7 +1684,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onVi
                           fill="none" stroke="#F5F0D0" strokeWidth={1/scale} opacity={0.9}/>
                       )}
                       {/* Name label: show when selected OR filter match at detail LOD */}
-                      {(isSel || (fMatch && filter !== 'all' && lod >= 1)) && (
+                      {(isSel || (searchMatch && starSearch.trim() && lod >= 1) || (fMatch && filter !== 'all' && lod >= 1)) && (
                         <text x={c.sx} y={c.sy - v.r - 3/scale}
                           textAnchor="middle"
                           fontSize={9/scale}

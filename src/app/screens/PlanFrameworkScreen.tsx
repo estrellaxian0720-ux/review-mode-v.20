@@ -180,7 +180,7 @@ export default function PlanFrameworkScreen({
   onConfirm, onBack, onHome, demoScenario = 'fit', initialState = 'confirmation', onViewKnowledgeSystem, weekendMode = 'rest',
 }: PlanFrameworkScreenProps) {
   const [dates, setDates] = useState(() => applyWeekendMode(INITIAL_DATES, weekendMode));
-  const [view, setView] = useState<'week' | 'month'>('week');
+  const [view, setView] = useState<'week' | 'month'>(initialState === 'daily' ? 'month' : 'week');
   const [weeklyDays, setWeeklyDays] = useState([1, 2, 3, 4, 5]);
   const [dailyLimit, setDailyLimit] = useState(8);
   const [customOpen, setCustomOpen] = useState(false);
@@ -317,15 +317,17 @@ export default function PlanFrameworkScreen({
       <header style={{ height: 54, padding: '0 24px', display: 'flex', alignItems: 'center', gap: 12,
         background: C.card, borderBottom: `1px solid ${C.line}`, flexShrink: 0 }}>
         <button onClick={onBack} style={iconButton}><ArrowLeft size={17} /></button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 3, padding: 3, borderRadius: 9, background: dailyMode ? C.panel : 'transparent' }}>
-          <span style={{ padding: dailyMode ? '6px 10px' : 0, borderRadius: 7, background: dailyMode ? C.card : 'transparent',
-            boxShadow: dailyMode ? '0 1px 4px #00000010' : 'none', fontSize: dailyMode ? 11 : 17, fontWeight: 800 }}>学习计划</span>
-          {dailyMode && onViewKnowledgeSystem && <button onClick={onViewKnowledgeSystem}
-            style={{ ...tabButton, padding: '6px 10px', fontSize: 10.5 }}>知识体系</button>}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 17, fontWeight: 800 }}>法考 · 备考计划</span>
         </div>
-        <span style={{ fontSize: 10.5, color: C.mut }}>30天 · {planStudyDays}个任务学习日</span>
+        <span style={{ fontSize: 10.5, color: C.faint }}>30天 · {planStudyDays}个任务学习日</span>
         <div style={{ flex: 1 }} />
-        <ViewIconSwitch value={view} onChange={setView} />
+        {dailyMode && onViewKnowledgeSystem && <button onClick={onViewKnowledgeSystem}
+          style={{ border: 0, background: 'transparent', color: C.blue, fontSize: 11.5, fontWeight: 600,
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, padding: '4px 6px' }}>
+          查看学习进度 <ChevronRight size={13} />
+        </button>}
+        {!dailyMode && <ViewIconSwitch value={view} onChange={setView} />}
       </header>
 
       <main style={{ flex: 1, overflowY: 'auto', padding: dailyMode && view === 'week' ? '12px 24px 82px'
@@ -394,7 +396,7 @@ export default function PlanFrameworkScreen({
           )}
         </section>}
 
-        {view === 'week' ? (
+        {(dailyMode ? 'month' : view) === 'week' ? (
           <WeekSchedule dates={dates} drag={drag} setDrag={setDrag} moveItem={moveItem}
             view={view} onViewChange={setView}
             showViewGuide={showViewGuide} onDismissViewGuide={() => setShowViewGuide(false)}
@@ -511,6 +513,12 @@ function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemov
   const defaultExpanded = today?.modules.find(mod => mod.kps.some(item => item.known) && mod.kps.some(item => !item.known))
     ?? today?.modules.find(mod => mod.kps.some(item => !item.known));
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(dailyMode ? defaultExpanded?.id ?? null : null);
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(() => new Set(TODAY_ISO ? [TODAY_ISO] : []));
+  const toggleDay = (iso: string) => setExpandedDays(prev => {
+    const next = new Set(prev);
+    next.has(iso) ? next.delete(iso) : next.add(iso);
+    return next;
+  });
   const todayRowRef = useRef<HTMLDivElement | null>(null);
   const guideModuleId = dates.flatMap(day => day.modules)[0]?.id;
   useEffect(() => {
@@ -528,34 +536,54 @@ function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemov
         : day.phase === 'exam' ? '考试 · 8月28日' : '新学（含间隔复习） · 7月30日—8月23日';
       const isRest = !!day.isRestDay;
       const isToday = day.iso === TODAY_ISO;
+      const dayCollapsed = dailyMode && day.modules.length > 0 && !expandedDays.has(day.iso);
+      const compact = isRest || dayCollapsed;
       return <React.Fragment key={day.iso}>
         {phaseChanged && <div style={{ padding: '6px 14px 6px 150px', background: `${phaseColor}0D`,
           borderTop: `1px solid ${phaseColor}22`, color: phaseColor, fontSize: 10, fontWeight: 700 }}>
           {day.phase === 'exam' && <Flag size={10} style={{ display: 'inline', marginRight: 5 }} />}{phaseLabel}
         </div>}
         <div ref={isToday ? todayRowRef : undefined} onDragOver={e => e.preventDefault()} onDrop={() => moveItem(day.iso)}
-          style={{ display: 'grid', gridTemplateColumns: '150px 1fr', minHeight: day.phase === 'exam' ? 44 : isRest ? 38 : 62,
+          style={{ display: 'grid', gridTemplateColumns: '150px 1fr', minHeight: day.phase === 'exam' ? 44 : compact ? 38 : 62,
             borderTop: `1px solid ${C.line}`, background: isToday ? '#FFFBEA' : isRest ? '#FAFAFB' : drag ? '#FBFDFF' : C.card,
             boxShadow: isToday ? `inset 4px 0 0 ${C.yellow}` : 'none' }}>
-          <div style={{ padding: isRest ? '8px 10px 8px 27px' : '9px 12px 9px 27px', borderRight: `1px solid ${C.line}`, position: 'relative',
-            display: isRest ? 'flex' : 'block', alignItems: 'center', gap: 7 }}>
+          <div style={{ padding: compact ? '8px 10px 8px 27px' : '9px 12px 9px 27px', borderRight: `1px solid ${C.line}`, position: 'relative',
+            display: compact ? 'flex' : 'block', alignItems: 'center', gap: 7 }}>
             <span style={{ position: 'absolute', left: 13, top: 0, bottom: 0, width: 1, background: `${phaseColor}35` }} />
-            <span style={{ position: 'absolute', left: isToday ? 7 : 9, top: isRest ? 14 : isToday ? 14 : 16, width: isToday ? 13 : 9, height: isToday ? 13 : 9, borderRadius: '50%',
+            <span style={{ position: 'absolute', left: isToday ? 7 : 9, top: compact ? 14 : isToday ? 14 : 16, width: isToday ? 13 : 9, height: isToday ? 13 : 9, borderRadius: '50%',
               background: isRest ? '#D8DADF' : isToday ? C.yellow : phaseColor,
               border: `2px solid ${isToday ? '#FFFBEA' : C.card}`, boxShadow: `0 0 0 ${isToday ? 2 : 1}px ${isToday ? '#E5C90088' : `${phaseColor}55`}` }} />
-            <strong style={{ display: isRest ? 'inline' : 'block', fontSize: isRest ? 10.5 : 12 }}>{day.label}</strong>
+            <strong style={{ display: compact ? 'inline' : 'block', fontSize: compact ? 10.5 : 12 }}>{day.label}</strong>
             <span style={{ fontSize: 9.5, color: day.modules.length ? C.mut : C.faint }}>{day.weekday.replace(' · 休息日', '').replace(' · 今天', '')}</span>
             {isToday && <span style={{ display: 'inline-block', marginLeft: 6, padding: '2px 6px', borderRadius: 9,
               background: '#D6B900', color: '#fff', fontSize: 8, fontWeight: 800 }}>今天</span>}
-            {day.modules.length > 0 && <span style={{ display: 'block', marginTop: 3, fontSize: 9, color: phaseColor }}>
+            {day.modules.length > 0 && !compact && <span style={{ display: 'block', marginTop: 3, fontSize: 9, color: phaseColor }}>
               {day.modules.reduce((n, mod) => n + mod.minutes, 0)}分钟
             </span>}
           </div>
-          <div style={{ padding: isRest ? '7px 10px' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
+          <div style={{ padding: compact ? '0 10px' : '6px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
             {day.phase === 'exam'
               ? <span style={{ color: C.red, fontSize: 11, fontWeight: 700 }}>⚑ 考试日 · 不安排学习任务</span>
               : day.modules.length === 0 && <span style={{ color: C.faint, fontSize: 9.5 }}>{isRest ? '休息日 · 可拖入任务' : '当日暂无任务 · 可拖入任务'}</span>}
-            {day.modules.map(mod => dailyMode ? <InlineModule key={mod.id} mod={mod} iso={day.iso}
+            {dayCollapsed
+              ? <button onClick={() => toggleDay(day.iso)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: '100%', border: 0, background: 'transparent',
+                    padding: 0, cursor: 'pointer', textAlign: 'left', color: C.sub }}>
+                  <ChevronRight size={13} color={C.faint} style={{ flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: 11, color: C.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {day.modules.map(mod => mod.name).join(' · ')}
+                  </span>
+                  <span style={{ fontSize: 9.5, color: C.faint, flexShrink: 0 }}>
+                    {day.modules.length}模块 · {day.modules.reduce((n, mod) => n + mod.kps.length, 0)}知识点
+                  </span>
+                </button>
+              : <>
+                {dailyMode && !isToday && day.modules.length > 0 && <button onClick={() => toggleDay(day.iso)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start', border: 0,
+                    background: 'transparent', padding: '1px 2px', cursor: 'pointer', color: C.faint, fontSize: 10 }}>
+                  <ChevronDown size={12} /> 收起
+                </button>}
+                {day.modules.map(mod => dailyMode ? <InlineModule key={mod.id} mod={mod} iso={day.iso}
               expanded={expandedModuleId === mod.id} active={isToday && expandedModuleId === mod.id}
               showDragGuide={showViewGuide && mod.id === guideModuleId} onDismissDragGuide={onDismissViewGuide}
               onToggle={() => setExpandedModuleId(current => current === mod.id ? null : mod.id)}
@@ -563,6 +591,7 @@ function WeekSchedule({ dates, drag, setDrag, moveItem, openModule, requestRemov
               bookmarked={bookmarked} onKnown={(kpId) => onKnown(mod.id, kpId)} onBookmark={onBookmark} onMasteryHint={onMasteryHint} />
               : <ModuleTodo key={mod.id} mod={mod} iso={day.iso}
                 dragging={drag?.moduleId === mod.id} setDrag={setDrag} openModule={openModule} requestRemove={requestRemove} />)}
+              </>}
           </div>
         </div>
       </React.Fragment>;

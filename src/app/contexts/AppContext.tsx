@@ -47,7 +47,19 @@ interface AppState {
   weeklyStudyDays: number[];
   /** 只决定进入自动阶段拆分或既有全冲刺分支。 */
   planMethod: PlanMethod;
-  
+  /** 计划名称（装饰性，即时保存不重排）。 */
+  planName: string;
+  /** 目标分数 0-100（预测锚点，即时保存不重排）。 */
+  targetScore: number;
+  /** 考试总分（满分，即时保存不重排）。 */
+  totalScore: number;
+  /** 考试日期 / Deadline（ISO yyyy-mm-dd；改动触发重排）。 */
+  examDate: string;
+  /** 每日提醒时刻，如 "20:30"；空串表示未设置（即时保存不重排）。 */
+  reminderTime: string;
+  /** AI 生成内容输出语种（即时保存不重排）。 */
+  outputLanguage: string;
+
   // 进度追踪
   overallMastery: number;
   
@@ -92,7 +104,26 @@ interface AppActions {
   setDailyStudyHours: (hours: number) => void;
   setWeeklyStudyDays: (days: number[]) => void;
   setPlanMethod: (method: PlanMethod) => void;
-  
+  setPlanName: (name: string) => void;
+  setTargetScore: (score: number) => void;
+  setExamDate: (date: string) => void;
+  setReminderTime: (time: string) => void;
+  setOutputLanguage: (lang: string) => void;
+  /**
+   * 提交计划设置。轻改字段即时生效；examDate/weeklyStudyDays/planMethod
+   * 属重排字段，其变更由调用方在确认「重排预览」后再落库。
+   */
+  applyPlanSettings: (settings: {
+    planName: string;
+    targetScore: number;
+    totalScore: number;
+    reminderTime: string;
+    outputLanguage: string;
+    examDate: string;
+    weeklyStudyDays: number[];
+    planMethod: PlanMethod;
+  }) => void;
+
   // 进度操作
   updateMastery: (mastery: number) => void;
   
@@ -232,7 +263,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [dailyStudyHours, setDailyStudyHours] = useState(2);
   const [weeklyStudyDays, setWeeklyStudyDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [planMethod, setPlanMethod] = useState<PlanMethod>('SYSTEM_PLANNED');
-  
+  const [planName, setPlanName] = useState('法考 · 刑法');
+  const [targetScore, setTargetScore] = useState(80);
+  const [totalScore, setTotalScore] = useState(100);
+  const [examDate, setExamDate] = useState('2026-08-28');
+  const [reminderTime, setReminderTime] = useState('20:30');
+  const [outputLanguage, setOutputLanguage] = useState('Chinese (Simplified)');
+
   // 进度追踪
   const [overallMastery, setOverallMastery] = useState(68);
   
@@ -259,6 +296,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPreviousScreen(currentScreen);
       setCurrentScreen(screen);
     });
+  };
+
+  // 计划设置：一次性落库全部字段。重排字段的变更前置确认由调用方（弹窗）负责，
+  // 到这里时已视为用户确认，直接写入即可。
+  const applyPlanSettings: AppActions['applyPlanSettings'] = (settings) => {
+    setPlanName(settings.planName);
+    setTargetScore(settings.targetScore);
+    setTotalScore(settings.totalScore);
+    setReminderTime(settings.reminderTime);
+    setOutputLanguage(settings.outputLanguage);
+    setExamDate(settings.examDate);
+    setWeeklyStudyDays(settings.weeklyStudyDays);
+    setPlanMethod(settings.planMethod);
   };
 
   // 进度操作
@@ -333,6 +383,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     dailyStudyHours,
     weeklyStudyDays,
     planMethod,
+    planName,
+    targetScore,
+    totalScore,
+    examDate,
+    reminderTime,
+    outputLanguage,
     overallMastery,
     showPivotPopup,
     showMasteryCompletion,
@@ -357,6 +413,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDailyStudyHours,
     setWeeklyStudyDays,
     setPlanMethod,
+    setPlanName,
+    setTargetScore,
+    setExamDate,
+    setReminderTime,
+    setOutputLanguage,
+    applyPlanSettings,
     updateMastery,
     setShowPivotPopup,
     setShowMasteryCompletion,

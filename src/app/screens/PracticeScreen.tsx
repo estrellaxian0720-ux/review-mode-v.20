@@ -1,9 +1,10 @@
-import { X, FileText, MessageSquare, BookOpen, ChevronLeft, ChevronRight, GripVertical, Minimize2, Maximize2, Flag, Zap, WifiOff, RefreshCw, PanelRightOpen, PanelRightClose, Moon, Sun, Loader2, CheckSquare, Square, PenLine } from 'lucide-react';
+import { X, FileText, MessageSquare, BookOpen, ChevronLeft, ChevronRight, ChevronDown, Check, GripVertical, Minimize2, Maximize2, Flag, Zap, WifiOff, RefreshCw, PanelRightOpen, PanelRightClose, Moon, Sun, Loader2, CheckSquare, Square, PenLine } from 'lucide-react';
 import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { DailyGoalAchievedPopup } from '../components/DailyGoalAchievedPopup';
 import { MilestoneModal, MilestoneType } from '../components/MilestoneModal';
 import { KnowledgePointMasteredPopup } from '../components/KnowledgePointMasteredPopup';
 import { DraftCanvas } from '../components/DraftCanvas';
+import { OriginalNoteOverlay } from '../components/OriginalNoteOverlay';
 import {
   AiMessage, AiChatThread, AiChatInput, AiChatPanel, AiFullscreenOverlay,
   AiFloatingWindow, SHOUHUI_DEMO, FullscreenMode,
@@ -846,20 +847,29 @@ interface Source {
 
 interface PracticeScreenProps {
   onBack: (forcedMastery?: number) => void;
+  onShowReport?: (mode: 'DAILY_COMPLETED' | 'SECTION_EXITED') => void;
   startingPointId?: number;
   dailyHours?: number;
   masteryPercentage?: number;
   remainingKnowledgePoints?: number;
 }
 
-export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, masteryPercentage = 65, remainingKnowledgePoints = 100 }: PracticeScreenProps) {
+export function PracticeScreen({ onBack, onShowReport, startingPointId, dailyHours = 2, masteryPercentage = 65, remainingKnowledgePoints = 100 }: PracticeScreenProps) {
+  const showExitReport = (mode: 'DAILY_COMPLETED' | 'SECTION_EXITED') => {
+    if (onShowReport) onShowReport(mode);
+    else onBack();
+  };
   const [currentMode, setCurrentMode] = useState<PracticeMode>('mcq');
   const [darkMode, setDarkMode] = useState(false);
   // Map startingPointId to valid question index (default to 0)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<number | boolean | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [aiPosition, setAiPosition] = useState({ x: 600, y: 120 });
+  const [aiPosition, setAiPosition] = useState(() => {
+    // 悬浮窗宽 = 1/3 屏宽、上下留白 16px：默认贴右、顶部留白
+    const w = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    return { x: Math.max(16, Math.round(w - w / 3 - 24)), y: 16 };
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [activeSource, setActiveSource] = useState<Source | null>(null);
@@ -873,6 +883,7 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
   const [dragFrac, setDragFrac] = useState<number | null>(null); // 拖拽中的实时占比（松手吸附）
   const lastPanelFrac = useRef(1 / 3);                            // 收起前档位，重新展开时恢复
   const splitRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null); // 溯源长按选中计时
 
   // 分屏线 / 薄手柄按下：拖动实时跟手，松手吸附最近档位；未拖动视为单击执行 onPlainClick
   const startSplitDrag = (e: React.PointerEvent, onPlainClick?: () => void) => {
@@ -906,6 +917,10 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
   const [markBtnPos, setMarkBtnPos] = useState<{ x: number; y: number } | null>(null); // 「标记」浮出按钮位置
   const [highlights, setHighlights] = useState<string[]>([]);       // 已标记（批注高亮）的文字片段
   const [showNoteOverlay, setShowNoteOverlay] = useState(false);    // 「打开原笔记（最新）」浮层
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false); // 来源切换下拉选单（平板端）
+  const [markMode, setMarkMode] = useState(false);                  // 标记态：长按选中出工具栏
+  const [markToolbar, setMarkToolbar] = useState<{ text: string; x: number; y: number } | null>(null); // 长按浮出的标记工具栏
+  const [markSaved, setMarkSaved] = useState(false);                // 「已写入原笔记」提示
   // Fullscreen AI overlay
   const [showAiFullscreen, setShowAiFullscreen] = useState(false);
   const [aiFullscreenMode, setAiFullscreenMode] = useState<FullscreenMode>('voluntary');
@@ -1561,7 +1576,7 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
             </button>
 
             <button
-              onClick={() => onBack()}
+              onClick={() => showExitReport('SECTION_EXITED')}
               className="text-[13px] text-[#999] hover:text-[#666] font-medium transition-colors"
             >
               End Session
@@ -1573,7 +1588,7 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
       {/* Split Screen Layout — 分屏线拖拽吸附四挡：收起 / 1/3(默认) / 1/2 / 2/3 */}
       <div ref={splitRef} className="flex-1 flex overflow-hidden">
         {/* Left Panel — Workspace（占余下全部宽度） */}
-        <div className="flex-1 min-w-0 flex flex-col" style={{ background: darkMode ? DK.bg : '#ffffff' }}>
+        <div className="flex-1 min-w-0 flex flex-col relative" style={{ background: darkMode ? DK.bg : '#ffffff' }}>
           {/* Scrollable Content Area */}
           <div className="flex-1 overflow-y-auto px-12 py-8">
             <div className="flex items-center justify-center min-h-full">
@@ -1957,9 +1972,36 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
               </button>
             </div>
           </div>
-        </div>
 
-        {/* 分屏线：可拖拽（松手吸附档位），中部收起箭头一键收起右面板 */}
+          {/* 20 错强制复习：确认阶段只覆盖练习区（右侧溯源/聊天与头部仍可见） */}
+          {showAiFullscreen && aiFullscreenMode === 'forced_20' && !aiFullscreenStarted && (
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-[1px] p-6">
+              <div className="w-full max-w-[420px] bg-white rounded-2xl shadow-2xl p-6 text-center">
+                <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 text-red-500 text-[11px] font-medium">
+                  <Zap className="w-3 h-3" /> 今日已累计答错 20 次
+                </div>
+                <h2 className="text-[18px] font-bold text-[#333] mb-2">受贿罪的既遂标准</h2>
+                <p className="text-[13px] text-[#666] leading-relaxed mb-6">
+                  这个知识点今天已经累计答错 20 次。花 5 分钟让 AI 帮你彻底讲清楚，还是先跳过？
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowAiFullscreen(false)}
+                    className="flex-1 py-2.5 border border-gray-300 rounded-xl text-[13px] font-medium text-[#666] hover:bg-gray-50 transition-colors"
+                  >
+                    先跳过
+                  </button>
+                  <button
+                    onClick={() => { setAiFullscreenStarted(true); setAiFullscreenMessages(SHOUHUI_DEMO); }}
+                    className="flex-1 py-2.5 bg-blue-500 hover:bg-blue-600 rounded-xl text-[13px] font-bold text-white shadow-md transition-colors"
+                  >
+                    开始强化学习
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         {panelFracLive > 0 && (
           <div
             onPointerDown={startSplitDrag}
@@ -2016,8 +2058,9 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
             // 当前溯源来源：优先 activeSource，否则取当前题第一个来源
             const src = activeSource ?? currentQuestion.sources[0] ?? null;
 
-            // 划词选择处理：在来源正文内选中文字后，「标记」按钮就近浮出
+            // 划词选择处理（保留鼠标端）：选中文字后「标记」按钮就近浮出
             const handleSourceMouseUp = (e: React.MouseEvent) => {
+              if (!markMode) return;
               const sel = window.getSelection();
               const t = sel?.toString().trim() ?? '';
               if (t && t.length > 0) {
@@ -2029,14 +2072,33 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
               }
             };
 
-            // 点击「标记」：把选中文字加入高亮批注（写入原始笔记，溯源当场即时高亮）
+            // 长按某段正文：进入标记态并就近浮出「标记高亮 / 取消」工具栏
+            const handleLongPressStart = (text: string) => (e: React.PointerEvent) => {
+              if (!markMode) return;
+              const x = e.clientX, y = e.clientY;
+              longPressTimer.current = setTimeout(() => {
+                setMarkToolbar({ text, x, y });
+              }, 450);
+            };
+            const handleLongPressCancel = () => {
+              if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+            };
+
+            // 命中标记：写入 highlights（同步进原始笔记），提示「已写入原笔记」
+            const commitMark = (text: string) => {
+              const t = text.trim();
+              if (t && !highlights.includes(t)) setHighlights(h => [...h, t]);
+              setMarkToolbar(null);
+              setMarkSaved(true);
+              setTimeout(() => setMarkSaved(false), 1800);
+              window.getSelection()?.removeAllRanges();
+            };
+
+            // 点击浮出「标记」按钮（鼠标划词路径）
             const applyMark = () => {
-              if (selectionText && !highlights.includes(selectionText)) {
-                setHighlights(h => [...h, selectionText]);
-              }
+              commitMark(selectionText);
               setSelectionText('');
               setMarkBtnPos(null);
-              window.getSelection()?.removeAllRanges();
             };
 
             // 把一段正文按已标记的高亮片段渲染成带批注高亮的富文本
@@ -2079,26 +2141,53 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
 
             return (
               <div className="flex-1 flex flex-col overflow-hidden relative">
-                {/* 头部：来源信息 + 多来源切换 */}
-                <div className="border-b border-gray-200 bg-white px-5 py-3">
-                  <div className="flex items-center gap-2 mb-1">
+                {/* 头部：来源信息 + 多来源切换（下拉选单） + 固定标记入口 */}
+                <div className="border-b border-gray-200 bg-white px-5 py-3 relative">
+                  <div className="flex items-center gap-2">
                     <FileText className="w-4 h-4 text-[#2D8CFF] shrink-0" />
-                    <h3 className="text-[13px] font-bold text-[#333] flex-1 truncate">{src.name}</h3>
-                    {src.page && <span className="text-[11px] text-[#999]">第 {src.page} 页</span>}
+                    {/* 当前来源名 + 计数 + ▾（多来源时可点开下拉） */}
+                    <button
+                      onClick={() => currentQuestion.sources.length > 1 && setShowSourceDropdown(v => !v)}
+                      className={`flex items-center gap-1.5 flex-1 min-w-0 text-left ${currentQuestion.sources.length > 1 ? 'hover:opacity-80' : 'cursor-default'}`}
+                    >
+                      <h3 className="text-[13px] font-bold text-[#333] truncate">{src.name}</h3>
+                      {currentQuestion.sources.length > 1 && (
+                        <>
+                          <span className="text-[10px] text-[#999] shrink-0">{currentQuestion.sources.findIndex(s => s.id === src.id) + 1}/{currentQuestion.sources.length}</span>
+                          <ChevronDown className={`w-3.5 h-3.5 text-[#999] shrink-0 transition-transform ${showSourceDropdown ? 'rotate-180' : ''}`} />
+                        </>
+                      )}
+                    </button>
+                    {src.page && <span className="text-[11px] text-[#999] shrink-0">第 {src.page} 页</span>}
+                    {/* 固定「标记」入口：点击进入标记态，长按正文选中即可标记 */}
+                    <button
+                      onClick={() => { setMarkMode(m => !m); setMarkToolbar(null); }}
+                      title="标记 / 批注"
+                      className={`ml-1 p-1.5 rounded-lg shrink-0 transition-colors ${markMode ? 'bg-[#FFF2A8] text-[#B8860B]' : 'text-[#999] hover:bg-gray-100'}`}
+                    >
+                      <PenLine className="w-4 h-4" />
+                    </button>
                   </div>
-                  {currentQuestion.sources.length > 1 && (
-                    <div className="flex gap-1.5 mt-2 flex-wrap">
-                      {currentQuestion.sources.map(s => (
-                        <button
-                          key={s.id}
-                          onClick={() => setActiveSource(s)}
-                          className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors
-                            ${src.id === s.id ? 'bg-[#2D8CFF] text-white' : 'bg-gray-100 text-[#666] hover:bg-gray-200'}`}
-                        >
-                          {s.name.length > 12 ? s.name.slice(0, 12) + '…' : s.name}
-                        </button>
-                      ))}
-                    </div>
+
+                  {/* 来源下拉选单：滚动列表，点选切换并收起 */}
+                  {showSourceDropdown && currentQuestion.sources.length > 1 && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowSourceDropdown(false)} />
+                      <div className="absolute left-5 right-5 top-[calc(100%-4px)] z-50 bg-white border border-gray-200 rounded-xl shadow-xl max-h-[260px] overflow-y-auto py-1">
+                        {currentQuestion.sources.map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => { setActiveSource(s); setShowSourceDropdown(false); }}
+                            className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${s.id === src.id ? 'bg-[#EAF3FF]' : 'hover:bg-gray-50'}`}
+                          >
+                            <span className="text-[13px] shrink-0">{s.type === 'pdf' ? '📄' : s.type === 'ppt' ? '📊' : '📝'}</span>
+                            <span className={`text-[12px] flex-1 truncate ${s.id === src.id ? 'font-semibold text-[#2D8CFF]' : 'text-[#333]'}`}>{s.name}</span>
+                            {s.page && <span className="text-[10px] text-[#999] shrink-0">第 {s.page} 页</span>}
+                            {s.id === src.id && <Check className="w-3.5 h-3.5 text-[#2D8CFF] shrink-0" />}
+                          </button>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
 
@@ -2116,31 +2205,83 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
                   )}
                 </div>
 
-                {/* 来源正文（可划词选中标记） */}
-                <div className="flex-1 overflow-y-auto p-5" onMouseUp={handleSourceMouseUp}>
+                {/* 标记态提示条 */}
+                {markMode && (
+                  <div className="px-5 py-1.5 bg-[#FFF9E6] border-b border-[#FDEEB0] flex items-center gap-1.5">
+                    <PenLine className="w-3 h-3 text-[#B8860B]" />
+                    <p className="text-[11px] text-[#B8860B]">标记态：长按任意段落选中，再点「标记高亮」</p>
+                  </div>
+                )}
+
+                {/* 来源正文（标记态下长按段落选中标记） */}
+                <div
+                  className="flex-1 overflow-y-auto p-5"
+                  onMouseUp={handleSourceMouseUp}
+                  onPointerUp={handleLongPressCancel}
+                  onPointerLeave={handleLongPressCancel}
+                >
                   {src.contextBefore && (
-                    <p className="text-[13px] text-[#999] leading-relaxed mb-3 select-text">
+                    <p
+                      className={`text-[13px] text-[#999] leading-relaxed mb-3 select-text ${markMode ? 'cursor-pointer rounded hover:bg-[#FFF9E6]' : ''}`}
+                      onPointerDown={handleLongPressStart(src.contextBefore)}
+                    >
                       {renderWithHighlights(src.contextBefore)}
                     </p>
                   )}
                   {/* 当前知识点命中段落：默认高亮定位 */}
                   <div className="bg-[#FFF9E6] border-l-[3px] border-[#FDC700] rounded-r-lg p-3.5 mb-3">
                     <p className="text-[10px] text-[#B8860B] font-bold mb-1.5 tracking-wide">◉ 当前知识点来源</p>
-                    <p className="text-[13px] text-[#333] leading-relaxed font-medium select-text">
+                    <p
+                      className={`text-[13px] text-[#333] leading-relaxed font-medium select-text ${markMode ? 'cursor-pointer' : ''}`}
+                      onPointerDown={handleLongPressStart(src.snippet)}
+                    >
                       {renderWithHighlights(src.snippet)}
                     </p>
                   </div>
                   {src.contextAfter && (
-                    <p className="text-[13px] text-[#999] leading-relaxed mb-3 select-text">
+                    <p
+                      className={`text-[13px] text-[#999] leading-relaxed mb-3 select-text ${markMode ? 'cursor-pointer rounded hover:bg-[#FFF9E6]' : ''}`}
+                      onPointerDown={handleLongPressStart(src.contextAfter)}
+                    >
                       {renderWithHighlights(src.contextAfter)}
                     </p>
                   )}
                   <p className="text-[11px] text-[#B0B0B0] text-center py-3">
-                    选中任意文字即可「标记」，高亮会同步写入你的原始笔记
+                    {markMode ? '长按段落选中，点「标记高亮」即同步写入原始笔记' : '点击右上角 ✎ 进入标记态，长按段落即可标记'}
                   </p>
                 </div>
 
-                {/* 划词后就近浮出的「标记」按钮 */}
+                {/* 长按后就近浮出的标记工具栏 */}
+                {markToolbar && (
+                  <>
+                    <div className="fixed inset-0 z-[55]" onClick={() => setMarkToolbar(null)} />
+                    <div
+                      style={{
+                        position: 'fixed',
+                        left: Math.min(markToolbar.x, window.innerWidth - 170),
+                        top: markToolbar.y + 12,
+                        zIndex: 60,
+                      }}
+                      className="flex items-center gap-1 p-1 bg-[#20242D] rounded-xl shadow-lg"
+                    >
+                      <button
+                        onClick={() => commitMark(markToolbar.text)}
+                        className="flex items-center gap-1 px-3 py-1.5 text-white text-[12px] font-medium rounded-lg hover:bg-white/10"
+                      >
+                        <PenLine className="w-3.5 h-3.5" />
+                        标记高亮
+                      </button>
+                      <button
+                        onClick={() => setMarkToolbar(null)}
+                        className="px-3 py-1.5 text-white/70 text-[12px] rounded-lg hover:bg-white/10"
+                      >
+                        取消
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {/* 划词后就近浮出的「标记」按钮（鼠标端） */}
                 {selectionText && markBtnPos && (
                   <button
                     onClick={applyMark}
@@ -2157,31 +2298,21 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
                   </button>
                 )}
 
-                {/* 「打开原笔记（最新）」浮层 —— 底层虚化并暂停 */}
-                {showNoteOverlay && src.noteLatest && (
-                  <div className="absolute inset-0 z-50 flex flex-col bg-black/30 backdrop-blur-[2px]">
-                    <div className="m-3 mt-4 flex-1 flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden">
-                      {/* 差异提示 */}
-                      <div className="px-4 py-2 bg-[#FFF9E6] border-b border-[#FDEEB0] flex items-center justify-between">
-                        <p className="text-[11px] text-[#B8860B]">最新笔记 · 与练习内容可能有差异</p>
-                        <button
-                          onClick={() => setShowNoteOverlay(false)}
-                          className="p-1 text-[#999] hover:text-[#333] rounded"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <p className="text-[13px] font-bold text-[#333]">{src.name}</p>
-                      </div>
-                      {/* 笔记正文（最新版，可编辑外观） */}
-                      <div className="flex-1 overflow-y-auto p-4">
-                        <p className="text-[13px] text-[#333] leading-relaxed whitespace-pre-wrap">
-                          {src.noteLatest}
-                        </p>
-                      </div>
-                    </div>
+                {/* 已写入原笔记提示 */}
+                {markSaved && (
+                  <div className="absolute left-1/2 -translate-x-1/2 bottom-6 z-[65] flex items-center gap-1.5 px-3.5 py-2 bg-[#20242D] text-white text-[12px] rounded-full shadow-lg">
+                    <Check className="w-3.5 h-3.5 text-green-400" />
+                    高亮已写入原笔记
                   </div>
+                )}
+
+                {/* 「打开原笔记（最新）」浮层 —— 原始笔记详情页样式（与新用户引导一致） */}
+                {showNoteOverlay && src.noteLatest && (
+                  <OriginalNoteOverlay
+                    noteName={src.name}
+                    noteLatest={src.noteLatest}
+                    onClose={() => setShowNoteOverlay(false)}
+                  />
                 )}
               </div>
             );
@@ -2228,8 +2359,8 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
         </div>
       )}
 
-      {/* Fullscreen AI overlay */}
-      {showAiFullscreen && (
+      {/* Fullscreen AI overlay —— forced_20 的确认阶段改为练习区局部覆盖，仅正式强化学习(started)才走全屏 */}
+      {showAiFullscreen && !(aiFullscreenMode === 'forced_20' && !aiFullscreenStarted) && (
         <AiFullscreenOverlay
           mode={aiFullscreenMode}
           conceptName="受贿罪的既遂标准"
@@ -2273,7 +2404,7 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
           onContinue={() => setShowDailyGoalPopup(false)}
           onReturnToDashboard={() => {
             setShowDailyGoalPopup(false);
-            onBack();
+            showExitReport('DAILY_COMPLETED');
           }}
         />
       )}
@@ -2294,7 +2425,7 @@ export function PracticeScreen({ onBack, startingPointId, dailyHours = 2, master
           onContinue={() => setShowKnowledgePointMastered(false)}
           onExit={() => {
             setShowKnowledgePointMastered(false);
-            onBack();
+            showExitReport('SECTION_EXITED');
           }}
         />
       )}

@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useCallback } from "react";
 import {
   Star, FolderOpen, Settings, Info, X,
-  TrendingUp, AlertTriangle, BookOpen, Share2, ChevronRight,
+  TrendingUp, AlertTriangle, BookOpen, Share2,
 } from "lucide-react";
 import { useApp } from "../contexts/AppContext";
+import { EditStudyPlanPopup } from "../components/EditStudyPlanPopup";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 
@@ -556,10 +557,9 @@ interface FusionCardProps {
   onShowInfo: (rect: DOMRect) => void;
   onMapClick: () => void;
   onShare: () => void;
-  onOpenLeaderboard: () => void;
 }
 
-function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare, onOpenLeaderboard }: FusionCardProps) {
+function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare }: FusionCardProps) {
   const unlearnedPct = STAGES.find(s => s.label === "未学")!.pct;
 
   return (
@@ -594,19 +594,16 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare, onOpenLeaderbo
               </div>
             </div>
 
-            {/* 同侪临场 / 排行榜入口（未来功能）：单句随处境切换——
-                过半(>50%)展示成就「已超过 X% 同学」；未过半(≤50%)展示追赶「还有 X% 同学在你前面」，
-                制造竞争紧迫感。整行可点击，› 暗示可进入排行榜。口径=竞争临场 + 陪伴，头像为示意元素。 */}
+            {/* 同侪对比仅作静态参照：当前没有排行榜或详情，不提供箭头、点击与按压反馈。 */}
             {(() => {
               const beatPct = 68; // 已超过的同学占比
               const ahead = 100 - beatPct; // 在你前面的占比
               const isAhead = beatPct > 50;
               return (
-                <button
-                  onClick={onOpenLeaderboard}
+                <div
                   style={{
                     display: "flex", alignItems: "center", gap: 8, marginTop: 12,
-                    background: "none", border: "none", padding: 0, cursor: "pointer", width: "100%",
+                    padding: 0, width: "100%",
                   }}
                 >
                   <div style={{ display: "flex", flexShrink: 0 }}>
@@ -635,8 +632,7 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare, onOpenLeaderbo
                       <>还有 <strong style={{ color: C.weak, fontWeight: 800 }}>{ahead}%</strong> 同学在你前面</>
                     )}
                   </p>
-                  <ChevronRight size={14} color={C.inkMuted} style={{ flexShrink: 0 }} />
-                </button>
+                </div>
               );
             })()}
           </div>
@@ -650,6 +646,7 @@ function FusionCard({ mapHeight, onShowInfo, onMapClick, onShare, onOpenLeaderbo
             justifyContent: "center", background: urgencyBg,
             borderRadius: 12, padding: "10px 14px", minWidth: 120,
           }}>
+            <span style={{ fontSize: 10, color: C.inkMuted, fontWeight: 600, marginBottom: 2 }}>法考客观题</span>
             <span style={{ fontSize: 11, color: C.inkMuted, fontWeight: 500, marginBottom: 2 }}>⏳ 距考试</span>
             <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 4 }}>
               <span style={{ fontSize: 36, fontWeight: 800, color: urgencyNumColor, lineHeight: 1, letterSpacing: "-0.5px" }}>
@@ -809,8 +806,13 @@ export default function OverviewScreen({
 }: OverviewScreenProps) {
   const [infoAnchor, setInfoAnchor] = useState<DOMRect | null>(null);
   const [showShare, setShowShare] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   // 朝向改为消费全局 orientation（切换按钮已上移到 App 外框全局控件）
-  const { orientation } = useApp();
+  const {
+    orientation,
+    planName, targetScore, totalScore, examDate, weeklyStudyDays, planMethod, reminderTime, outputLanguage,
+    applyPlanSettings,
+  } = useApp();
   const portrait = orientation === 'portrait';
 
   const FF = "'Inter','Noto Sans SC',system-ui,-apple-system,'PingFang SC','Microsoft YaHei',sans-serif";
@@ -842,7 +844,7 @@ export default function OverviewScreen({
             padding: "15px 0 12px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
-            <span style={{ fontSize: 20, fontWeight: 700, color: C.ink }}>学习总览</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: C.ink }}>{planName}</span>
 
             <div style={{ display: "flex", alignItems: "center" }}>
               <button onClick={() => onNavigateToFavorites?.()} style={{
@@ -865,7 +867,7 @@ export default function OverviewScreen({
                 <span>资料</span>
               </button>
 
-              <button style={{
+              <button onClick={() => setShowSettings(true)} style={{
                 display: "flex", alignItems: "center", gap: 4,
                 padding: "5px 9px", background: "none", border: "none",
                 cursor: "pointer", color: C.inkMuted, fontSize: 13,
@@ -876,8 +878,7 @@ export default function OverviewScreen({
             </div>
           </div>
 
-          {/* 概览首页默认即「知识体系概览」，不再放置「学习计划 ⇄ 知识体系」大切换；
-              两者切换下沉为知识地图详情页顶栏的小开关（详见 KnowledgeMapScreen）。 */}
+          {/* 底部 Tab 已明确当前为概览，页头只回答“正在查看哪个学习空间”。 */}
 
           {/* Fix 8: Portrait = 220px star map, landscape = 200px */}
           <FusionCard
@@ -885,7 +886,6 @@ export default function OverviewScreen({
             onShowInfo={(rect) => setInfoAnchor(rect)}
             onMapClick={handleMapClick}
             onShare={() => setShowShare(true)}
-            onOpenLeaderboard={() => { /* 排行榜为未来功能入口，暂不导航 */ }}
           />
 
           {/* Fix 8: Portrait = column direction, landscape = row */}
@@ -901,6 +901,34 @@ export default function OverviewScreen({
       {/* Overlays are position:fixed, rendered at root level */}
       {infoAnchor && <InfoPopover anchor={infoAnchor} onClose={() => setInfoAnchor(null)} />}
       {showShare && <SharePosterModal onClose={() => setShowShare(false)} />}
+      {showSettings && (
+        <EditStudyPlanPopup
+          currentName={planName}
+          currentTargetScore={targetScore}
+          currentTotalScore={totalScore}
+          currentExamDate={examDate}
+          currentWeeklyStudyDays={weeklyStudyDays}
+          currentPlanMethod={planMethod}
+          currentReminderTime={reminderTime}
+          currentOutputLanguage={outputLanguage}
+          onConfirm={(settings) => {
+            // 重排策略（settings 的第二参数）在此 demo 中不改变本地状态，
+            // 真实实现应据其决定保留手动安排还是全量重排未来任务。
+            applyPlanSettings({
+              planName: settings.name,
+              targetScore: settings.targetScore,
+              totalScore: settings.totalScore,
+              reminderTime: settings.reminderTime,
+              outputLanguage: settings.outputLanguage,
+              examDate: settings.examDate,
+              weeklyStudyDays: settings.weeklyStudyDays,
+              planMethod: settings.planMethod,
+            });
+            setShowSettings(false);
+          }}
+          onCancel={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }

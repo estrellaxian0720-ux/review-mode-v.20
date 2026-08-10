@@ -110,9 +110,18 @@ export function ResourcesScreen({
         {/* Header */}
         <div className="px-8 py-6 border-b border-gray-200">
           <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-[24px] font-bold text-[#333] mb-1">Course Resources</h1>
-              <p className="text-[14px] text-[#666]">Materials used to generate your study plan</p>
+            <div className="flex items-start gap-3">
+              <button
+                onClick={onBack}
+                aria-label="返回概览"
+                className="mt-1 p-1.5 -ml-1.5 text-[#666] hover:text-[#333] hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-[24px] font-bold text-[#333] mb-1">Course Resources</h1>
+                <p className="text-[14px] text-[#666]">Materials used to generate your study plan</p>
+              </div>
             </div>
 
             <button
