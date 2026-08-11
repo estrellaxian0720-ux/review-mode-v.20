@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { ArrowLeft, X, AlertTriangle, RotateCcw, List, Search, Plus, Minus, Maximize2 } from 'lucide-react';
+import { ArrowLeft, X, AlertTriangle, RotateCcw, List, Search, Plus, Minus, Maximize2, Star } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,7 @@ interface Concept {
   sectionId: string; chapterId: string;
   membership: PlanMembership;
   sx: number; sy: number; // group-local SVG coords
+  lastPracticedAt?: number; // 上次练习记录时间戳（派生「最近学习」默认居中星；无练习记录=undefined）
 }
 
 // ── Canvas constants ──────────────────────────────────────────────────────────
@@ -327,14 +328,30 @@ const RAW: CRow[] = [
   ['什么是刑法中的从旧兼从轻原则','new',0.3775,0.6235,3,'ch2s7'],
 ];
 
-const CONCEPTS: Concept[] = RAW.map(([name, status, x, y, deg, sectionId], i) => ({
-  id: String(i),
-  name, status, x, y, deg, sectionId,
-  // Demo: 保留一小部分未加入当前计划的知识点，用于表达三个功能视图的范围差异。
-  membership: i % 7 === 0 ? 'excluded' : 'included',
-  chapterId: S_CH[sectionId],
-  sx: csx(x), sy: csy(y),
-}));
+const CONCEPTS: Concept[] = (() => {
+  // Demo：合成「上次练习记录」时间戳。真实产品中该字段随练习/复习/模考作答写入（见产品逻辑文档 §九.1）。
+  // 未学(new)= 无练习记录=undefined；其余按 LCG 派生一个稳定的相对时间，max 即「最近学习」默认居中星。
+  const rng = lcgRng(20260624);
+  const NOW = 1_750_000_000_000; // 固定基准（demo 内确定性，避免每次渲染漂移）
+  return RAW.map(([name, status, x, y, deg, sectionId], i) => ({
+    id: String(i),
+    name, status, x, y, deg, sectionId,
+    // Demo: 保留一小部分未加入当前计划的知识点，用于表达三个功能视图的范围差异。
+    membership: i % 7 === 0 ? 'excluded' : 'included',
+    chapterId: S_CH[sectionId],
+    sx: csx(x), sy: csy(y),
+    lastPracticedAt: status === 'new' ? undefined : NOW - Math.floor(rng() * 30) * 86_400_000,
+  }));
+})();
+
+// 「最近学习」默认居中星：当前计划内 lastPracticedAt 最大者（无记录则回退到枢纽度最高的星）。
+// 星空入场即把它拉到屏幕中心，闪卡默认锚点也是它（见产品逻辑 §六⑤ / §九.1）。
+const RECENT_STAR: Concept = (() => {
+  const pool = CONCEPTS.filter(c => c.membership === 'included');
+  const withRec = pool.filter(c => c.lastPracticedAt != null);
+  if (withRec.length) return withRec.reduce((a, b) => (b.lastPracticedAt! > a.lastPracticedAt! ? b : a));
+  return pool.reduce((a, b) => (b.deg > a.deg ? b : a), pool[0]);
+})();
 
 // [from_name, to_name] — subset of cosine top-3 relations
 const RELATIONS: [string, string][] = [
@@ -435,6 +452,25 @@ const STATUS_DOT: Record<Status, string> = {
   mastered:'#00A63E', learning:'#2D8CFF', review_due:'#8E99B0', weak:'#FF6252', new:'#CCCCCC',
 };
 
+// 掌握度（0..1）——用于连线实/虚语义：mastered 端=1（可成实线），其余为未掌握端。
+// 「虚线的虚实度表示终端的掌握程度」→ 由较弱一端的掌握度驱动 dash 疏密（越接近掌握越密越实）。
+const MASTERY: Record<Status, number> = {
+  mastered: 1, review_due: 0.72, learning: 0.5, weak: 0.28, new: 0,
+};
+
+// 星空默认「全貌」缩放：能看全星空又保持星体可点（lod>=1）。点击某星后 fly-to 到细节档(≈2.0)。
+const STAR_FIT_SCALE = 1.0;
+// 入场把「最近学习」星拉向屏幕中心，但夹紧位移避免边缘星把全貌推出视口（缩小全貌 + 焦点居中的折中）。
+const CENTER_PAN = 230;
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+// 星图预览小地图尺寸 + 世界坐标半幅（sx/sy 映射到小地图用）。仅在放大溢出一屏时显示。
+const MM_W = 158, MM_H = 94, MM_WX = 520, MM_WY = 310;
+const mmX = (sx: number) => clamp((sx + MM_WX) / (2 * MM_WX) * MM_W, 0, MM_W);
+const mmY = (sy: number) => clamp((sy + MM_WY) / (2 * MM_WY) * MM_H, 0, MM_H);
+const mmDot: Record<Status, string> = {
+  mastered: '#FFE38A', learning: '#CFE0FF', review_due: '#9FC0FF', weak: '#FF7A6E', new: 'rgba(150,162,196,0.5)',
+};
+
 // 知识点详情（答案）— demo 缺省文案；思维导图/列表/预览闪卡中双击可编辑
 function defaultAnswer(name: string) {
   return `【要点】围绕「${name.replace(/…$/, '')}」：\n① 明确定义与构成要件；\n② 掌握司法认定标准与典型情形；\n③ 注意与相近概念的区分辨析。`;
@@ -451,6 +487,9 @@ interface EditOps {
   onToast: (msg: string) => void;
   onSetMembership: (id: string, membership: PlanMembership) => void;
   getAnswer: (c: Concept) => string;
+  onStartPractice?: (c?: Concept) => void;             // 去练习：进入练习页（App 层接线）
+  bookmarked?: Set<string>;                            // 已收藏知识点 id
+  onToggleBookmark?: (id: string) => void;             // 切换收藏 + toast
 }
 
 // ── Mind map view ──────────────────────────────────────────────────────────────
@@ -465,6 +504,22 @@ const MM_SC: Record<Status, string> = {
   mastered: '#00A63E', learning: '#2D8CFF', review_due: '#8E99B0',
   weak: '#FF6252', new: '#CCCCCC',
 };
+
+// 思维导图配色 = onboarding 蓝色系（与首次引导视觉连贯）：浅底 + 白卡 + 蓝色主节点。
+const MM = {
+  canvas: '#F6F6F6',       // 画布浅底
+  toolbar: '#FFFFFF',      // 顶栏
+  toolbarBd: '#EBEBEB',    // 顶栏描边
+  btn: '#F0F4FA', btnHover: '#E2ECFB', btnText: '#4A5568',
+  inputBd: '#E2E6EC',
+  grid: '#E4E7EC',         // 网格点
+  edge: '#D6DEEA',         // 连线
+  root: '#2D8CFF', chapter: '#1F6FE0', // 主节点蓝（root 亮、章节深一档）
+  leaf: '#FFFFFF', leafBd: '#EBEBEB', leafText: '#111111', // 白卡叶子
+  userBg: '#EAF3FF', userText: '#2D8CFF',
+  blue: '#2D8CFF',
+  hub: '#EAF1FB', hubBd: '#C4D4EC', hubText: '#4A5568', // 展开/收起手柄
+} as const;
 
 interface MMNode {
   id: string; label: string;
@@ -748,24 +803,24 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
     const vpW = (cW / zoom) * sc, vpH = (cH / zoom) * sc;
     minimapEl = (
       <div className="absolute bottom-3 right-3 rounded-lg overflow-hidden pointer-events-none"
-        style={{ width: MW, height: MH, background: 'rgba(240,237,232,0.94)', border: '1px solid #D0CCC4', boxShadow: '0 2px 8px rgba(0,0,0,0.10)' }}>
+        style={{ width: MW, height: MH, background: 'rgba(255,255,255,0.94)', border: `1px solid ${MM.toolbarBd}`, boxShadow: '0 2px 8px rgba(31,60,120,0.10)' }}>
         <svg width={MW} height={MH}>
           {visibleEdges.map(([fId, tId]) => {
             const fp = positions.get(fId)!, tp = positions.get(tId)!;
             return <line key={`mme-${fId}-${tId}`}
               x1={fp.cx * sc + ox} y1={fp.cy * sc + oy}
               x2={tp.cx * sc + ox} y2={tp.cy * sc + oy}
-              stroke="#B8B4AC" strokeWidth={0.8} />;
+              stroke={MM.edge} strokeWidth={0.8} />;
           })}
           {Array.from(positions.entries()).map(([id, p]) => (
             <rect key={`mmn-${id}`}
               x={p.cx * sc + ox - MM_NW[p.level] * sc / 2}
               y={p.cy * sc + oy - MM_NH * sc / 2}
               width={MM_NW[p.level] * sc} height={MM_NH * sc} rx={1}
-              fill={p.level === 0 ? '#1E2240' : p.level === 1 ? '#2A3050' : '#9098B0'} />
+              fill={p.level === 0 ? MM.root : p.level === 1 ? MM.chapter : '#AEBED6'} />
           ))}
           <rect x={vpX} y={vpY} width={vpW} height={vpH}
-            fill="none" stroke="#6888B0" strokeWidth={1.2} rx={2} opacity={0.7} />
+            fill="none" stroke={MM.blue} strokeWidth={1.2} rx={2} opacity={0.8} />
         </svg>
       </div>
     );
@@ -778,15 +833,15 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
   ];
 
   return (
-    <div className="h-full flex flex-col select-none" style={{ background: '#F7F5F0' }}>
+    <div className="h-full flex flex-col select-none" style={{ background: MM.canvas }}>
 
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b flex-shrink-0"
-        style={{ background: '#EFECE6', borderColor: '#DDD9D0', minHeight: 40 }}>
+        style={{ background: MM.toolbar, borderColor: MM.toolbarBd, minHeight: 40 }}>
         <input value={search} onChange={e => setSearch(e.target.value)}
           placeholder="🔍 搜索知识点…"
           className="text-xs px-2.5 py-1 rounded-md border outline-none"
-          style={{ background: '#FFF', borderColor: '#CCC9C0', color: '#333', width: 148 }} />
+          style={{ background: '#FFF', borderColor: MM.inputBd, color: '#333', width: 148 }} />
         <div className="flex-1" />
         {breadcrumb.length > 0 && (
           <div className="flex items-center gap-1 overflow-hidden max-w-[220px]">
@@ -802,8 +857,8 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
         )}
         {toolbarBtns.map(([label, fn]) => (
           <button key={label} onClick={fn}
-            className="text-xs px-2 py-1 rounded hover:bg-[#DDD9D0] transition-colors flex-shrink-0"
-            style={{ color: '#555', background: '#E4E0D8' }}>
+            className="text-xs px-2 py-1 rounded transition-colors flex-shrink-0 hover:brightness-95"
+            style={{ color: MM.btnText, background: MM.btn }}>
             {label}
           </button>
         ))}
@@ -811,7 +866,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
 
       {warnMsg && (
         <div className="text-xs text-center px-3 py-1.5 flex-shrink-0"
-          style={{ background: '#FFF9E6', color: '#7A6020', borderBottom: '1px solid #FFE080' }}>
+          style={{ background: '#EAF3FF', color: '#1F6FE0', borderBottom: '1px solid #C7E0FF' }}>
           ⚠ {warnMsg}
         </div>
       )}
@@ -827,7 +882,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
           <defs>
             <pattern id="mmgrid" x={pan.x % (22 * zoom)} y={pan.y % (22 * zoom)}
               width={22 * zoom} height={22 * zoom} patternUnits="userSpaceOnUse">
-              <circle cx={1} cy={1} r={0.9} fill="#C4C0B8" opacity={0.5} />
+              <circle cx={1} cy={1} r={0.9} fill={MM.grid} opacity={0.7} />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#mmgrid)" />
@@ -838,7 +893,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
               const fp = positions.get(fId)!, tp = positions.get(tId)!;
               return (
                 <path key={`e-${fId}-${tId}`} d={bezierPath(fp, tp)}
-                  fill="none" stroke="#C4C0B8" strokeWidth={1.5}
+                  fill="none" stroke={MM.edge} strokeWidth={1.5}
                   style={{ pointerEvents: 'none' }} />
               );
             })}
@@ -858,9 +913,9 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
               const dimmed = searchDim || filterDim;
               const side = p.side;
 
-              const bg = p.level === 0 ? '#1E2240' : p.level === 1 ? '#2A3050' : node.isUser ? '#EAF3FF' : '#FFFFFF';
-              const fg = p.level <= 1 ? '#FFFFFF' : node.isUser ? '#2D8CFF' : '#2A2820';
-              const bd = isSel ? '#2D8CFF' : p.level <= 1 ? 'transparent' : '#E0DCD4';
+              const bg = p.level === 0 ? MM.root : p.level === 1 ? MM.chapter : node.isUser ? MM.userBg : MM.leaf;
+              const fg = p.level <= 1 ? '#FFFFFF' : node.isUser ? MM.userText : MM.leafText;
+              const bd = isSel ? MM.blue : p.level <= 1 ? 'transparent' : MM.leafBd;
               const dotColor = node.status ? MM_SC[node.status] :
                 p.level === 2 ? secDot(node.id) :
                 p.level === 1 ? chDot(node.id) : 'transparent';
@@ -874,7 +929,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                   <rect x={x} y={y} width={w} height={h}
                     rx={p.level === 0 ? 10 : p.level === 1 ? 7 : 5}
                     fill={bg} stroke={bd} strokeWidth={isSel ? 2 : 1}
-                    style={{ filter: isMatch ? 'drop-shadow(0 0 5px rgba(100,136,176,0.55))' : undefined, cursor: 'pointer' }}
+                    style={{ filter: isMatch ? 'drop-shadow(0 0 5px rgba(45,140,255,0.55))' : undefined, cursor: 'pointer' }}
                     onClick={() => {
                       if (dragRef.current.moved) return;
                       const now = Date.now();
@@ -921,14 +976,14 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                     {lbl}
                   </text>
                   {excluded && p.level === 3 && (
-                    <text x={x + w - 5} y={y + 6} textAnchor="end" fill="#A86600" fontSize={7.5}
+                    <text x={x + w - 5} y={y + 6} textAnchor="end" fill="#2D8CFF" fontSize={7.5}
                       style={{ pointerEvents: 'none', userSelect: 'none' }}>未加入</text>
                   )}
                   {hasKids && (
                     <g onClick={e => { e.stopPropagation(); toggleNode(node.id, node); }} style={{ cursor: 'pointer' }}>
-                      <circle cx={hx} cy={p.cy} r={7.5} fill="#EDE9E0" stroke="#C0BCB4" strokeWidth={1} />
+                      <circle cx={hx} cy={p.cy} r={7.5} fill={MM.hub} stroke={MM.hubBd} strokeWidth={1} />
                       <text x={hx} y={p.cy} textAnchor="middle" dominantBaseline="middle"
-                        fill="#555" fontSize={11} fontWeight={700} style={{ userSelect: 'none' }}>
+                        fill={MM.hubText} fontSize={11} fontWeight={700} style={{ userSelect: 'none' }}>
                         {isCol ? '+' : '−'}
                       </text>
                     </g>
@@ -943,7 +998,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                   {isSel && p.level < 3 && (
                     <g style={{ cursor: 'pointer' }}
                       onClick={e => { e.stopPropagation(); addChild(node.id, side === 'root' ? 'right' : side as 'left'|'right', p.level); }}>
-                      <circle cx={p.cx} cy={y + h + 11} r={8} fill="#6888B0" />
+                      <circle cx={p.cx} cy={y + h + 11} r={8} fill={MM.blue} />
                       <text x={p.cx} y={y + h + 11} textAnchor="middle" dominantBaseline="middle"
                         fill="white" fontSize={13} fontWeight={700} style={{ userSelect: 'none' }}>+</text>
                     </g>
@@ -980,7 +1035,7 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
             onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
             onBlur={commitEdit}
             className="pointer-events-auto px-3 py-2 text-sm rounded-lg border-2 shadow-xl outline-none"
-            style={{ borderColor: '#6888B0', background: '#FFF', minWidth: 180, color: '#222' }} />
+            style={{ borderColor: MM.blue, background: '#FFF', minWidth: 180, color: '#222' }} />
         </div>
       )}
     </div>
@@ -1254,22 +1309,155 @@ function ConceptFlashcardModal({ concept, answer, onClose, onSaveAnswer }: {
   );
 }
 
+// ── 星图定位闪卡（点星专用）：首页翻面卡样式，但定位在星旁不遮住星本身 ──────────────
+// 与 ConceptFlashcardModal 同款翻面视觉；差异：不铺全屏深色蒙版、按星位置贴边、
+// 正面收藏、背面去练习、禁止切换上下张（就一张卡）。
+function StarFlashcard({ concept, answer, starPos, container, bookmarked, onToggleBookmark, onStartPractice, onSaveAnswer, onClose }: {
+  concept: Concept; answer: string;
+  starPos: { x: number; y: number };                 // 被点星相对容器坐标
+  container: { w: number; h: number };               // 容器尺寸，用于判定贴边方向
+  bookmarked: boolean;
+  onToggleBookmark: (id: string) => void;
+  onStartPractice?: (c?: Concept) => void;
+  onSaveAnswer: (id: string, text: string) => void;
+  onClose: () => void;
+}) {
+  const [flipped, setFlipped] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  function commit() {
+    if (editing) { onSaveAnswer(concept.id, draft); setEditing(false); }
+  }
+
+  // 卡片尺寸 + 按星位置贴边（星在上→卡在下，星在下→卡在上，左右同理），确保不遮住星本身
+  const CARD_W = 320, GAP = 22, PAD = 14;
+  const estH = 240;
+  const starOnTop = starPos.y < container.h / 2;
+  const starOnLeft = starPos.x < container.w / 2;
+  const top = starOnTop
+    ? Math.min(starPos.y + GAP, container.h - estH - PAD)
+    : Math.max(starPos.y - GAP - estH, PAD);
+  // 水平：卡整体偏向星的另一侧，但夹紧在容器内
+  const desiredLeft = starOnLeft ? starPos.x + GAP : starPos.x - GAP - CARD_W;
+  const left = Math.max(PAD, Math.min(desiredLeft, container.w - CARD_W - PAD));
+
+  return (
+    // 极轻透明层：只承接「点空白关闭」，不铺深色遮罩 → 地图点亮态在卡旁仍可见
+    <div style={{ position: 'absolute', inset: 0, zIndex: 120, background: 'transparent' }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ position: 'absolute', left, top, width: CARD_W, perspective: 1000 }}>
+        {/* Top meta（状态点 + 章节）+ 关闭 */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 2px' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 12, color: 'rgba(255,255,255,0.9)', fontWeight: 600, textShadow: '0 1px 4px rgba(0,0,0,0.6)' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: STATUS_DOT[concept.status], boxShadow: '0 0 6px rgba(0,0,0,0.5)' }} />
+            {STATUS_LABEL[concept.status]} · {SECTIONS.find(s => s.id === concept.sectionId)?.name || '知识点'}
+          </span>
+          <button onClick={onClose} style={{
+            width: 26, height: 26, borderRadius: '50%', border: 'none', cursor: 'pointer',
+            background: 'rgba(255,255,255,0.22)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0,
+          }}>✕</button>
+        </div>
+
+        {/* Flip container */}
+        <div
+          onClick={() => { if (!editing) setFlipped(f => !f); }}
+          style={{
+            position: 'relative', transformStyle: 'preserve-3d', cursor: 'pointer',
+            transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+            transition: 'transform 0.44s ease',
+            boxShadow: '0 18px 50px rgba(0,0,0,0.6)', borderRadius: 20,
+          }}>
+          {/* Front — 深色卡皮：名称 + 收藏 */}
+          <div style={{
+            backfaceVisibility: 'hidden', background: '#1B1F31', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
+            padding: '28px 26px 22px', minHeight: estH,
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 18 }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                知识点 · 正面
+              </span>
+              <button
+                onClick={e => { e.stopPropagation(); onToggleBookmark(concept.id); }}
+                title={bookmarked ? '取消收藏' : '收藏'}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, lineHeight: 0 }}>
+                <Star size={20} color={bookmarked ? '#F5B400' : 'rgba(255,255,255,0.35)'} fill={bookmarked ? '#F5B400' : 'none'} />
+              </button>
+            </div>
+            <p style={{ fontSize: 19, fontWeight: 700, color: '#F5F7FF', lineHeight: 1.5, flex: 1, marginBottom: 16 }}>
+              {concept.name}
+            </p>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', margin: 0, textAlign: 'center' }}>点击翻面看答案</p>
+          </div>
+
+          {/* Back — 深色卡皮：答案（双击编辑）+ 去练习 */}
+          <div style={{
+            backfaceVisibility: 'hidden', background: '#1B1F31', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20,
+            padding: '26px 26px 20px', minHeight: estH,
+            position: 'absolute', top: 0, left: 0, right: 0,
+            transform: 'rotateY(180deg)',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <span style={{ fontSize: 11, color: '#34D07A', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 14, display: 'block' }}>
+              知识点 · 背面
+            </span>
+            {editing ? (
+              <textarea autoFocus value={draft}
+                onChange={e => setDraft(e.target.value)}
+                onClick={e => e.stopPropagation()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+                  if (e.key === 'Escape') setEditing(false);
+                }}
+                onBlur={commit}
+                rows={5}
+                style={{
+                  flex: 1, marginBottom: 12, padding: 10, fontSize: 13, lineHeight: 1.7, color: 'rgba(255,255,255,0.9)',
+                  background: '#12152A', border: '1.5px solid #2D8CFF', borderRadius: 10, outline: 'none', resize: 'none', fontFamily: 'inherit',
+                }} />
+            ) : (
+              <p
+                onDoubleClick={e => { e.stopPropagation(); setDraft(answer); setEditing(true); }}
+                title="双击编辑答案"
+                style={{ fontSize: 13, color: 'rgba(255,255,255,0.82)', lineHeight: 1.7, flex: 1, marginBottom: 12, whiteSpace: 'pre-wrap' }}>
+                {answer}
+              </p>
+            )}
+            <button
+              onClick={e => { e.stopPropagation(); onClose(); onStartPractice?.(concept); }}
+              style={{
+                border: 'none', borderRadius: 12, cursor: 'pointer', width: '100%', padding: '11px 0',
+                background: '#2D8CFF', color: '#fff', fontSize: 14, fontWeight: 700,
+              }}>
+              去练习
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 interface KnowledgeMapScreenProps {
   onBack: () => void;
   defaultFilter?: Filter;
+  onStartPractice?: (c?: Concept) => void;
 }
 
-export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: KnowledgeMapScreenProps) {
+export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onStartPractice }: KnowledgeMapScreenProps) {
   const [view, setView] = useState<ViewMode>('star');
   const [filter, setFilter] = useState<Filter>(defaultFilter);
-  const [scale, setScale] = useState(0.42);
+  const [scale, setScale] = useState(STAR_FIT_SCALE);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [selected, setSelected] = useState<Concept | null>(null);
-  const [bubblePos, setBubblePos] = useState({ x: 0, y: 0 });
   const [starSearch, setStarSearch] = useState('');
+  const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
+  const [containerSize, setContainerSize] = useState({ w: 900, h: 520 });
   // 范围职责坍缩：星空/思维导图恒=当前计划；只有列表关心「是否加入计划」。
   const [listMembership, setListMembership] = useState<'all' | PlanMembership>('included');
 
@@ -1291,6 +1479,15 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
     (c: Concept) => answers[c.id] ?? defaultAnswer(c.name),
     [answers],
   );
+
+  const toggleBookmark = useCallback((id: string) => {
+    setBookmarked(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); showToast('已取消收藏'); }
+      else { next.add(id); showToast('已收藏'); }
+      return next;
+    });
+  }, [showToast]);
 
   const ops: EditOps = useMemo(() => ({
     onOpenConcept: (c) => setPreview(c),
@@ -1330,25 +1527,56 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
       showToast(membership === 'included' ? '已加入当前计划' : '已移出当前计划');
     },
     getAnswer,
-  }), [showToast, getAnswer]);
+    onStartPractice,
+    bookmarked,
+    onToggleBookmark: toggleBookmark,
+  }), [showToast, getAnswer, onStartPractice, bookmarked, toggleBookmark]);
 
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const dragState = useRef({ on: false, moved: false, sx: 0, sy: 0, spx: 0, spy: 0 });
+  const animRef = useRef<number | null>(null);
 
-  // Entrance fly-to animation
-  useEffect(() => {
-    let raf: number;
+  // 最新 scale/pan 的 ref 镜像，供 animateTo/fly-to 读取避免闭包过期
+  const scaleRef = useRef(scale); scaleRef.current = scale;
+  const panXRef = useRef(panX); panXRef.current = panX;
+  const panYRef = useRef(panY); panYRef.current = panY;
+
+  // 通用缓动：把 scale/panX/panY 平滑过渡到目标值（天文观测式 fly-to，入场动画也复用）
+  const animateTo = useCallback((tScale: number, tPanX: number, tPanY: number, ms = 620) => {
+    if (animRef.current) cancelAnimationFrame(animRef.current);
+    const s0 = scaleRef.current, px0 = panXRef.current, py0 = panYRef.current;
     let t0: number | null = null;
     const run = (ts: number) => {
-      if (!t0) t0 = ts;
-      const p = Math.min((ts - t0) / 750, 1);
+      if (t0 === null) t0 = ts;
+      const p = Math.min((ts - t0) / ms, 1);
       const e = 1 - Math.pow(1 - p, 3);
-      setScale(0.42 + 0.64 * e); // → 1.06
-      if (p < 1) raf = requestAnimationFrame(run);
+      setScale(s0 + (tScale - s0) * e);
+      setPanX(px0 + (tPanX - px0) * e);
+      setPanY(py0 + (tPanY - py0) * e);
+      if (p < 1) animRef.current = requestAnimationFrame(run);
+      else animRef.current = null;
     };
-    raf = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(raf);
+    animRef.current = requestAnimationFrame(run);
   }, []);
+
+  // Entrance fly-to：默认全貌缩放，并把「最近学习」星拉向屏幕中心（位移夹紧，避免边缘星把全貌推出视口）。
+  useEffect(() => {
+    const tPanX = clamp(-RECENT_STAR.sx * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN);
+    const tPanY = clamp(-RECENT_STAR.sy * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN);
+    animateTo(STAR_FIT_SCALE, tPanX, tPanY, 820);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 测量星空容器尺寸（供定位闪卡贴边 + minimap 视口换算）
+  useEffect(() => {
+    const measure = () => {
+      const r = svgContainerRef.current?.getBoundingClientRect();
+      if (r) setContainerSize({ w: r.width, h: r.height });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [view]);
 
   const lod = scale < 0.9 ? 0 : scale < 1.8 ? 1 : 2;
 
@@ -1381,6 +1609,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
 
   const onWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
+    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
     setScale(s => Math.max(0.28, Math.min(5, s * (e.deltaY < 0 ? 1.12 : 0.89))));
     setSelected(null);
   }, []);
@@ -1388,20 +1617,34 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
   const handleStarClick = useCallback((e: React.MouseEvent, c: Concept) => {
     e.stopPropagation();
     if (dragState.current.moved) return;
-    const rect = svgContainerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setBubblePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     setSelected(c);
-  }, []);
+    // fly-to：放大到知识点档（连线可见），且把被点星钉在原屏幕位置（绕该星缩放）→ 贴边闪卡定位仍准确
+    const target = Math.max(scaleRef.current, 2.0);
+    if (target > scaleRef.current + 0.001) {
+      animateTo(target, panXRef.current + c.sx * (scaleRef.current - target), panYRef.current + c.sy * (scaleRef.current - target), 560);
+    }
+  }, [animateTo]);
+
 
   // Derived data
   const byName = useMemo(() => new Map(concepts.map(c => [c.name, c])), [concepts]);
   const visibleRelations = useMemo(() => {
-    if (lod < 2) return [];
+    if (lod < 1) return [];
     return RELATIONS
       .map(([from, to]) => ({ from: byName.get(from), to: byName.get(to) }))
       .filter((r): r is { from: Concept; to: Concept } => !!(r.from && r.to && r.from.id !== r.to.id));
   }, [lod, byName]);
+
+  // 选中星的直接邻居集（RELATIONS 无实线/虚线之分 → 所有相连邻居一起亮）
+  const selectedNeighbors = useMemo(() => {
+    const s = new Set<string>();
+    if (!selected) return s;
+    for (const [from, to] of RELATIONS) {
+      if (from === selected.name) { const n = byName.get(to); if (n) s.add(n.id); }
+      else if (to === selected.name) { const n = byName.get(from); if (n) s.add(n.id); }
+    }
+    return s;
+  }, [selected, byName]);
 
   const includedConcepts = useMemo(() => concepts.filter(c => c.membership === 'included'), [concepts]);
   const masteredCount = includedConcepts.filter(c => c.status === 'mastered').length;
@@ -1564,12 +1807,12 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
             <div className="absolute z-20 right-4 bottom-4 flex flex-col gap-1">
               <button title="放大" onClick={e => { e.stopPropagation(); setScale(s => Math.min(5, s * 1.2)); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Plus size={15}/></button>
               <button title="缩小" onClick={e => { e.stopPropagation(); setScale(s => Math.max(.28, s / 1.2)); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Minus size={15}/></button>
-              <button title="适应画布" onClick={e => { e.stopPropagation(); setScale(1.06); setPanX(0); setPanY(0); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Maximize2 size={15}/></button>
+              <button title="回到全貌" onClick={e => { e.stopPropagation(); setSelected(null); animateTo(STAR_FIT_SCALE, clamp(-RECENT_STAR.sx * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN), clamp(-RECENT_STAR.sy * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN), 520); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Maximize2 size={15}/></button>
             </div>
             <svg
               width="100%" height="100%"
               viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-              preserveAspectRatio="xMidYMid meet"
+              preserveAspectRatio="xMidYMid slice"
               style={{ display:'block' }}>
               <defs>
                 {/* onboarding 星空皮肤：蓝/金辉光 + 星云径向渐变 */}
@@ -1636,27 +1879,39 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
                   </g>
                 ))}
 
-                {/* Relation lines (LOD 2) — onboarding 冷蓝连线 */}
-                {visibleRelations.map((r, i) => {
-                  const lit = r.from.status === 'mastered' || r.to.status === 'mastered';
-                  return (
-                    <line key={i}
-                      x1={r.from.sx} y1={r.from.sy}
-                      x2={r.to.sx} y2={r.to.sy}
-                      stroke={lit ? '#C8D9F6' : '#3A5590'}
-                      strokeWidth={0.6/scale}
-                      opacity={lit ? 0.34 : 0.14}
-                      strokeLinecap="round"
-                      style={{ pointerEvents:'none' }}/>
-                  );
-                })}
+                {/* Relation lines (LOD 1+) — 实/虚语义：两端皆已掌握=实线；否则虚线，
+                  虚实度由较弱一端掌握度驱动（越接近掌握→dash 越密越实，见产品逻辑 §六⑤ 连线语义）。 */}
+              {visibleRelations.map((r, i) => {
+                const touchesSel = !!selected && (r.from.id === selected.id || r.to.id === selected.id);
+                const bothMastered = r.from.status === 'mastered' && r.to.status === 'mastered';
+                const weak = Math.min(MASTERY[r.from.status], MASTERY[r.to.status]); // 较弱端掌握度 0..1
+                const hi = touchesSel;
+                const dimByOther = !!selected && !touchesSel;
+                // 虚线 dash：gap 随较弱端掌握度增大而收窄（weak→1 近实线；weak→0 稀疏）
+                const dash = bothMastered ? undefined : `${(1.6 + weak * 2.2) / scale} ${(5.5 - weak * 3.8) / scale}`;
+                return (
+                  <line key={i}
+                    x1={r.from.sx} y1={r.from.sy}
+                    x2={r.to.sx} y2={r.to.sy}
+                    stroke={hi ? '#E7EEFF' : bothMastered ? '#CBDBF8' : '#6E86BE'}
+                    strokeWidth={(hi ? 1.1 : bothMastered ? 0.62 : 0.5)/scale}
+                    strokeDasharray={dash}
+                    opacity={hi ? 0.9 : dimByOther ? 0.05 : bothMastered ? 0.4 : 0.12 + weak * 0.24}
+                    strokeLinecap="round"
+                    style={{ pointerEvents:'none' }}/>
+                );
+              })}
 
                 {/* Stars (concepts) */}
                 {includedConcepts.map(c => {
                   const fMatch = matchesFilter(c, filter);
                   const searchMatch = !starSearch.trim() || c.name.toLowerCase().includes(starSearch.trim().toLowerCase());
-                  const dimmed = (filter !== 'all' && !fMatch) || !searchMatch;
                   const isSel = selected?.id === c.id;
+                  const isNeighbor = selectedNeighbors.has(c.id);
+                  // 蒙层：筛选/搜索未命中 → 变暗；且有选中星时，既非选中也非邻居的星也变暗（凸显点亮态）
+                  const maskByFilter = (filter !== 'all' && !fMatch) || !searchMatch;
+                  const maskBySel = !!selected && !isSel && !isNeighbor;
+                  const dimmed = maskByFilter || maskBySel;
                   const v = starVis(c, dimmed, isSel);
                   const glowId = v.glow === 'gold' ? 'url(#goldGlow)' : v.glow === 'blue' ? 'url(#blueGlow)' : undefined;
                   const isGold = v.glow === 'gold';
@@ -1677,74 +1932,78 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
                             stroke="#FFF1A2" strokeWidth={0.14/scale} opacity={0.6} style={{ pointerEvents:'none' }}/>
                         </>
                       )}
+                      {/* 邻居星：柔和光环，随选中「同步亮起」但不与选中星混淆 */}
+                      {isNeighbor && (
+                        <circle cx={c.sx} cy={c.sy} r={v.r + 2/scale}
+                          fill="none" stroke="#BFD4FF" strokeWidth={0.9/scale} opacity={0.75}
+                          style={{ pointerEvents:'none' }}/>
+                      )}
                       <circle cx={c.sx} cy={c.sy} r={v.r} fill={v.fill} opacity={v.op}
                         filter={glowId}/>
+                      {/* 选中星：双环 + 放大，明确区别于邻居 */}
                       {isSel && (
-                        <circle cx={c.sx} cy={c.sy} r={v.r + 2.5/scale}
-                          fill="none" stroke="#F5F0D0" strokeWidth={1/scale} opacity={0.9}/>
+                        <>
+                          <circle cx={c.sx} cy={c.sy} r={v.r * 2.4} fill="#FFF6C8"
+                            opacity={0.14} style={{ pointerEvents:'none' }}/>
+                          <circle cx={c.sx} cy={c.sy} r={v.r + 3.5/scale}
+                            fill="none" stroke="#F5F0D0" strokeWidth={1.6/scale} opacity={1}/>
+                        </>
                       )}
-                      {/* Name label: show when selected OR filter match at detail LOD */}
-                      {(isSel || (searchMatch && starSearch.trim() && lod >= 1) || (fMatch && filter !== 'all' && lod >= 1)) && (
-                        <text x={c.sx} y={c.sy - v.r - 3/scale}
-                          textAnchor="middle"
-                          fontSize={9/scale}
-                          fill={isSel ? '#F5F0D0' : 'rgba(220,232,255,0.8)'}
-                          style={{ pointerEvents:'none', userSelect:'none' }}>
-                          {c.name.length > 12 ? c.name.slice(0, 12) + '…' : c.name}
-                        </text>
-                      )}
+                      {/* 星体不显示知识点名称（见产品逻辑 §六⑤）：名称在选中后由贴边闪卡承载。 */}
                     </g>
                   );
                 })}
               </g>
             </svg>
 
-            {/* Bubble popup */}
-            {selected && (
-              <div
-                className="absolute z-20 rounded-xl shadow-2xl pointer-events-auto"
-                style={{
-                  left: Math.min(bubblePos.x - 120, SVG_W - 260),
-                  top: Math.max(bubblePos.y - 148, 8),
-                  width: 240,
-                  background: 'rgba(18,20,34,0.97)',
-                  border: '1px solid rgba(255,255,255,0.12)',
-                  backdropFilter: 'blur(12px)',
-                }}
-                onClick={(e) => e.stopPropagation()}>
-                <div className="p-3.5">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <p className="text-xs leading-snug font-medium flex-1" style={{ color: '#F0ECE0' }}>
-                      {selected.name}
-                    </p>
-                    <button onClick={() => setSelected(null)} style={{ color: 'rgba(255,255,255,0.35)', flexShrink:0 }}>
-                      <X size={13}/>
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5 mb-3">
-                    <span className="w-2 h-2 rounded-full" style={{ background: STATUS_DOT[selected.status] }}/>
-                    <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.5)' }}>
-                      {STATUS_LABEL[selected.status]}
-                    </span>
-                    <span className="text-[11px] ml-auto" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                      枢纽度 {selected.deg}
-                    </span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => { setPreview(selected); setSelected(null); }}
-                      className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
-                      style={{ background: 'rgba(253,234,59,0.18)', color: '#FDEA3B', border: '1px solid rgba(253,234,59,0.4)' }}>
-                      看闪卡
-                    </button>
-                    <button className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
-                      style={{ background: 'rgba(45,140,255,0.18)', color: '#6FB0FF', border: '1px solid rgba(45,140,255,0.4)' }}>
-                      去练习
-                    </button>
-                  </div>
+            {/* 一步式：点星 → 深色贴边闪卡（正面名+收藏／背面详情+去练习），定位在星的实时屏幕坐标旁，
+                镜像贴边不遮住星本身。取代原「气泡→看闪卡/去练习」二步式，并删除冗余「枢纽度」。 */}
+            {selected && (() => {
+              // 星在 pan/zoom 组内的 SVG 坐标 → 容器像素坐标（viewBox slice 覆盖式换算）
+              const sx = CX + panX + selected.sx * scale;
+              const sy = CY + panY + selected.sy * scale;
+              const cover = Math.max(containerSize.w / SVG_W, containerSize.h / SVG_H);
+              const offX = (containerSize.w - SVG_W * cover) / 2;
+              const offY = (containerSize.h - SVG_H * cover) / 2;
+              const starPos = { x: offX + sx * cover, y: offY + sy * cover };
+              return (
+                <StarFlashcard
+                  concept={selected}
+                  answer={getAnswer(selected)}
+                  starPos={starPos}
+                  container={containerSize}
+                  bookmarked={bookmarked.has(selected.id)}
+                  onToggleBookmark={toggleBookmark}
+                  onStartPractice={onStartPractice}
+                  onSaveAnswer={ops.onSaveAnswer}
+                  onClose={() => setSelected(null)}
+                />
+              );
+            })()}
+
+            {/* 预览小地图：仅当放大到内容溢出一屏（scale>fit）时显示，映射全星空 + 当前视口框。 */}
+            {scale > STAR_FIT_SCALE + 0.06 && (() => {
+              // 当前视口在世界坐标(sx/sy)中的范围 → 小地图矩形
+              const halfWx = (containerSize.w / Math.max(containerSize.w / SVG_W, containerSize.h / SVG_H)) / 2 / scale;
+              const halfWy = (containerSize.h / Math.max(containerSize.w / SVG_W, containerSize.h / SVG_H)) / 2 / scale;
+              const cxW = -panX / scale, cyW = -panY / scale; // 视口中心的世界坐标
+              const vx = mmX(cxW - halfWx), vy = mmY(cyW - halfWy);
+              const vw = mmX(cxW + halfWx) - vx, vh = mmY(cyW + halfWy) - vy;
+              return (
+                <div className="absolute z-20 left-4 bottom-4 rounded-lg overflow-hidden pointer-events-none"
+                  style={{ width: MM_W, height: MM_H, background: 'rgba(8,11,22,0.82)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(6px)' }}>
+                  <svg width={MM_W} height={MM_H} style={{ display: 'block' }}>
+                    {includedConcepts.map(c => (
+                      <circle key={c.id} cx={mmX(c.sx)} cy={mmY(c.sy)} r={c.status === 'mastered' ? 1.5 : 1}
+                        fill={selected?.id === c.id ? '#FFF2A5' : mmDot[c.status]}
+                        opacity={selected?.id === c.id ? 1 : 0.85}/>
+                    ))}
+                    <rect x={vx} y={vy} width={Math.max(6, vw)} height={Math.max(6, vh)}
+                      fill="rgba(120,170,255,0.14)" stroke="#7DA8FF" strokeWidth={1} rx={2}/>
+                  </svg>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Zoom hint */}
             {lod === 0 && (
@@ -1767,7 +2026,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all' }: Kn
         )}
       </div>
 
-      {/* 预览闪卡弹窗（与首页同源）：单击知识点叶子 / 星图气泡「看闪卡」弹出 */}
+      {/* 预览闪卡弹窗（与首页同源，居中浅色）：思维导图/列表单击知识点叶子弹出（星图用贴边深色卡，不走此路径） */}
       {preview && (
         <ConceptFlashcardModal
           concept={preview}
