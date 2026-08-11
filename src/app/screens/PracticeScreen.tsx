@@ -848,13 +848,14 @@ interface Source {
 interface PracticeScreenProps {
   onBack: (forcedMastery?: number) => void;
   onShowReport?: (mode: 'DAILY_COMPLETED' | 'SECTION_EXITED') => void;
-  startingPointId?: number;
+  startingPointId?: string;
+  startingPointName?: string;
   dailyHours?: number;
   masteryPercentage?: number;
   remainingKnowledgePoints?: number;
 }
 
-export function PracticeScreen({ onBack, onShowReport, startingPointId, dailyHours = 2, masteryPercentage = 65, remainingKnowledgePoints = 100 }: PracticeScreenProps) {
+export function PracticeScreen({ onBack, onShowReport, startingPointId, startingPointName, dailyHours = 2, masteryPercentage = 65, remainingKnowledgePoints = 100 }: PracticeScreenProps) {
   const showExitReport = (mode: 'DAILY_COMPLETED' | 'SECTION_EXITED') => {
     if (onShowReport) onShowReport(mode);
     else onBack();
@@ -966,7 +967,7 @@ export function PracticeScreen({ onBack, onShowReport, startingPointId, dailyHou
   
   // Knowledge Point Mastered Popup
   const [showKnowledgePointMastered, setShowKnowledgePointMastered] = useState(false);
-  const [currentKnowledgePointName] = useState('受贿罪的既遂标准');
+  const currentKnowledgePointName = startingPointName || '受贿罪的既遂标准';
   const [remainingPointsCount, setRemainingPointsCount] = useState(remainingKnowledgePoints || 15);
   
   // Bookmark states
@@ -1067,8 +1068,16 @@ export function PracticeScreen({ onBack, onShowReport, startingPointId, dailyHou
     }, 1500);
   };
 
-  const currentQuestion = questions[currentQuestionIndex];
-  const totalQuestions = questions.length;
+  // 定点入口的首题明确归属被点击知识点；后续仍复用 demo 题流。
+  const sessionQuestions: Question[] = startingPointId && startingPointName
+    ? questions.map((question, index) => index === 0 ? {
+        ...question,
+        text: `关于「${startingPointName}」，下列说法正确的是？`,
+        explanation: `当前练习从知识点「${startingPointName}」开始。\n\n${question.explanation}`,
+      } : question)
+    : questions;
+  const currentQuestion = sessionQuestions[currentQuestionIndex];
+  const totalQuestions = sessionQuestions.length;
 
   // Handle answer selection
   const handleAnswerSelect = (answer: number | boolean) => {
@@ -1275,7 +1284,7 @@ export function PracticeScreen({ onBack, onShowReport, startingPointId, dailyHou
     // Reset timer for new session
     setElapsedSeconds(0);
     setShowDailyGoalPopup(false);
-  }, [startingPointId]);
+  }, [startingPointId, startingPointName]);
 
   // Timer effect (count up)
   useEffect(() => {

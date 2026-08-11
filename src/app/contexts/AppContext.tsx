@@ -42,6 +42,7 @@ interface AppState {
   // 学习计划状态
   selectedSpaceId: string | null;
   practiceStartingPoint: string | undefined;
+  practiceStartingPointName: string | undefined;
   dailyStudyHours: number;
   /** 1=周一 … 7=周日；默认工作日学习。 */
   weeklyStudyDays: number[];
@@ -145,7 +146,7 @@ interface AppActions {
   setExamResults: (results: ExamResults | null) => void;
   
   // 复合操作
-  startPractice: (startingPointId?: string) => void;
+  startPractice: (startingPointId?: string, startingPointName?: string) => void;
   exitPractice: (forcedMastery?: number) => void;
   startMockExam: (config: ExamConfig) => void;
   submitExam: (results: ExamResults) => void;
@@ -260,6 +261,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // 学习计划状态
   const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
   const [practiceStartingPoint, setPracticeStartingPoint] = useState<string | undefined>(undefined);
+  const [practiceStartingPointName, setPracticeStartingPointName] = useState<string | undefined>(undefined);
   const [dailyStudyHours, setDailyStudyHours] = useState(2);
   const [weeklyStudyDays, setWeeklyStudyDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [planMethod, setPlanMethod] = useState<PlanMethod>('SYSTEM_PLANNED');
@@ -336,8 +338,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   // 复合操作
-  const startPractice = (startingPointId?: string) => {
+  const startPractice = (startingPointId?: string, startingPointName?: string) => {
     setPracticeStartingPoint(startingPointId);
+    setPracticeStartingPointName(startingPointName);
     navigateTo('practice');
   };
 
@@ -380,6 +383,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     todayDemoScenario,
     selectedSpaceId,
     practiceStartingPoint,
+    practiceStartingPointName,
     dailyStudyHours,
     weeklyStudyDays,
     planMethod,
