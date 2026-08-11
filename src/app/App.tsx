@@ -75,6 +75,7 @@ function AppContent() {
     orientation,
     todayDemoScenario,
     practiceStartingPoint,
+    practiceStartingPointName,
     dailyStudyHours,
     overallMastery,
     showPivotPopup,
@@ -262,7 +263,7 @@ function AppContent() {
         return (
           <FavoritesScreen
             onBack={() => navigateTo('overview' as any)}
-            onStartPractice={() => startPractice()}
+            onStartPractice={(conceptId) => startPractice(conceptId)}
           />
         );
 
@@ -270,6 +271,8 @@ function AppContent() {
         return (
           <KnowledgeMapScreen
             onBack={() => navigateTo('overview' as any)}
+            onViewPlan={() => { setCourseProgressContext('view'); navigateTo('course-progress'); }}
+            onStartPractice={(concept) => startPractice(concept?.id, concept?.name)}
           />
         );
 
@@ -282,6 +285,7 @@ function AppContent() {
                 navigateTo('practice-report');
               }}
               startingPointId={practiceStartingPoint}
+              startingPointName={practiceStartingPointName}
               dailyHours={dailyStudyHours}
               masteryPercentage={overallMastery}
             />
