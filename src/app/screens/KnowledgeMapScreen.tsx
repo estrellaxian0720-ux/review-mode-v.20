@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import { ArrowLeft, X, AlertTriangle, RotateCcw, List, Search, Plus, Minus, Maximize2, Star } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -354,7 +354,7 @@ const RECENT_STAR: Concept = (() => {
 })();
 
 // [from_name, to_name] — subset of cosine top-3 relations
-const RELATIONS: [string, string][] = [
+const BASE_RELATIONS: [string, string][] = [
   ['什么是变相受贿行为？请结合常见形','以交易形式变相受贿时，计算受贿数'],
   ['什么是变相受贿行为？请结合常见形','干股作为变相受贿表现为何？其应如'],
   ['以交易形式变相受贿时，计算受贿数','什么是共同受贿数额计算原则？为什'],
@@ -416,6 +416,40 @@ const RELATIONS: [string, string][] = [
   ['犯罪的阶段化理解为何要区分制造违','犯罪制造违法事实阶段与最终负刑事'],
 ];
 
+// Demo 数据也遵守正式产品约束：每个计划内已掌握知识点至少有一条关系。
+// 手写关系不足时，连接同主题（优先）/同章节内距离最近的知识点，避免点亮孤星。
+const RELATIONS: [string, string][] = (() => {
+  const byName = new Map(CONCEPTS.map(c => [c.name, c]));
+  const edges: [string, string][] = [];
+  const seen = new Set<string>();
+  const degree = new Map<string, number>();
+  const add = (from: Concept | undefined, to: Concept | undefined) => {
+    if (!from || !to || from.id === to.id || from.membership !== 'included' || to.membership !== 'included') return;
+    const key = [from.id, to.id].sort().join('::');
+    if (seen.has(key)) return;
+    seen.add(key);
+    edges.push([from.name, to.name]);
+    degree.set(from.id, (degree.get(from.id) ?? 0) + 1);
+    degree.set(to.id, (degree.get(to.id) ?? 0) + 1);
+  };
+  BASE_RELATIONS.forEach(([from, to]) => add(byName.get(from), byName.get(to)));
+  const included = CONCEPTS.filter(c => c.membership === 'included');
+  included.filter(c => c.status === 'mastered' && !degree.get(c.id)).forEach(c => {
+    const candidates = included.filter(other => other.id !== c.id);
+    const sameSection = candidates.filter(other => other.sectionId === c.sectionId);
+    const sameChapter = candidates.filter(other => other.chapterId === c.chapterId);
+    const pool = sameSection.length ? sameSection : sameChapter.length ? sameChapter : candidates;
+    const nearest = pool.reduce<Concept | undefined>((best, other) => {
+      if (!best) return other;
+      const d = (other.sx - c.sx) ** 2 + (other.sy - c.sy) ** 2;
+      const bd = (best.sx - c.sx) ** 2 + (best.sy - c.sy) ** 2;
+      return d < bd ? other : best;
+    }, undefined);
+    add(c, nearest);
+  });
+  return edges;
+})();
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function matchesFilter(c: Concept, f: Filter) {
@@ -471,6 +505,48 @@ const mmDot: Record<Status, string> = {
   mastered: '#FFE38A', learning: '#CFE0FF', review_due: '#9FC0FF', weak: '#FF7A6E', new: 'rgba(150,162,196,0.5)',
 };
 
+// 入场取景：以「最近学习」星所在章节簇为主体做 fit（不强行居中整幅，避免星空歪斜/中心偏移），
+// 再用安全区约束保证该星距四边 ≥ margin。若簇 fit 后已在安全区内则不额外平移；只有落在安全区外才做最小平移推进。
+const RECENT_CLUSTER = CONCEPTS.filter(c => c.membership === 'included' && c.chapterId === RECENT_STAR.chapterId);
+function computeEntranceView(W: number, H: number): { scale: number; panX: number; panY: number } {
+  const cover = Math.max(W / SVG_W, H / SVG_H);
+  const fallback = () => ({
+    scale: STAR_FIT_SCALE,
+    panX: clamp(-RECENT_STAR.sx * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN),
+    panY: clamp(-RECENT_STAR.sy * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN),
+  });
+  if (W <= 0 || H <= 0 || RECENT_CLUSTER.length === 0) return fallback();
+
+  // 簇的世界坐标包围盒
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const c of RECENT_CLUSTER) {
+    minX = Math.min(minX, c.sx); maxX = Math.max(maxX, c.sx);
+    minY = Math.min(minY, c.sy); maxY = Math.max(maxY, c.sy);
+  }
+  const PAD = 70; // 簇四周留白（世界坐标）
+  const clusterW = (maxX - minX) + PAD * 2, clusterH = (maxY - minY) + PAD * 2;
+  // 可见世界半幅 = W/(2·cover·scale)；令簇宽/高恰好铺满 → 取两维较小 scale，保证不裁切。
+  // 夹在 [全貌1.0, 1.7]：不小于全貌（大簇最多退回全貌），不进入 lod2 细节档(≥1.8)，星体仍可点。
+  const scale = clamp(Math.min(W / (cover * clusterW), H / (cover * clusterH)), STAR_FIT_SCALE, 1.7);
+
+  // 以簇中心为视口中心
+  const cxW = (minX + maxX) / 2, cyW = (minY + maxY) / 2;
+  let panX = -cxW * scale, panY = -cyW * scale;
+
+  // 安全区：最近学习星距四边 ≥ margin（短边 18% 与 96px 取大，给「上次学到这里」气泡留位）。
+  // 世界点 → 容器像素：px = offX + (CX+panX+gx·scale)·cover；d(px)/d(panX)=cover。
+  const margin = Math.max(96, Math.min(W, H) * 0.18);
+  const offX = (W - SVG_W * cover) / 2, offY = (H - SVG_H * cover) / 2;
+  const starPx = offX + (CX + panX + RECENT_STAR.sx * scale) * cover;
+  const starPy = offY + (CY + panY + RECENT_STAR.sy * scale) * cover;
+  if (starPx < margin) panX += (margin - starPx) / cover;
+  else if (starPx > W - margin) panX += (W - margin - starPx) / cover;
+  if (starPy < margin) panY += (margin - starPy) / cover;
+  else if (starPy > H - margin) panY += (H - margin - starPy) / cover;
+
+  return { scale, panX, panY };
+}
+
 // 知识点详情（答案）— demo 缺省文案；思维导图/列表/预览闪卡中双击可编辑
 function defaultAnswer(name: string) {
   return `【要点】围绕「${name.replace(/…$/, '')}」：\n① 明确定义与构成要件；\n② 掌握司法认定标准与典型情形；\n③ 注意与相近概念的区分辨析。`;
@@ -486,6 +562,8 @@ interface EditOps {
   onSaveAnswer: (id: string, text: string) => void;    // 答案自动保存 + toast
   onToast: (msg: string) => void;
   onSetMembership: (id: string, membership: PlanMembership) => void;
+  onRequestMembership: (c: Concept, membership: PlanMembership) => void;
+  onOpenMemberActions: (c: Concept) => void;
   getAnswer: (c: Concept) => string;
   onStartPractice?: (c?: Concept) => void;             // 去练习：进入练习页（App 层接线）
   bookmarked?: Set<string>;                            // 已收藏知识点 id
@@ -1003,14 +1081,17 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
                         fill="white" fontSize={13} fontWeight={700} style={{ userSelect: 'none' }}>+</text>
                     </g>
                   )}
-                  {/* 删除（仅知识点/用户节点；重确认后从三视图同步移除） */}
+                  {/* 成员/删除入口：知识点先选择移出计划或永久删除。 */}
                   {isSel && (node.isUser || conceptById.has(node.id)) && (
                     <g style={{ cursor: 'pointer' }}
                       onClick={e => {
                         e.stopPropagation();
                         if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; }
                         if (node.isUser) ops.onRequestDelete(node.label, () => removeUserNode(node.id));
-                        else ops.onRequestDelete(node.label, () => ops.onDeleteConcept(node.id));
+                        else {
+                          const concept = conceptById.get(node.id);
+                          if (concept) ops.onOpenMemberActions(concept);
+                        }
                       }}>
                       <circle cx={hx} cy={p.cy - 19} r={7.5} fill="#E5484D" />
                       <text x={hx} y={p.cy - 19} textAnchor="middle" dominantBaseline="middle"
@@ -1027,17 +1108,34 @@ function MindMapView({ concepts, filter, ops }: { concepts: Concept[]; filter: F
         {minimapEl}
       </div>
 
-      {/* Floating edit input */}
-      {editing && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 100 }}>
-          <input autoFocus value={editVal}
-            onChange={e => setEditVal(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
-            onBlur={commitEdit}
-            className="pointer-events-auto px-3 py-2 text-sm rounded-lg border-2 shadow-xl outline-none"
-            style={{ borderColor: MM.blue, background: '#FFF', minWidth: 180, color: '#222' }} />
-        </div>
-      )}
+      {/* 就地放大编辑框（非弹窗）：锚定原节点位置，✓ 保存 / ✕ 取消不写回 */}
+      {editing && (() => {
+        const ep = positions.get(editing);
+        const cw = containerRef.current?.clientWidth ?? 0;
+        const chH = containerRef.current?.clientHeight ?? 0;
+        const sx = ep ? pan.x + ep.cx * zoom : cw / 2;
+        const sy = ep ? pan.y + ep.cy * zoom : chH / 2;
+        return (
+          <div className="absolute flex items-center gap-1.5"
+            style={{ left: sx, top: sy, transform: 'translate(-50%,-50%)', zIndex: 100 }}>
+            <input autoFocus value={editVal}
+              onChange={e => setEditVal(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
+              onBlur={commitEdit}
+              className="px-3 py-2 text-sm rounded-lg border-2 shadow-xl outline-none"
+              style={{ borderColor: MM.blue, background: '#FFF', width: 200, color: '#222' }} />
+            {/* preventDefault 阻止点击按钮时输入框先失焦触发自动保存，保证「取消」真正不写回 */}
+            <button type="button" title="保存"
+              onMouseDown={e => e.preventDefault()} onClick={commitEdit}
+              className="flex items-center justify-center rounded-full shadow-md"
+              style={{ width: 30, height: 30, background: '#00A63E', color: '#FFF', border: 'none', cursor: 'pointer', fontSize: 15 }}>✓</button>
+            <button type="button" title="取消"
+              onMouseDown={e => e.preventDefault()} onClick={() => setEditing(null)}
+              className="flex items-center justify-center rounded-full shadow-md"
+              style={{ width: 30, height: 30, background: '#FFF', color: '#8A94AD', border: '1px solid #D5DAE6', cursor: 'pointer', fontSize: 13 }}>✕</button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1109,7 +1207,7 @@ function ListView({ concepts, filter, ops }: { concepts: Concept[]; filter: Filt
                     {cs.map(c => {
                       const rowOpen = openRows.has(c.id);
                       return (
-                        <div key={c.id} className="group">
+                        <div key={c.id} className="group" style={{ opacity: c.membership === 'excluded' ? 0.48 : 1 }}>
                           <div
                             className="flex items-center gap-2.5 px-8 py-1.5 hover:bg-white cursor-pointer"
                             onClick={() => { if (editingName !== c.id) toggleRow(c.id); }}
@@ -1125,8 +1223,11 @@ function ListView({ concepts, filter, ops }: { concepts: Concept[]; filter: Filt
                                 style={{ borderColor: '#6888B0', background: '#FFF', color: '#333' }} />
                             ) : (
                               <span className="flex-1 text-xs" style={{ color: '#333' }}
-                                onDoubleClick={e => { e.stopPropagation(); setEditingName(c.id); setDraft(c.name); }}
-                                title="双击修改名称">
+                                onDoubleClick={e => {
+                                  e.stopPropagation();
+                                  if (c.membership === 'included') { setEditingName(c.id); setDraft(c.name); }
+                                }}
+                                title={c.membership === 'included' ? '双击修改名称' : '未加入计划，仅可查看'}>
                                 {c.name}
                               </span>
                             )}
@@ -1137,21 +1238,23 @@ function ListView({ concepts, filter, ops }: { concepts: Concept[]; filter: Filt
                             }}>{c.membership === 'included' ? '已加入' : '未加入'}</span>
                             {c.membership === 'excluded' && (
                               <button className="text-[10px] px-2 py-0.5 rounded"
-                                onClick={e => { e.stopPropagation(); ops.onSetMembership(c.id, 'included'); }}
+                                onClick={e => { e.stopPropagation(); ops.onRequestMembership(c, 'included'); }}
                                 style={{ background: '#FFF7D6', color: '#7A6200' }}>加入计划</button>
                             )}
-                            <button className="text-[10px] px-2 py-0.5 rounded" onClick={e => e.stopPropagation()} style={{
-                              background: c.status === 'mastered' ? '#F6FEF9' : '#EAF3FF',
-                              color: c.status === 'mastered' ? '#00A63E' : '#2D8CFF',
-                            }}>
-                              {c.status === 'mastered' ? '复习' : '学习'}
-                            </button>
-                            {/* 删除（重确认） */}
+                            {c.membership === 'included' && (
+                              <button className="text-[10px] px-2 py-0.5 rounded" onClick={e => e.stopPropagation()} style={{
+                                background: c.status === 'mastered' ? '#F6FEF9' : '#EAF3FF',
+                                color: c.status === 'mastered' ? '#00A63E' : '#2D8CFF',
+                              }}>
+                                {c.status === 'mastered' ? '复习' : '学习'}
+                              </button>
+                            )}
+                            {/* 统一成员/删除操作入口 */}
                             <button
                               className="text-[10px] px-1 opacity-0 group-hover:opacity-100 transition-opacity"
                               style={{ color: '#E5484D' }}
-                              title="删除知识点"
-                              onClick={e => { e.stopPropagation(); ops.onRequestDelete(c.name, () => ops.onDeleteConcept(c.id)); }}>
+                              title="计划成员与删除操作"
+                              onClick={e => { e.stopPropagation(); ops.onOpenMemberActions(c); }}>
                               ✕
                             </button>
                           </div>
@@ -1172,12 +1275,17 @@ function ListView({ concepts, filter, ops }: { concepts: Concept[]; filter: Filt
                                   style={{ borderColor: '#6888B0', background: '#FFF', color: '#333', lineHeight: 1.6 }} />
                               ) : (
                                 <p className="text-xs whitespace-pre-wrap m-0" style={{ color: '#555', lineHeight: 1.6, cursor: 'text' }}
-                                  onDoubleClick={e => { e.stopPropagation(); setEditingAnswer(c.id); setDraft(ops.getAnswer(c)); }}
-                                  title="双击编辑答案">
+                                  onDoubleClick={e => {
+                                    e.stopPropagation();
+                                    if (c.membership === 'included') { setEditingAnswer(c.id); setDraft(ops.getAnswer(c)); }
+                                  }}
+                                  title={c.membership === 'included' ? '双击编辑答案' : '未加入计划，仅可查看'}>
                                   {ops.getAnswer(c)}
                                 </p>
                               )}
-                              <p className="text-[10px] m-0 mt-1.5" style={{ color: '#B8B098' }}>双击可编辑答案 · 失焦自动保存</p>
+                              <p className="text-[10px] m-0 mt-1.5" style={{ color: '#B8B098' }}>
+                                {c.membership === 'included' ? '双击可编辑答案 · 失焦自动保存' : '未加入当前计划 · 仅可查看'}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -1325,27 +1433,37 @@ function StarFlashcard({ concept, answer, starPos, container, bookmarked, onTogg
   const [flipped, setFlipped] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [cardSize, setCardSize] = useState({ w: 320, h: 286 });
+
+  useLayoutEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const rect = cardRef.current?.getBoundingClientRect();
+      if (rect) setCardSize({ w: rect.width, h: rect.height });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [concept.id, flipped, editing, answer, container.w, container.h]);
 
   function commit() {
     if (editing) { onSaveAnswer(concept.id, draft); setEditing(false); }
   }
 
   // 卡片尺寸 + 按星位置贴边（星在上→卡在下，星在下→卡在上，左右同理），确保不遮住星本身
-  const CARD_W = 320, GAP = 22, PAD = 14;
+  const CARD_W = 320, GAP = 22, PAD = 16;
   const estH = 240;
   const starOnTop = starPos.y < container.h / 2;
   const starOnLeft = starPos.x < container.w / 2;
   const top = starOnTop
-    ? Math.min(starPos.y + GAP, container.h - estH - PAD)
-    : Math.max(starPos.y - GAP - estH, PAD);
+    ? Math.min(starPos.y + GAP, container.h - cardSize.h - PAD)
+    : Math.max(starPos.y - GAP - cardSize.h, PAD);
   // 水平：卡整体偏向星的另一侧，但夹紧在容器内
-  const desiredLeft = starOnLeft ? starPos.x + GAP : starPos.x - GAP - CARD_W;
-  const left = Math.max(PAD, Math.min(desiredLeft, container.w - CARD_W - PAD));
+  const desiredLeft = starOnLeft ? starPos.x + GAP : starPos.x - GAP - cardSize.w;
+  const left = Math.max(PAD, Math.min(desiredLeft, container.w - cardSize.w - PAD));
 
   return (
     // 极轻透明层：只承接「点空白关闭」，不铺深色遮罩 → 地图点亮态在卡旁仍可见
     <div style={{ position: 'absolute', inset: 0, zIndex: 120, background: 'transparent' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()}
+      <div ref={cardRef} onClick={e => e.stopPropagation()}
         style={{ position: 'absolute', left, top, width: CARD_W, perspective: 1000 }}>
         {/* Top meta（状态点 + 章节）+ 关闭 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, padding: '0 2px' }}>
@@ -1446,15 +1564,18 @@ interface KnowledgeMapScreenProps {
   onBack: () => void;
   defaultFilter?: Filter;
   onStartPractice?: (c?: Concept) => void;
+  onViewPlan?: () => void;
 }
 
-export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onStartPractice }: KnowledgeMapScreenProps) {
+export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onStartPractice, onViewPlan }: KnowledgeMapScreenProps) {
   const [view, setView] = useState<ViewMode>('star');
   const [filter, setFilter] = useState<Filter>(defaultFilter);
   const [scale, setScale] = useState(STAR_FIT_SCALE);
   const [panX, setPanX] = useState(0);
   const [panY, setPanY] = useState(0);
   const [selected, setSelected] = useState<Concept | null>(null);
+  // 「上次学到这里」标注：入场 bubble（气泡+脉冲光环）→ 数秒后 badge（脉冲光环+常驻小书签角标）→ off（用户点该星后撤下）
+  const [recentHint, setRecentHint] = useState<'bubble' | 'badge' | 'off'>('off');
   const [starSearch, setStarSearch] = useState('');
   const [bookmarked, setBookmarked] = useState<Set<string>>(new Set());
   const [containerSize, setContainerSize] = useState({ w: 900, h: 520 });
@@ -1466,6 +1587,9 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<Concept | null>(null);
   const [confirmDel, setConfirmDel] = useState<{ name: string; run: () => void } | null>(null);
+  const [memberActions, setMemberActions] = useState<Concept | null>(null);
+  const [membershipConfirm, setMembershipConfirm] = useState<{ concept: Concept; target: PlanMembership } | null>(null);
+  const [membershipToast, setMembershipToast] = useState<{ id: string; previous: PlanMembership; message: string } | null>(null);
   const [toast, setToast] = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1526,13 +1650,33 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
       setConcepts(cs => cs.map(c => c.id === id ? { ...c, membership } : c));
       showToast(membership === 'included' ? '已加入当前计划' : '已移出当前计划');
     },
+    onRequestMembership: (concept, membership) => setMembershipConfirm({ concept, target: membership }),
+    onOpenMemberActions: (concept) => setMemberActions(concept),
     getAnswer,
     onStartPractice,
     bookmarked,
     onToggleBookmark: toggleBookmark,
   }), [showToast, getAnswer, onStartPractice, bookmarked, toggleBookmark]);
 
+  const applyMembership = useCallback((concept: Concept, target: PlanMembership) => {
+    const previous = concept.membership;
+    setConcepts(cs => cs.map(c => c.id === concept.id ? { ...c, membership: target } : c));
+    setPreview(p => p?.id === concept.id ? { ...p, membership: target } : p);
+    setSelected(s => s?.id === concept.id ? (target === 'excluded' ? null : { ...s, membership: target }) : s);
+    setMembershipConfirm(null);
+    setMemberActions(null);
+    setMembershipToast({ id: concept.id, previous,
+      message: target === 'included' ? '已加入计划，安排在 8月23日' : '已移出当前计划' });
+  }, []);
+
+  const undoMembership = useCallback(() => {
+    if (!membershipToast) return;
+    setConcepts(cs => cs.map(c => c.id === membershipToast.id ? { ...c, membership: membershipToast.previous } : c));
+    setMembershipToast(null);
+  }, [membershipToast]);
+
   const svgContainerRef = useRef<HTMLDivElement>(null);
+  const [selectedStarPos, setSelectedStarPos] = useState<{ x: number; y: number } | null>(null);
   const dragState = useRef({ on: false, moved: false, sx: 0, sy: 0, spx: 0, spy: 0 });
   const animRef = useRef<number | null>(null);
 
@@ -1540,6 +1684,25 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
   const scaleRef = useRef(scale); scaleRef.current = scale;
   const panXRef = useRef(panX); panXRef.current = panX;
   const panYRef = useRef(panY); panYRef.current = panY;
+
+  // 用实际 DOM 渲染位置作为闪卡锚点，避免 SVG viewBox、响应式缩放和页面偏移混算。
+  useLayoutEffect(() => {
+    if (!selected || !svgContainerRef.current) {
+      setSelectedStarPos(null);
+      return;
+    }
+    const frame = requestAnimationFrame(() => {
+      const containerRect = svgContainerRef.current?.getBoundingClientRect();
+      const star = svgContainerRef.current?.querySelector<SVGGElement>(`[data-star-id="${selected.id}"]`);
+      const starRect = star?.getBoundingClientRect();
+      if (!containerRect || !starRect) return;
+      setSelectedStarPos({
+        x: starRect.left - containerRect.left + starRect.width / 2,
+        y: starRect.top - containerRect.top + starRect.height / 2,
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selected?.id, scale, panX, panY, containerSize.w, containerSize.h]);
 
   // 通用缓动：把 scale/panX/panY 平滑过渡到目标值（天文观测式 fly-to，入场动画也复用）
   const animateTo = useCallback((tScale: number, tPanX: number, tPanY: number, ms = 620) => {
@@ -1559,12 +1722,16 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
     animRef.current = requestAnimationFrame(run);
   }, []);
 
-  // Entrance fly-to：默认全貌缩放，并把「最近学习」星拉向屏幕中心（位移夹紧，避免边缘星把全貌推出视口）。
+  // Entrance fly-to：以「最近学习」星所在章节簇为主体取景（见 computeEntranceView：簇 fit + 安全区约束，
+  // 不强行居中整幅），并弹出「上次学到这里」气泡，数秒后气泡淡出、留常驻书签角标。
   useEffect(() => {
-    const tPanX = clamp(-RECENT_STAR.sx * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN);
-    const tPanY = clamp(-RECENT_STAR.sy * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN);
-    animateTo(STAR_FIT_SCALE, tPanX, tPanY, 820);
-    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); };
+    const r = svgContainerRef.current?.getBoundingClientRect();
+    const W = r?.width ?? containerSize.w, H = r?.height ?? containerSize.h;
+    const v = computeEntranceView(W, H);
+    animateTo(v.scale, v.panX, v.panY, 820);
+    setRecentHint('bubble');
+    const t = setTimeout(() => setRecentHint('badge'), 3600);
+    return () => { if (animRef.current) cancelAnimationFrame(animRef.current); clearTimeout(t); };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 测量星空容器尺寸（供定位闪卡贴边 + minimap 视口换算）
@@ -1618,6 +1785,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
     e.stopPropagation();
     if (dragState.current.moved) return;
     setSelected(c);
+    if (c.id === RECENT_STAR.id) setRecentHint('off'); // 用户已回到上次学习点 → 撤下标注
     // fly-to：放大到知识点档（连线可见），且把被点星钉在原屏幕位置（绕该星缩放）→ 贴边闪卡定位仍准确
     const target = Math.max(scaleRef.current, 2.0);
     if (target > scaleRef.current + 0.001) {
@@ -1632,7 +1800,10 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
     if (lod < 1) return [];
     return RELATIONS
       .map(([from, to]) => ({ from: byName.get(from), to: byName.get(to) }))
-      .filter((r): r is { from: Concept; to: Concept } => !!(r.from && r.to && r.from.id !== r.to.id));
+      .filter((r): r is { from: Concept; to: Concept } => !!(
+        r.from && r.to && r.from.id !== r.to.id
+        && (r.from.status === 'mastered' || r.to.status === 'mastered')
+      ));
   }, [lod, byName]);
 
   // 选中星的直接邻居集（RELATIONS 无实线/虚线之分 → 所有相连邻居一起亮）
@@ -1807,7 +1978,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
             <div className="absolute z-20 right-4 bottom-4 flex flex-col gap-1">
               <button title="放大" onClick={e => { e.stopPropagation(); setScale(s => Math.min(5, s * 1.2)); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Plus size={15}/></button>
               <button title="缩小" onClick={e => { e.stopPropagation(); setScale(s => Math.max(.28, s / 1.2)); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Minus size={15}/></button>
-              <button title="回到全貌" onClick={e => { e.stopPropagation(); setSelected(null); animateTo(STAR_FIT_SCALE, clamp(-RECENT_STAR.sx * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN), clamp(-RECENT_STAR.sy * STAR_FIT_SCALE, -CENTER_PAN, CENTER_PAN), 520); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Maximize2 size={15}/></button>
+              <button title="回到全貌" onClick={e => { e.stopPropagation(); setSelected(null); const v = computeEntranceView(containerSize.w, containerSize.h); animateTo(v.scale, v.panX, v.panY, 520); }} className="p-2 rounded-lg" style={{ background:'rgba(11,13,20,.8)', color:'#fff' }}><Maximize2 size={15}/></button>
             </div>
             <svg
               width="100%" height="100%"
@@ -1916,7 +2087,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
                   const glowId = v.glow === 'gold' ? 'url(#goldGlow)' : v.glow === 'blue' ? 'url(#blueGlow)' : undefined;
                   const isGold = v.glow === 'gold';
                   return (
-                    <g key={c.id}
+                    <g key={c.id} data-star-id={c.id}
                       onClick={(e) => handleStarClick(e, c)}
                       style={{ cursor: lod >= 1 ? 'pointer' : 'default', pointerEvents: lod >= 1 ? 'all' : 'none' }}>
                       {v.glow && (
@@ -1956,21 +2127,54 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
               </g>
             </svg>
 
-            {/* 一步式：点星 → 深色贴边闪卡（正面名+收藏／背面详情+去练习），定位在星的实时屏幕坐标旁，
-                镜像贴边不遮住星本身。取代原「气泡→看闪卡/去练习」二步式，并删除冗余「枢纽度」。 */}
-            {selected && (() => {
-              // 星在 pan/zoom 组内的 SVG 坐标 → 容器像素坐标（viewBox slice 覆盖式换算）
-              const sx = CX + panX + selected.sx * scale;
-              const sy = CY + panY + selected.sy * scale;
+            {/* 「上次学到这里」标注：锚定最近学习星实时屏幕坐标。脉冲光环常驻，气泡数秒后淡出为常驻小书签角标，
+                解释为何入场取景落在这颗星附近（见产品逻辑 §六⑤）。选中该星（闪卡接管）或已回到该星后不再显示。 */}
+            {recentHint !== 'off' && selected?.id !== RECENT_STAR.id && (() => {
               const cover = Math.max(containerSize.w / SVG_W, containerSize.h / SVG_H);
               const offX = (containerSize.w - SVG_W * cover) / 2;
               const offY = (containerSize.h - SVG_H * cover) / 2;
-              const starPos = { x: offX + sx * cover, y: offY + sy * cover };
+              const px = offX + (CX + panX + RECENT_STAR.sx * scale) * cover;
+              const py = offY + (CY + panY + RECENT_STAR.sy * scale) * cover;
+              // 视口外则不渲染（用户平移走后标注不该悬在边缘）
+              if (px < -40 || px > containerSize.w + 40 || py < -40 || py > containerSize.h + 40) return null;
+              return (
+                <div className="absolute pointer-events-none" style={{ left: px, top: py, zIndex: 25 }}>
+                  <style>{`@keyframes kmRecentPulse { 0%,100% { transform:translate(-50%,-50%) scale(1); opacity:.7 } 50% { transform:translate(-50%,-50%) scale(1.55); opacity:.12 } }
+@keyframes kmHintIn { from { opacity:0; transform:translate(-50%,4px) } to { opacity:1; transform:translate(-50%,0) } }
+@keyframes kmHintFade { to { opacity:0 } }`}</style>
+                  {/* 脉冲光环（常驻） */}
+                  <div style={{ position:'absolute', left:0, top:0, width:26, height:26, borderRadius:'50%',
+                    border:'2px solid #FFE38A', animation:'kmRecentPulse 2.2s ease-out infinite' }} />
+                  {recentHint === 'bubble' ? (
+                    // 气泡：入场几秒展示，随后整块淡出（淡出结束切 badge）
+                    <div style={{ position:'absolute', left:0, bottom:16, transform:'translate(-50%,0)', whiteSpace:'nowrap',
+                      animation:'kmHintIn .32s ease-out, kmHintFade .5s ease-in 3.1s forwards' }}>
+                      <div className="flex items-center gap-1 px-2.5 py-1 rounded-full shadow-lg"
+                        style={{ background:'#FFE38A', color:'#4A3B10', fontSize:11.5, fontWeight:700 }}>
+                        <Star size={11} fill="#4A3B10" color="#4A3B10" /> 上次学到这里
+                      </div>
+                    </div>
+                  ) : (
+                    // 常驻小书签角标：不挡旁边星星，hover/点星后由上层逻辑收起
+                    <div style={{ position:'absolute', left:9, top:-9, animation:'kmHintIn .3s ease-out' }}>
+                      <div className="flex items-center justify-center rounded-full shadow"
+                        style={{ width:16, height:16, background:'#FFE38A' }}>
+                        <Star size={9} fill="#4A3B10" color="#4A3B10" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* 一步式：点星 → 深色贴边闪卡（正面名+收藏／背面详情+去练习），定位在星的实时屏幕坐标旁，
+                镜像贴边不遮住星本身。取代原「气泡→看闪卡/去练习」二步式，并删除冗余「枢纽度」。 */}
+            {selected && selectedStarPos && (() => {
               return (
                 <StarFlashcard
                   concept={selected}
                   answer={getAnswer(selected)}
-                  starPos={starPos}
+                  starPos={selectedStarPos}
                   container={containerSize}
                   bookmarked={bookmarked.has(selected.id)}
                   onToggleBookmark={toggleBookmark}
@@ -2036,6 +2240,55 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
         />
       )}
 
+      {/* 统一双操作弹窗：计划成员切换与永久删除严格分开。 */}
+      {memberActions && (
+        <div style={{ position:'absolute', inset:0, zIndex:135, background:'rgba(10,10,20,.48)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={() => setMemberActions(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width:340, background:'#fff', borderRadius:16, padding:20, boxShadow:'0 14px 48px rgba(0,0,0,.3)' }}>
+            <p style={{ fontSize:15, fontWeight:750, color:'#1A1A1A', margin:'0 0 5px' }}>管理知识点</p>
+            <p style={{ fontSize:12, color:'#777', margin:'0 0 16px', lineHeight:1.5 }}>{memberActions.name}</p>
+            <button
+              onClick={() => setMembershipConfirm({ concept:memberActions, target:memberActions.membership === 'included' ? 'excluded' : 'included' })}
+              style={{ width:'100%', padding:'10px 12px', marginBottom:8, borderRadius:10, border:'1px solid #E0E0E0', background:'#fff', color:'#333', fontSize:13, fontWeight:650, cursor:'pointer', textAlign:'left' }}>
+              {memberActions.membership === 'included' ? '移出当前计划' : '加入当前计划'}
+              <span style={{ display:'block', fontSize:10.5, color:'#999', fontWeight:400, marginTop:2 }}>
+                {memberActions.membership === 'included' ? '保留知识点和历史记录，可随时重新加入' : '默认安排到计划最后一个可学习日'}
+              </span>
+            </button>
+            <button
+              onClick={() => { const c = memberActions; setMemberActions(null); setConfirmDel({ name:c.name, run:() => ops.onDeleteConcept(c.id) }); }}
+              style={{ width:'100%', padding:'10px 12px', borderRadius:10, border:'1px solid #FFD2D2', background:'#FFF6F6', color:'#D93D42', fontSize:13, fontWeight:700, cursor:'pointer', textAlign:'left' }}>
+              永久删除知识点
+              <span style={{ display:'block', fontSize:10.5, color:'#D96A6E', fontWeight:400, marginTop:2 }}>删除内容、计划安排和知识关系，无法恢复</span>
+            </button>
+            <button onClick={() => setMemberActions(null)} style={{ width:'100%', marginTop:12, border:'none', background:'transparent', color:'#888', fontSize:12, cursor:'pointer' }}>取消</button>
+          </div>
+        </div>
+      )}
+
+      {/* 加入/移出计划确认。 */}
+      {membershipConfirm && (
+        <div style={{ position:'absolute', inset:0, zIndex:142, background:'rgba(10,10,20,.55)', backdropFilter:'blur(3px)', display:'flex', alignItems:'center', justifyContent:'center' }}
+          onClick={() => setMembershipConfirm(null)}>
+          <div onClick={e => e.stopPropagation()} style={{ width:360, background:'#fff', borderRadius:16, padding:'22px 22px 18px', boxShadow:'0 14px 48px rgba(0,0,0,.32)' }}>
+            <p style={{ fontSize:15, fontWeight:750, color:'#1A1A1A', margin:'0 0 8px' }}>
+              {membershipConfirm.target === 'included' ? '加入当前学习计划？' : '移出当前计划？'}
+            </p>
+            <p style={{ fontSize:12.5, color:'#666', lineHeight:1.65, margin:'0 0 18px' }}>
+              {membershipConfirm.target === 'included'
+                ? '该知识点将安排到当前计划最后一个可学习日（8月23日）。加入后会参与学习、复习、模考和进度统计。如需调整日期，可前往学习计划修改。'
+                : '移出后不再安排学习、复习和模考，但知识点内容、来源与历史记录会保留，你可以随时重新加入。'}
+            </p>
+            <div style={{ display:'flex', gap:10 }}>
+              <button onClick={() => setMembershipConfirm(null)} style={{ flex:1, padding:'9px 0', borderRadius:10, border:'1px solid #E0E0E0', background:'#fff', color:'#555', fontSize:13, fontWeight:600, cursor:'pointer' }}>取消</button>
+              <button onClick={() => applyMembership(membershipConfirm.concept, membershipConfirm.target)} style={{ flex:1, padding:'9px 0', borderRadius:10, border:'none', background:membershipConfirm.target === 'included' ? '#FDEA3B' : '#333', color:membershipConfirm.target === 'included' ? '#6C5700' : '#fff', fontSize:13, fontWeight:750, cursor:'pointer' }}>
+                {membershipConfirm.target === 'included' ? '确认加入' : '确认移出'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 删除重确认（删除不可恢复，保留重确认；编辑保存则自动化） */}
       {confirmDel && (
         <div style={{
@@ -2047,10 +2300,9 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
             width: 320, background: '#fff', borderRadius: 16, padding: '22px 22px 18px',
             boxShadow: '0 12px 48px rgba(0,0,0,0.35)',
           }}>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', margin: '0 0 8px' }}>删除知识点</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#1A1A1A', margin: '0 0 8px' }}>永久删除知识点？</p>
             <p style={{ fontSize: 12.5, color: '#666', lineHeight: 1.6, margin: '0 0 18px' }}>
-              确认删除「{confirmDel.name.length > 18 ? confirmDel.name.slice(0, 18) + '…' : confirmDel.name}」？
-              删除后将从星图、思维导图与列表中同步移除，且不可恢复。
+              将永久删除「{confirmDel.name.length > 18 ? confirmDel.name.slice(0, 18) + '…' : confirmDel.name}」的内容、计划安排、星图节点与知识关系，且无法通过“未加入”列表恢复。此操作不可恢复。
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setConfirmDel(null)} style={{
@@ -2060,7 +2312,7 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
               <button onClick={() => { confirmDel.run(); setConfirmDel(null); }} style={{
                 flex: 1, padding: '9px 0', borderRadius: 10, cursor: 'pointer',
                 border: 'none', background: '#E5484D', color: '#fff', fontSize: 13, fontWeight: 700,
-              }}>确认删除</button>
+              }}>永久删除</button>
             </div>
           </div>
         </div>
@@ -2075,6 +2327,17 @@ export default function KnowledgeMapScreen({ onBack, defaultFilter = 'all', onSt
           pointerEvents: 'none',
         }}>
           {toast}
+        </div>
+      )}
+
+      {membershipToast && (
+        <div style={{ position:'absolute', bottom:26, left:'50%', transform:'translateX(-50%)', zIndex:165, background:'rgba(20,22,34,.96)', color:'#fff', fontSize:12.5, fontWeight:600, padding:'9px 12px 9px 16px', borderRadius:999, boxShadow:'0 4px 18px rgba(0,0,0,.35)', display:'flex', alignItems:'center', gap:12 }}>
+          <span>{membershipToast.message}</span>
+          {membershipToast.previous === 'excluded' && (
+            <button onClick={() => onViewPlan?.()} style={{ border:'none', background:'transparent', color:'#FDEA3B', fontSize:11.5, fontWeight:700, cursor:'pointer' }}>查看计划</button>
+          )}
+          <button onClick={undoMembership} style={{ border:'none', background:'transparent', color:'#9EC5FF', fontSize:11.5, fontWeight:700, cursor:'pointer' }}>撤销</button>
+          <button onClick={() => setMembershipToast(null)} style={{ border:'none', background:'transparent', color:'rgba(255,255,255,.55)', cursor:'pointer', fontSize:13 }}>×</button>
         </div>
       )}
     </div>
